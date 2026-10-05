@@ -15,11 +15,14 @@
 
 ### 2. Authentication & Authorization
 - **POST /api/auth/login** - Login for all roles (ADMIN, RECRUITER)
-- JWT with HttpOnly cookie
+- JWT with HttpOnly cookie (1hr expiry)
 - JWT claims: `userId`, `role`, `companyId`
 - JwtAuthenticationFilter for token validation
 - CustomUserDetailsService + CustomUserDetails
 - BCrypt password encoding
+- **GET /api/auth/me** - Get current authenticated user
+- **POST /api/auth/logout** - Clear JWT cookie
+- **PUT /api/auth/me** - Update current user profile
 
 ### 3. Admin → Recruiter Management
 - **POST /api/admin/recruiters** - Admin creates recruiters
@@ -27,20 +30,43 @@
 - Derives company from authenticated admin (company isolation)
 - Recruiter gets `role=RECRUITER`, same `companyId` as admin
 - Email/phone uniqueness validation
+- **GET /api/admin/recruiters** - List all recruiters for company
+- **GET /api/admin/recruiters/{id}** - Get recruiter by ID
+- **PUT /api/admin/recruiters/{id}** - Update recruiter
 
 ### 4. Job Management (Recruiter & Admin)
-- **POST /api/job** - Create job
+- **POST /api/job** - Create job (RECRUITER, ADMIN)
 - `@PreAuthorize("hasAnyRole('RECRUITER', 'ADMIN')")`
 - Auto-sets: `company` (from auth user), `createdBy` (auth user), `status=OPEN`
 - JobSkills embedded in request
 - **GET /api/job/my-jobs** - List jobs created by authenticated user
 - Filters by `createdBy` = current user (recruiters see only their jobs)
 
-### 5. AI Embedding Service
+#### Recruiter-Specific Endpoints
+- **GET /api/recruiter/jobs** - Get my jobs
+- **GET /api/recruiter/jobs/{jobId}** - Get job by ID (own jobs only)
+- **PUT /api/recruiter/jobs/{jobId}** - Update own job
+
+#### Admin-Specific Job Endpoints
+- **GET /api/admin/jobs** - Get all jobs in company
+- **GET /api/admin/jobs/{jobId}** - Get any job by ID
+- **PUT /api/admin/jobs/{jobId}** - Update any job
+
+### 5. Company Management (Admin)
+- **GET /api/admin/company** - Get company details
+- **PUT /api/admin/company** - Update company profile
+
+### 6. AI Embedding Service
 - EmbeddingService + EmbeddingServiceImplementation
 - Generates job embeddings via Spring AI / Ollama
 - Builds job text from title, department, skills, description, etc.
 - Stores `float[] jdEmbedding` in Job entity (pgvector)
+
+### 7. Email Service
+- EmailService + EmailServiceImplementation
+- Sends recruiter credentials via email on creation
+- Uses company name from admin's context
+- Graceful startup without email config (Gmail App Password when configured)
 
 ---
 
@@ -104,16 +130,20 @@
 
 ## 📋 RECENT CHANGES (Latest First)
 
-1. **Email service for recruiter credentials** - Admin-created recruiters receive credentials via email with company name
-2. **Dynamic company name in emails** - Uses admin's company name (from security context) instead of static config
-3. **Email authentication fix** - App now starts without email config; sends gracefully when configured with Gmail App Password
-4. **Job ownership enforcement** - Recruiters see only their jobs via `GET /job/my-jobs`
-5. **Recruiter creation by Admin** - `POST /admin/recruiters` with company isolation
-6. **Login response DTO** - Structured `LoginResponse` with user info + token metadata
-7. **Company registration response** - `CompanyRegistrationResponse` with CompanyInfo + AdminInfo
-8. **GST uniqueness check** - Prevents duplicate company registration
-9. **Method-level security** - Added `@EnableMethodSecurity` and `@PreAuthorize` annotations
-10. **Job entity fix** - Changed `createdBy` from Recruiter to User entity
+1. **RecruiterController added** - Dedicated endpoints for recruiter-specific operations (get my jobs, get job by ID, update job, get current user)
+2. **JobController enhanced** - Added admin-specific job endpoints (get all jobs, get job by ID, update job)
+3. **AdminController enhanced** - Added company management (get/update), recruiter listing/get/update, job management for admin
+4. **AuthController enhanced** - Added logout, get current user, update profile endpoints
+5. **Email service for recruiter credentials** - Admin-created recruiters receive credentials via email with company name
+6. **Dynamic company name in emails** - Uses admin's company name (from security context) instead of static config
+7. **Email authentication fix** - App now starts without email config; sends gracefully when configured with Gmail App Password
+8. **Job ownership enforcement** - Recruiters see only their jobs via `GET /job/my-jobs`
+9. **Recruiter creation by Admin** - `POST /admin/recruiters` with company isolation
+10. **Login response DTO** - Structured `LoginResponse` with user info + token metadata
+11. **Company registration response** - `CompanyRegistrationResponse` with CompanyInfo + AdminInfo
+12. **GST uniqueness check** - Prevents duplicate company registration
+13. **Method-level security** - Added `@EnableMethodSecurity` and `@PreAuthorize` annotations
+14. **Job entity fix** - Changed `createdBy` from Recruiter to User entity
 
 ---
 
@@ -181,6 +211,16 @@ POST /api/job
 
 # 6. Get My Jobs (recruiter sees only their jobs)
 GET /api/job/my-jobs
+# OR (recruiter-specific endpoint)
+GET /api/recruiter/jobs
+
+# 7. Get current user profile
+GET /api/auth/me
+# OR (recruiter-specific)
+GET /api/recruiter/me
+
+# 8. Logout
+POST /api/auth/logout
 ```
 
 ---
@@ -193,19 +233,22 @@ backend/
 │   │   ├── AuthController.java
 │   │   ├── CompanyController.java
 │   │   ├── AdminController.java
-│   │   └── JobController.java
+│   │   ├── JobController.java
+│   │   └── RecruiterController.java
 │   ├── service/
 │   │   ├── AuthService.java
 │   │   ├── CompanyService.java
 │   │   ├── UserService.java
 │   │   ├── JobService.java
-│   │   └── EmbeddingService.java
+│   │   ├── EmbeddingService.java
+│   │   └── EmailService.java
 │   ├── service/implementation/
 │   │   ├── AuthServiceImplementation.java
 │   │   ├── CompanyServiceImplementation.java
 │   │   ├── UserServiceImplementation.java
 │   │   ├── JobServiceImplementation.java
-│   │   └── EmbeddingServiceImplementation.java
+│   │   ├── EmbeddingServiceImplementation.java
+│   │   └── EmailServiceImplementation.java
 │   ├── entity/
 │   │   ├── Company.java, User.java, Job.java, JobSkill.java
 │   │   ├── Candidate.java, Resume.java, Recruiter.java
@@ -222,4 +265,4 @@ backend/
 
 ---
 
-*Last Updated: 2026-10-03*
+*Last Updated: 2026-10-05*
