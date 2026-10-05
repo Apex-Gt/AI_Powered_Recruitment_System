@@ -25,17 +25,23 @@ All major frontend pages have been implemented and connected to the backend API.
 | **Login** | ✅ Complete | Email/password login, OAuth buttons (Google, GitHub), demo credentials |
 | **Register** | ✅ Complete | 2-step wizard (company info + admin account), validation |
 
+### ❌ Not Yet Implemented
+
+| Page | Status | Notes |
+|------|--------|-------|
+| **Resumes** | ❌ Not Implemented | Sidebar has link (`/resumes`) but no route or component exists |
+
 ### ✅ Technical Improvements
 
 - **AuthContext**: Fixed to load user on initial load via `/auth/me` endpoint
-- **API Layer**: Added missing endpoints (auth.getMe, assessment.update/delete, interview.delete, user.updateMe, jobsMetrics fields)
+- **API Layer**: Added missing endpoints (auth.getMe, auth.logout, auth.updateMe, assessment.update/delete, interview.delete, user.updateMe, jobsMetrics fields)
 - **Type Definitions**: Updated User, Company, JobsMetrics interfaces to match backend
 - **Unused Code**: Removed all unused imports and variables across all pages
 - **Build**: Successfully compiles with no TypeScript errors
 
 ## Pending / Future Enhancements
 
-1. **Resumes Page** - Not yet implemented (sidebar has link but no page)
+1. **Resumes Page** - Implement resume management page (sidebar link exists at `/resumes`)
 2. **Email Verification Flow** - Frontend UI for verification steps
 3. **2FA Setup** - UI for two-factor authentication (button exists but not implemented)
 4. **Active Sessions Management** - UI for viewing/revoking sessions
@@ -63,3 +69,5 @@ Bundle size: ~948 kB (gzipped: ~258 kB)
 - Charts implemented with Recharts (DonutChart, LineChartComponent, FunnelChart)
 - Toast notifications with react-hot-toast
 - Theme switching (light/dark/system) with persistence
+- Role-based navigation (ADMIN, RECRUITER, PLATFORM_ADMIN)
+- Protected routes with authentication checks
