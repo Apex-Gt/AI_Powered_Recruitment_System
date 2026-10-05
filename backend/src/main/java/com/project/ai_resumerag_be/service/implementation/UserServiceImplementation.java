@@ -289,4 +289,41 @@ public class UserServiceImplementation implements UserService {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
+
+    @Transactional
+    @Override
+    public CommonResponse deleteRecruiterForAdmin(UUID recruiterId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
+        User admin = customUserDetails.getUser();
+
+        if (admin.getRole() != Role.ADMIN) {
+            throw new ResourceNotFoundException("Only admins can access this resource");
+        }
+
+        if (admin.getCompany() == null) {
+            throw new ResourceNotFoundException("Admin is not associated with a company");
+        }
+
+        User recruiter = userRepository.findByIdAndCompany(recruiterId, admin.getCompany())
+                .orElseThrow(() -> new ResourceNotFoundException("Recruiter not found"));
+
+        if (recruiter.getRole() != Role.RECRUITER) {
+            throw new ResourceNotFoundException("User is not a recruiter");
+        }
+
+        // Prevent deleting self
+        if (recruiter.getId().equals(admin.getId())) {
+            throw new ResourceNotFoundException("Cannot delete your own account");
+        }
+
+        userRepository.delete(recruiter);
+
+        return CommonResponse.builder()
+                .code(200)
+                .message("Recruiter deleted successfully")
+                .status(CommonResponseStatus.SUCCESS)
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
 }

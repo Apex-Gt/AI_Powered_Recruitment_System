@@ -17,4 +17,6 @@ public interface JobService {
     CommonResponse getJobByIdForRecruiter(UUID jobId);
     CommonResponse updateJobForAdmin(UUID jobId, JobRequest request);
     CommonResponse updateJobForRecruiter(UUID jobId, JobRequest request);
+    CommonResponse deleteJobForAdmin(UUID jobId);
+    CommonResponse deleteJobForRecruiter(UUID jobId);
 }

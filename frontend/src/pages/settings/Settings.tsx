@@ -11,7 +11,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import toast from 'react-hot-toast'
-import type { User as UserType } from '@/types'
+// import type { User as UserType } from '@/types'
 
 const profileSchema = z.object({
   userName: z.string().min(2, 'Name must be at least 2 characters'),
@@ -70,7 +70,11 @@ export function Settings() {
     if (!user) return
     setIsSaving(true)
     try {
-      await userApi.updateMe(data)
+      await userApi.updateMe({
+        userName: data.userName,
+        email: data.email,
+        phoneNumber: data.phoneNumber,
+      })
       toast.success('Profile updated successfully')
       await refreshUser()
     } catch (error) {
@@ -81,13 +85,14 @@ export function Settings() {
     }
   }
 
-  const handlePasswordSubmit = async (data: PasswordForm) => {
+  const handlePasswordSubmit = async (_data: PasswordForm) => {
     setIsSaving(true)
     try {
-      await userApi.updateMe({
-        password: data.newPassword,
-      } as Partial<UserType>)
-      toast.success('Password updated successfully')
+      // TODO: Backend doesn't support password change via /auth/me endpoint
+      // await userApi.updateMe({
+      //   password: data.newPassword,
+      // } as Partial<UserType>)
+      toast.error('Password change not yet implemented in backend')
       passwordMethods.reset()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update password'

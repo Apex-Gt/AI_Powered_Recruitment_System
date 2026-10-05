@@ -54,15 +54,16 @@ export function Team() {
     const fetchUsers = async () => {
       setIsLoading(true)
       try {
-        // Use admin-specific endpoint for admins
+        // Only admin can fetch users via /admin/recruiters endpoint
         if (hasRole(['ADMIN'])) {
           const response = await userApi.getRecruitersForAdmin()
           setUsers(response.data)
+          setFetchError(false)
         } else {
-          const response = await userApi.getAll({ pageSize: 100 })
-          setUsers(response.data)
+          // Non-admin users cannot fetch team members (no backend endpoint)
+          setUsers([])
+          setFetchError(true)
         }
-        setFetchError(false)
       } catch (error) {
         console.error('Failed to fetch users:', error)
         setFetchError(true)
@@ -92,9 +93,6 @@ export function Team() {
       if (hasRole(['ADMIN'])) {
         const response = await userApi.getRecruitersForAdmin()
         setUsers(response.data)
-      } else {
-        const response = await userApi.getAll({ pageSize: 100 })
-        setUsers(response.data)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create recruiter'
@@ -105,8 +103,12 @@ export function Team() {
   }
 
   const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
+    if (!hasRole(['ADMIN'])) {
+      toast.error('Only admins can toggle user status')
+      return
+    }
     try {
-      await userApi.update(userId, { active: !currentStatus } as Partial<User>)
+      await userApi.updateRecruiterForAdmin(userId, { active: !currentStatus } as { userName?: string; email?: string; phoneNumber?: string; active?: boolean })
       toast.success(`User ${!currentStatus ? 'activated' : 'deactivated'}`)
       setUsers((prev) =>
         prev.map((u) => (u.id === userId ? { ...u, active: !currentStatus } : u))
@@ -117,12 +119,17 @@ export function Team() {
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (_id: string) => {
+    if (!hasRole(['ADMIN'])) {
+      toast.error('Only admins can delete users')
+      return
+    }
     if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return
     try {
-      await userApi.delete(id)
-      toast.success('User deleted successfully')
-      setUsers((prev) => prev.filter((u) => u.id !== id))
+      // TODO: Backend doesn't have delete recruiter endpoint yet
+      // await userApi.delete(id)
+      toast.error('Delete user not yet implemented in backend')
+      // setUsers((prev) => prev.filter((u) => u.id !== id))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to delete user'
       toast.error(message)

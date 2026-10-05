@@ -66,7 +66,7 @@ export function Company() {
         return
       }
       try {
-        // Use the admin-specific endpoint for admins
+        // Only admin can fetch company via /admin/company endpoint
         if (hasRole(['ADMIN'])) {
           const response = await companyApi.getForAdmin()
           const companyData = response.data
@@ -79,15 +79,8 @@ export function Company() {
             industry: companyData.industry || '',
           })
         } else {
-          const response = await companyApi.getById(user.companyId)
-          setCompany(response)
-          reset({
-            companyName: response.companyName,
-            country: response.country,
-            state: response.state,
-            city: response.city,
-            industry: response.industry || '',
-          })
+          // Non-admin users cannot fetch company details (no backend endpoint)
+          setIsLoading(false)
         }
       } catch (error) {
         console.error('Failed to fetch company:', error)
@@ -102,7 +95,7 @@ export function Company() {
     if (!company) return
     setIsSaving(true)
     try {
-      // Use the admin-specific endpoint for admins
+      // Only admin can update company via /admin/company endpoint
       if (hasRole(['ADMIN'])) {
         await companyApi.updateForAdmin({
           companyName: data.companyName,
@@ -111,18 +104,12 @@ export function Company() {
           city: data.city,
           industry: data.industry,
         })
-      } else {
-        await companyApi.update(company.id, data)
-      }
-      toast.success('Company profile updated successfully')
-      setIsEditing(false)
-      // Refetch company data
-      if (hasRole(['ADMIN'])) {
+        toast.success('Company profile updated successfully')
+        setIsEditing(false)
         const response = await companyApi.getForAdmin()
         setCompany(response.data)
       } else {
-        const response = await companyApi.getById(company.id)
-        setCompany(response)
+        toast.error('Only admins can update company profile')
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update company'

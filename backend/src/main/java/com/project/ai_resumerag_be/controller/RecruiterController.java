@@ -47,4 +47,11 @@ public class RecruiterController {
         CommonResponse response = jobService.updateJobForRecruiter(jobId, request);
         return ResponseEntity.status(response.getCode()).body(response);
     }
+
+    @PreAuthorize("hasRole('RECRUITER')")
+    @DeleteMapping("/jobs/{jobId}")
+    public ResponseEntity<CommonResponse> deleteJob(@PathVariable UUID jobId) {
+        CommonResponse response = jobService.deleteJobForRecruiter(jobId);
+        return ResponseEntity.status(response.getCode()).body(response);
+    }
 }

@@ -86,4 +86,18 @@ public class AdminController {
         CommonResponse response = jobService.updateJobForAdmin(jobId, request);
         return ResponseEntity.status(response.getCode()).body(response);
     }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping("/recruiters/{recruiterId}")
+    public ResponseEntity<CommonResponse> deleteRecruiter(@PathVariable UUID recruiterId) {
+        CommonResponse response = userService.deleteRecruiterForAdmin(recruiterId);
+        return ResponseEntity.status(response.getCode()).body(response);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping("/jobs/{jobId}")
+    public ResponseEntity<CommonResponse> deleteJob(@PathVariable UUID jobId) {
+        CommonResponse response = jobService.deleteJobForAdmin(jobId);
+        return ResponseEntity.status(response.getCode()).body(response);
+    }
 }

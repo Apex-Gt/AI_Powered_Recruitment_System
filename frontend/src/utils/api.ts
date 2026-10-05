@@ -84,10 +84,6 @@ export const authApi = {
 export const companyApi = {
   register: (data: CompanyRegistrationRequest) =>
     api.post<CommonResponse<CompanyRegistrationResponse>>('/company/register', data),
-  getById: (id: string) => api.get<Company>(`/company/${id}`),
-  update: (id: string, data: Partial<Company>) =>
-    api.put<Company>(`/company/${id}`, data),
-  verify: (id: string) => api.post(`/company/${id}/verify`, {}),
   getForAdmin: () => api.get<CommonResponse<Company>>('/admin/company'),
   updateForAdmin: (data: { companyName?: string; country?: string; state?: string; city?: string; industry?: string }) =>
     api.put<CommonResponse<Company>>('/admin/company', data),
@@ -95,22 +91,17 @@ export const companyApi = {
 
 export const jobApi = {
   create: (data: CreateJobRequest) => api.post<Job>('/job', data),
-  getAll: (params?: JobListParams) => api.get<PaginatedResponse<Job>>('/job', params as Record<string, unknown>),
   getMyJobs: (params?: JobListParams) => api.get<PaginatedResponse<Job>>('/job/my-jobs', params as Record<string, unknown>),
-  getById: (id: string) => api.get<Job>(`/job/${id}`),
-  update: (id: string, data: Partial<Job>) => api.put<Job>(`/job/${id}`, data),
-  delete: (id: string) => api.delete(`/job/${id}`),
-  changeStatus: (id: string, status: Job['status']) =>
-    api.patch<Job>(`/job/${id}/status`, { status }),
-  getAllForAdmin: (params?: JobListParams) => api.get<PaginatedResponse<Job>>('/admin/jobs', params as Record<string, unknown>),
-  getByIdForAdmin: (id: string) => api.get<CommonResponse<Job>>(`/admin/jobs/${id}`),
   getByIdForRecruiter: (id: string) => api.get<CommonResponse<Job>>(`/recruiter/jobs/${id}`),
-  updateForAdmin: (id: string, data: Partial<CreateJobRequest>) =>
-    api.put<CommonResponse<Job>>(`/admin/jobs/${id}`, data),
   updateForRecruiter: (id: string, data: Partial<CreateJobRequest>) =>
     api.put<CommonResponse<Job>>(`/recruiter/jobs/${id}`, data),
+  getAllForAdmin: (params?: JobListParams) => api.get<PaginatedResponse<Job>>('/admin/jobs', params as Record<string, unknown>),
+  getByIdForAdmin: (id: string) => api.get<CommonResponse<Job>>(`/admin/jobs/${id}`),
+  updateForAdmin: (id: string, data: Partial<CreateJobRequest>) =>
+    api.put<CommonResponse<Job>>(`/admin/jobs/${id}`, data),
 }
 
+// TODO: Backend not implemented - Candidate Management
 export const candidateApi = {
   getAll: (params?: CandidateListParams) => api.get<PaginatedResponse<Candidate>>('/candidates', params as Record<string, unknown>),
   getById: (id: string) => api.get<Candidate>(`/candidates/${id}`),
@@ -124,6 +115,7 @@ export const candidateApi = {
     api.post(`/candidates/${id}/notes`, { note }),
 }
 
+// TODO: Backend not implemented - Resume Management
 export const resumeApi = {
   upload: (file: File, candidateId: string) => {
     const formData = new FormData()
@@ -139,6 +131,7 @@ export const resumeApi = {
   parse: (id: string) => api.post<{ extractedText: string }>(`/resumes/${id}/parse`, {}),
 }
 
+// TODO: Backend not implemented - Assessments
 export const assessmentApi = {
   getAll: () => api.get<Assessment[]>('/assessments'),
   getById: (id: string) => api.get<Assessment>(`/assessments/${id}`),
@@ -151,6 +144,7 @@ export const assessmentApi = {
     api.post(`/assessments/${assessmentId}/submit`, { candidateId, answers }),
 }
 
+// TODO: Backend not implemented - Interviews
 export const interviewApi = {
   getAll: (params?: InterviewListParams) => api.get<PaginatedResponse<Interview>>('/interviews', params as Record<string, unknown>),
   getById: (id: string) => api.get<Interview>(`/interviews/${id}`),
@@ -162,6 +156,7 @@ export const interviewApi = {
   cancel: (id: string) => api.post(`/interviews/${id}/cancel`, {}),
 }
 
+// TODO: Backend not implemented - Analytics
 export const analyticsApi = {
   getOverview: () => api.get<AnalyticsOverview>('/analytics/overview'),
   getFunnel: () => api.get<FunnelData[]>('/analytics/funnel'),
@@ -171,18 +166,17 @@ export const analyticsApi = {
 }
 
 export const userApi = {
-  getAll: (params?: UserListParams) => api.get<PaginatedResponse<User>>('/users', params as Record<string, unknown>),
-  getById: (id: string) => api.get<User>(`/users/${id}`),
   createRecruiter: (data: CreateRecruiterRequest) =>
     api.post<User>('/admin/recruiters', data),
-  update: (id: string, data: Partial<User>) => api.put<User>(`/users/${id}`, data),
-  delete: (id: string) => api.delete(`/users/${id}`),
-  updateMe: (data: Partial<User>) => api.put<User>('/users/me', data),
   getRecruitersForAdmin: () => api.get<CommonResponse<User[]>>('/admin/recruiters'),
   getRecruiterByIdForAdmin: (id: string) => api.get<CommonResponse<User>>(`/admin/recruiters/${id}`),
   getCurrentUser: () => api.get<CommonResponse<User>>('/recruiter/me'),
-  updateRecruiterForAdmin: (id: string, data: { userName?: string; email?: string; phoneNumber?: string }) =>
+  updateRecruiterForAdmin: (id: string, data: { userName?: string; email?: string; phoneNumber?: string; active?: boolean }) =>
     api.put<CommonResponse<User>>(`/admin/recruiters/${id}`, data),
+  updateMe: (data: { userName: string; email: string; phoneNumber?: string }) =>
+    api.put<CommonResponse<UserResponse>>('/auth/me', data),
+  // TODO: Backend not implemented - DELETE /admin/recruiters/{id}
+  // delete: (id: string) => api.delete(`/admin/recruiters/${id}`),
 }
 
 // Type imports for API
@@ -309,13 +303,6 @@ interface InterviewListParams {
   status?: Interview['status']
   candidateId?: string
   jobId?: string
-}
-
-interface UserListParams {
-  page?: number
-  pageSize?: number
-  role?: User['role']
-  search?: string
 }
 
 interface CreateRecruiterRequest {

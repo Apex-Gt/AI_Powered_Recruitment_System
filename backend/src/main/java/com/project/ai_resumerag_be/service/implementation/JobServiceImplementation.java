@@ -385,4 +385,67 @@ public class JobServiceImplementation implements JobService {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
+
+    @Transactional
+    @Override
+    public CommonResponse deleteJobForAdmin(UUID jobId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = customUserDetails.getUser();
+
+        if (user.getRole() != Role.ADMIN) {
+            throw new ResourceNotFoundException("Only admins can access this resource");
+        }
+
+        if (user.getCompany() == null) {
+            throw new ResourceNotFoundException("Admin is not associated with a company");
+        }
+
+        Job job = jobRepository.findByIdAndCompany(jobId, user.getCompany())
+                .orElseThrow(() -> new ResourceNotFoundException("Job not found"));
+
+        jobRepository.delete(job);
+
+        return CommonResponse.builder()
+                .code(200)
+                .message("Job deleted successfully")
+                .status(CommonResponseStatus.SUCCESS)
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+
+    @Transactional
+    @Override
+    public CommonResponse deleteJobForRecruiter(UUID jobId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = customUserDetails.getUser();
+
+        if (user.getRole() != Role.RECRUITER && user.getRole() != Role.ADMIN) {
+            throw new ResourceNotFoundException("Only recruiters and admins can access this resource");
+        }
+
+        Job job;
+        if (user.getRole() == Role.RECRUITER) {
+            // Recruiters can only delete their own jobs
+            job = jobRepository.findByIdAndCreatedBy(jobId, user)
+                    .orElseThrow(() -> new ResourceNotFoundException("Job not found or access denied"));
+        } else {
+            // ADMIN can also delete via this endpoint
+            if (user.getCompany() == null) {
+                throw new ResourceNotFoundException("Admin is not associated with a company");
+            }
+            job = jobRepository.findByIdAndCompany(jobId, user.getCompany())
+                    .orElseThrow(() -> new ResourceNotFoundException("Job not found"));
+        }
+
+        jobRepository.delete(job);
+
+        return CommonResponse.builder()
+                .code(200)
+                .message("Job deleted successfully")
+                .status(CommonResponseStatus.SUCCESS)
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
 }

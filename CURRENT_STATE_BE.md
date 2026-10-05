@@ -33,6 +33,7 @@
 - **GET /api/admin/recruiters** - List all recruiters for company
 - **GET /api/admin/recruiters/{id}** - Get recruiter by ID
 - **PUT /api/admin/recruiters/{id}** - Update recruiter
+- **DELETE /api/admin/recruiters/{recruiterId}** - Delete recruiter (ADMIN only, same company, cannot delete self)
 
 ### 4. Job Management (Recruiter & Admin)
 - **POST /api/job** - Create job (RECRUITER, ADMIN)
@@ -46,11 +47,13 @@
 - **GET /api/recruiter/jobs** - Get my jobs
 - **GET /api/recruiter/jobs/{jobId}** - Get job by ID (own jobs only)
 - **PUT /api/recruiter/jobs/{jobId}** - Update own job
+- **DELETE /api/recruiter/jobs/{jobId}** - Delete own job (RECRUITER only, must be creator)
 
 #### Admin-Specific Job Endpoints
 - **GET /api/admin/jobs** - Get all jobs in company
 - **GET /api/admin/jobs/{jobId}** - Get any job by ID
 - **PUT /api/admin/jobs/{jobId}** - Update any job
+- **DELETE /api/admin/jobs/{jobId}** - Delete any job in company (ADMIN only, same company)
 
 ### 5. Company Management (Admin)
 - **GET /api/admin/company** - Get company details
@@ -130,20 +133,21 @@
 
 ## 📋 RECENT CHANGES (Latest First)
 
-1. **RecruiterController added** - Dedicated endpoints for recruiter-specific operations (get my jobs, get job by ID, update job, get current user)
-2. **JobController enhanced** - Added admin-specific job endpoints (get all jobs, get job by ID, update job)
-3. **AdminController enhanced** - Added company management (get/update), recruiter listing/get/update, job management for admin
-4. **AuthController enhanced** - Added logout, get current user, update profile endpoints
-5. **Email service for recruiter credentials** - Admin-created recruiters receive credentials via email with company name
-6. **Dynamic company name in emails** - Uses admin's company name (from security context) instead of static config
-7. **Email authentication fix** - App now starts without email config; sends gracefully when configured with Gmail App Password
-8. **Job ownership enforcement** - Recruiters see only their jobs via `GET /job/my-jobs`
-9. **Recruiter creation by Admin** - `POST /admin/recruiters` with company isolation
-10. **Login response DTO** - Structured `LoginResponse` with user info + token metadata
-11. **Company registration response** - `CompanyRegistrationResponse` with CompanyInfo + AdminInfo
-12. **GST uniqueness check** - Prevents duplicate company registration
-13. **Method-level security** - Added `@EnableMethodSecurity` and `@PreAuthorize` annotations
-14. **Job entity fix** - Changed `createdBy` from Recruiter to User entity
+1. **DELETE endpoints for Admin & Recruiter** - Added DELETE /api/admin/recruiters/{id}, DELETE /api/admin/jobs/{id}, DELETE /api/recruiter/jobs/{id} with company isolation and ownership validation
+2. **RecruiterController added** - Dedicated endpoints for recruiter-specific operations (get my jobs, get job by ID, update job, get current user)
+3. **JobController enhanced** - Added admin-specific job endpoints (get all jobs, get job by ID, update job)
+4. **AdminController enhanced** - Added company management (get/update), recruiter listing/get/update, job management for admin
+5. **AuthController enhanced** - Added logout, get current user, update profile endpoints
+6. **Email service for recruiter credentials** - Admin-created recruiters receive credentials via email with company name
+7. **Dynamic company name in emails** - Uses admin's company name (from security context) instead of static config
+8. **Email authentication fix** - App now starts without email config; sends gracefully when configured with Gmail App Password
+9. **Job ownership enforcement** - Recruiters see only their jobs via `GET /job/my-jobs`
+10. **Recruiter creation by Admin** - `POST /admin/recruiters` with company isolation
+11. **Login response DTO** - Structured `LoginResponse` with user info + token metadata
+12. **Company registration response** - `CompanyRegistrationResponse` with CompanyInfo + AdminInfo
+13. **GST uniqueness check** - Prevents duplicate company registration
+14. **Method-level security** - Added `@EnableMethodSecurity` and `@PreAuthorize` annotations
+15. **Job entity fix** - Changed `createdBy` from Recruiter to User entity
 
 ---
 
@@ -221,6 +225,15 @@ GET /api/recruiter/me
 
 # 8. Logout
 POST /api/auth/logout
+
+# 9. Delete Recruiter (Admin only, same company)
+DELETE /api/admin/recruiters/{recruiterId}
+
+# 10. Delete Job (Admin - any job in company)
+DELETE /api/admin/jobs/{jobId}
+
+# 11. Delete Job (Recruiter - own job only)
+DELETE /api/recruiter/jobs/{jobId}
 ```
 
 ---

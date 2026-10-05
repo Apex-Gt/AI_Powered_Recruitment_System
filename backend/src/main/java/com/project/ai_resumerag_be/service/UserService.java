@@ -20,4 +20,5 @@ public interface UserService {
     CommonResponse getCurrentUser();
     CommonResponse updateRecruiterForAdmin(UUID recruiterId, RecruiterRequest request);
     CommonResponse updateCurrentUser(UpdateProfileRequest request);
+    CommonResponse deleteRecruiterForAdmin(UUID recruiterId);
 }
