@@ -48,11 +48,11 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
   if (collapsed) {
     return (
       <aside
-        className="fixed left-0 top-0 z-sticky h-screen w-16 bg-base-100 dark:bg-base-950 border-r border-base-200 dark:border-base-700 flex flex-col transition-all duration-normal shadow-neo-1"
+        className="fixed left-0 top-0 z-sticky h-screen w-16 glass-strong border-r border-glass-200 dark:border-glass-dark-200 flex flex-col transition-all duration-normal shadow-glass-2"
         aria-label="Sidebar navigation (collapsed)"
       >
-        <div className="flex h-16 items-center justify-center border-b border-base-200 dark:border-base-700">
-          <span className="text-heading-md font-bold text-accent-600 dark:text-accent-400">RA</span>
+        <div className="flex h-16 items-center justify-center border-b border-glass-200 dark:border-glass-dark-200">
+          <span className="text-heading-md font-bold text-lavender-600 dark:text-lavender-400">RA</span>
         </div>
         <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto" aria-label="Main navigation">
           {filteredNav.map((item) => {
@@ -74,7 +74,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
             )
           })}
         </nav>
-        <div className="p-2 border-t border-base-200 dark:border-base-700">
+        <div className="p-2 border-t border-glass-200 dark:border-glass-dark-200">
           <button
             onClick={onToggle}
             className="nav-item justify-center px-2"
@@ -90,14 +90,14 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
 
   return (
     <aside
-      className="fixed left-0 top-0 z-sticky h-screen w-64 bg-base-100 dark:bg-base-950 border-r border-base-200 dark:border-base-700 flex flex-col transition-all duration-normal shadow-neo-1"
+      className="fixed left-0 top-0 z-sticky h-screen w-64 glass-strong border-r border-glass-200 dark:border-glass-dark-200 flex flex-col transition-all duration-normal shadow-glass-2"
       aria-label="Sidebar navigation"
     >
-      <div className="flex h-16 items-center justify-between px-4 border-b border-base-200 dark:border-base-700">
-        <span className="text-heading-md font-bold text-accent-600 dark:text-accent-400">RecruitAI</span>
+      <div className="flex h-16 items-center justify-between px-4 border-b border-glass-200 dark:border-glass-dark-200">
+        <span className="text-heading-md font-bold text-lavender-600 dark:text-lavender-400">RecruitAI</span>
         <button
           onClick={onToggle}
-          className="nav-item-icon p-1 rounded-lg hover:bg-base-200 dark:hover:bg-base-800"
+          className="nav-item-icon p-1 rounded-lg hover:bg-glass-200 dark:hover:bg-glass-dark-200"
           aria-label="Collapse sidebar"
         >
           <ChevronLeft className="w-5 h-5" aria-hidden="true" />
@@ -120,10 +120,10 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
           )
         })}
       </nav>
-      <div className="p-3 border-t border-base-200 dark:border-base-700 space-y-3">
+      <div className="p-3 border-t border-glass-200 dark:border-glass-dark-200 space-y-3">
         <div className="flex items-center gap-3 px-2">
-          <div className="w-8 h-8 rounded-full bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center flex-shrink-0">
-            <span className="text-label-md font-medium text-accent-600 dark:text-accent-400">
+          <div className="w-8 h-8 rounded-full glass-lavender flex items-center justify-center flex-shrink-0">
+            <span className="text-label-md font-medium text-lavender-600 dark:text-lavender-400">
               {user?.userName?.charAt(0).toUpperCase() || 'U'}
             </span>
           </div>

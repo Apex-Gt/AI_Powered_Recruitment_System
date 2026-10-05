@@ -8,49 +8,131 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Neumorphic base colors - #F7F3E3 as primary background
-        base: {
-          50: '#FEFDFB',   // Lightest highlight
-          100: '#F7F3E3',  // Primary background
-          200: '#E8E2CC',  // Subtle borders/dividers
-          300: '#D9D1B5',  // Muted borders
-          400: '#CAC09E',  // Disabled/placeholder
-          500: '#BBB087',  // Secondary text
-          600: '#9A9070',  // Body text
-          700: '#797059',  // Primary text
-          800: '#585042',  // Headings
-          900: '#37322B',  // High emphasis
-          950: '#1C1813',  // Dark mode base
+        // Glassmorphic pastel palette
+        glass: {
+          // Base glass surfaces
+          50: 'rgba(255, 255, 255, 0.95)',
+          100: 'rgba(255, 255, 255, 0.85)',
+          200: 'rgba(255, 255, 255, 0.7)',
+          300: 'rgba(255, 255, 255, 0.55)',
+          400: 'rgba(255, 255, 255, 0.4)',
+          500: 'rgba(255, 255, 255, 0.25)',
+          600: 'rgba(255, 255, 255, 0.15)',
+          700: 'rgba(255, 255, 255, 0.1)',
+          800: 'rgba(255, 255, 255, 0.05)',
+          900: 'rgba(255, 255, 255, 0.02)',
+
+          // Dark mode glass surfaces
+          dark: {
+            50: 'rgba(20, 18, 35, 0.95)',
+            100: 'rgba(20, 18, 35, 0.85)',
+            200: 'rgba(20, 18, 35, 0.7)',
+            300: 'rgba(20, 18, 35, 0.55)',
+            400: 'rgba(20, 18, 35, 0.4)',
+            500: 'rgba(20, 18, 35, 0.25)',
+            600: 'rgba(20, 18, 35, 0.15)',
+            700: 'rgba(20, 18, 35, 0.1)',
+            800: 'rgba(20, 18, 35, 0.05)',
+            900: 'rgba(20, 18, 35, 0.02)',
+          }
         },
-        // Text colors - warm charcoal
+
+        // Pastel accent colors
+        lavender: {
+          50: '#F8F5FF',
+          100: '#F0EBFF',
+          200: '#E1D9FF',
+          300: '#C9BBFF',
+          400: '#A88FFF',
+          500: '#8B6BFF',  // Primary lavender
+          600: '#7451E8',
+          700: '#6140C4',
+          800: '#50359D',
+          900: '#422D7D',
+          950: '#2A1B4A',
+        },
+        pink: {
+          50: '#FFF5F8',
+          100: '#FFEBF1',
+          200: '#FFD6E3',
+          300: '#FFADC6',
+          400: '#FF7AA5',
+          500: '#FF5284',  // Primary pink
+          600: '#E83E6F',
+          700: '#C4305B',
+          800: '#9D2849',
+          900: '#7D223C',
+          950: '#4A1220',
+        },
+        blush: {
+          50: '#FFF8F5',
+          100: '#FFF0EB',
+          200: '#FFE1D6',
+          300: '#FFC9AD',
+          400: '#FFAD80',
+          500: '#FF8C57',  // Primary blush
+          600: '#E87445',
+          700: '#C45E37',
+          800: '#9D4A2E',
+          900: '#7D3D27',
+          950: '#411E13',
+        },
+        babyblue: {
+          50: '#F0F9FF',
+          100: '#E0F2FE',
+          200: '#BAE6FD',
+          300: '#7DD3FC',
+          400: '#38BDF8',
+          500: '#0EA5E9',  // Primary baby blue
+          600: '#0284C7',
+          700: '#0369A1',
+          800: '#075985',
+          900: '#0C4A6E',
+          950: '#082F49',
+        },
+        mint: {
+          50: '#F0FDF4',
+          100: '#DCFCE7',
+          200: '#BBF7D0',
+          300: '#86EFAC',
+          400: '#4ADE80',
+          500: '#22C55E',  // Primary mint
+          600: '#16A34A',
+          700: '#15803D',
+          800: '#166534',
+          900: '#14532D',
+          950: '#052E16',
+        },
+        peach: {
+          50: '#FFF7ED',
+          100: '#FFEDD5',
+          200: '#FED7AA',
+          300: '#FDB785',
+          400: '#FB923C',
+          500: '#F97316',  // Primary peach
+          600: '#EA580C',
+          700: '#C2410C',
+          800: '#9A3412',
+          900: '#7C2D12',
+          950: '#431407',
+        },
+
+        // Text colors - soft charcoal with slight warmth
         ink: {
-          50: '#FAFAF9',
+          50: '#FAFAFA',
           100: '#F4F4F4',
           200: '#E8E8E8',
           300: '#D0D0D0',
           400: '#A3A3A3',
-          500: '#737373',
-          600: '#525252',
-          700: '#404040',
-          800: '#262626',
-          900: '#171717',
-          950: '#0A0A0A',
+          500: '#787878',
+          600: '#5A5A5A',
+          700: '#424242',
+          800: '#2E2E2E',
+          900: '#1F1F1F',
+          950: '#141414',
         },
-        // Primary accent - #FE5D26
-        accent: {
-          50: '#FFF4F1',
-          100: '#FFE4DD',
-          200: '#FFC9BA',
-          300: '#FF9F7A',
-          400: '#FE7A45',
-          500: '#FE5D26',  // Primary accent
-          600: '#E84A1E',
-          700: '#C43A1A',
-          800: '#9D2E16',
-          900: '#7D2513',
-          950: '#41120A',
-        },
-        // Semantic colors - derived from base palette
+
+        // Semantic colors - pastel variants
         success: {
           50: '#F0FDF4',
           100: '#DCFCE7',
@@ -65,44 +147,52 @@ export default {
           950: '#052E16',
         },
         warning: {
-          50: '#FFFBEB',
-          100: '#FEF3C7',
-          200: '#FDE68A',
-          300: '#FCD34D',
-          400: '#FBBF24',
-          500: '#F59E0B',
-          600: '#D97706',
-          700: '#B45309',
-          800: '#92400E',
-          900: '#78350F',
-          950: '#451A03',
+          50: '#FFFDF5',
+          100: '#FFF9E0',
+          200: '#FFF3B8',
+          300: '#FFE980',
+          400: '#FFDD4A',
+          500: '#F5D000',
+          600: '#D9B500',
+          700: '#B49200',
+          800: '#8F7200',
+          900: '#6E5600',
+          950: '#3F3200',
         },
         error: {
-          50: '#FEF2F2',
-          100: '#FEE2E2',
-          200: '#FECACA',
-          300: '#FCA5A5',
-          400: '#F87171',
-          500: '#EF4444',
-          600: '#DC2626',
-          700: '#B91C1C',
-          800: '#991B1B',
-          900: '#7F1D1D',
-          950: '#450A0A',
+          50: '#FFF5F5',
+          100: '#FFE8E8',
+          200: '#FFD1D1',
+          300: '#FFB0B0',
+          400: '#FF8A8A',
+          500: '#FF6B6B',
+          600: '#E85555',
+          700: '#C44444',
+          800: '#9D3636',
+          900: '#7D2D2D',
+          950: '#421717',
         },
         info: {
-          50: '#EFF6FF',
-          100: '#DBEAFE',
-          200: '#BFDBFE',
-          300: '#93C5FD',
-          400: '#60A5FA',
-          500: '#3B82F6',
-          600: '#2563EB',
-          700: '#1D4ED8',
-          800: '#1E40AF',
-          900: '#1E3A8A',
-          950: '#172554',
+          50: '#F0F9FF',
+          100: '#E0F2FE',
+          200: '#BAE6FD',
+          300: '#7DD3FC',
+          400: '#38BDF8',
+          500: '#0EA5E9',
+          600: '#0284C7',
+          700: '#0369A1',
+          800: '#075985',
+          900: '#0C4A6E',
+          950: '#082F49',
         },
+
+        // Background gradients
+        bg: {
+          light: '#FAF8FF',
+          'light-secondary': '#F5F0FF',
+          dark: '#141223',
+          'dark-secondary': '#1A182E',
+        }
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
@@ -128,60 +218,86 @@ export default {
       },
       spacing: {
         '0': '0',
-        '1': '0.25rem',  // 4px
-        '2': '0.5rem',   // 8px
-        '3': '0.75rem',  // 12px
-        '4': '1rem',     // 16px
-        '5': '1.25rem',  // 20px
-        '6': '1.5rem',   // 24px
-        '7': '1.75rem',  // 28px
-        '8': '2rem',     // 32px
-        '9': '2.25rem',  // 36px
-        '10': '2.5rem',  // 40px
-        '11': '2.75rem', // 44px
-        '12': '3rem',    // 48px
-        '14': '3.5rem',  // 56px
-        '16': '4rem',    // 64px
-        '20': '5rem',    // 80px
-        '24': '6rem',    // 96px
+        '1': '0.25rem',
+        '2': '0.5rem',
+        '3': '0.75rem',
+        '4': '1rem',
+        '5': '1.25rem',
+        '6': '1.5rem',
+        '7': '1.75rem',
+        '8': '2rem',
+        '9': '2.25rem',
+        '10': '2.5rem',
+        '11': '2.75rem',
+        '12': '3rem',
+        '14': '3.5rem',
+        '16': '4rem',
+        '20': '5rem',
+        '24': '6rem',
       },
       borderRadius: {
         'none': '0',
-        'xs': '4px',
-        'sm': '8px',
-        'md': '12px',
-        'lg': '16px',
-        'xl': '20px',
-        '2xl': '24px',
+        'xs': '6px',
+        'sm': '10px',
+        'md': '14px',
+        'lg': '18px',
+        'xl': '24px',
+        '2xl': '32px',
+        '3xl': '40px',
         'full': '9999px',
       },
       boxShadow: {
-        // Neumorphic elevation system - subtle, diffuse, realistic
-        // Level 0: Flat background (no shadow)
-        // Level 1: Subtle raised components
-        'neo-1': '2px 2px 4px rgba(55, 50, 43, 0.08), -2px -2px 4px rgba(255, 255, 255, 0.8)',
-        'neo-1-hover': '4px 4px 8px rgba(55, 50, 43, 0.1), -4px -4px 8px rgba(255, 255, 255, 0.9)',
-        // Level 2: Important cards / containers
-        'neo-2': '4px 4px 8px rgba(55, 50, 43, 0.1), -4px -4px 8px rgba(255, 255, 255, 0.85)',
-        'neo-2-hover': '8px 8px 16px rgba(55, 50, 43, 0.12), -8px -8px 16px rgba(255, 255, 255, 0.9)',
-        // Level 3: Modals / floating elements
-        'neo-3': '12px 12px 24px rgba(55, 50, 43, 0.12), -12px -12px 24px rgba(255, 255, 255, 0.85)',
-        // Inset/pressed states
-        'neo-inset': 'inset 2px 2px 4px rgba(55, 50, 43, 0.1), inset -2px -2px 4px rgba(255, 255, 255, 0.7)',
-        'neo-inset-strong': 'inset 4px 4px 8px rgba(55, 50, 43, 0.12), inset -4px -4px 8px rgba(255, 255, 255, 0.6)',
+        // Glassmorphic shadows - very subtle, diffuse
+        'glass-1': '0 1px 3px rgba(20, 18, 35, 0.04), 0 1px 2px rgba(20, 18, 35, 0.03)',
+        'glass-2': '0 4px 12px rgba(20, 18, 35, 0.05), 0 2px 4px rgba(20, 18, 35, 0.03)',
+        'glass-3': '0 12px 32px rgba(20, 18, 35, 0.06), 0 4px 8px rgba(20, 18, 35, 0.04)',
+        'glass-4': '0 24px 48px rgba(20, 18, 35, 0.08), 0 8px 16px rgba(20, 18, 35, 0.05)',
+
+        // Hover states
+        'glass-1-hover': '0 2px 6px rgba(20, 18, 35, 0.06), 0 2px 4px rgba(20, 18, 35, 0.04)',
+        'glass-2-hover': '0 8px 20px rgba(20, 18, 35, 0.07), 0 4px 8px rgba(20, 18, 35, 0.05)',
+        'glass-3-hover': '0 16px 40px rgba(20, 18, 35, 0.08), 0 8px 16px rgba(20, 18, 35, 0.06)',
+
         // Accent shadows for primary actions
-        'neo-accent': '2px 2px 4px rgba(254, 93, 38, 0.2), -2px -2px 4px rgba(255, 255, 255, 0.8)',
-        'neo-accent-hover': '4px 4px 8px rgba(254, 93, 38, 0.25), -4px -4px 8px rgba(255, 255, 255, 0.9)',
-        'neo-accent-pressed': 'inset 2px 2px 4px rgba(254, 93, 38, 0.3), inset -2px -2px 4px rgba(255, 255, 255, 0.5)',
+        'glass-lavender': '0 2px 8px rgba(139, 107, 255, 0.15), 0 1px 3px rgba(139, 107, 255, 0.1)',
+        'glass-lavender-hover': '0 4px 16px rgba(139, 107, 255, 0.2), 0 2px 6px rgba(139, 107, 255, 0.15)',
+        'glass-pink': '0 2px 8px rgba(255, 82, 132, 0.15), 0 1px 3px rgba(255, 82, 132, 0.1)',
+        'glass-blush': '0 2px 8px rgba(255, 140, 87, 0.15), 0 1px 3px rgba(255, 140, 87, 0.1)',
+        'glass-babyblue': '0 2px 8px rgba(14, 165, 233, 0.15), 0 1px 3px rgba(14, 165, 233, 0.1)',
+        'glass-mint': '0 2px 8px rgba(34, 197, 94, 0.15), 0 1px 3px rgba(34, 197, 94, 0.1)',
+
+        // Dark mode glass shadows
+        'glass-dark-1': '0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.15)',
+        'glass-dark-2': '0 4px 12px rgba(0, 0, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.2)',
+        'glass-dark-3': '0 12px 32px rgba(0, 0, 0, 0.3), 0 4px 8px rgba(0, 0, 0, 0.25)',
+        'glass-dark-4': '0 24px 48px rgba(0, 0, 0, 0.35), 0 8px 16px rgba(0, 0, 0, 0.3)',
+      },
+      backdropBlur: {
+        'glass': '8px',
+        'glass-lg': '16px',
+        'glass-xl': '24px',
+      },
+      backgroundImage: {
+        'glass-gradient': 'linear-gradient(135deg, rgba(248, 245, 255, 0.9) 0%, rgba(240, 235, 255, 0.7) 50%, rgba(225, 217, 255, 0.5) 100%)',
+        'glass-gradient-hover': 'linear-gradient(135deg, rgba(240, 235, 255, 0.9) 0%, rgba(225, 217, 255, 0.7) 50%, rgba(201, 187, 255, 0.5) 100%)',
+        'glass-gradient-pressed': 'linear-gradient(135deg, rgba(225, 217, 255, 0.9) 0%, rgba(201, 187, 255, 0.7) 50%, rgba(168, 143, 255, 0.5) 100%)',
+        'pink-gradient': 'linear-gradient(135deg, rgba(255, 235, 241, 0.9) 0%, rgba(255, 214, 227, 0.7) 50%, rgba(255, 173, 198, 0.5) 100%)',
+        'blush-gradient': 'linear-gradient(135deg, rgba(255, 248, 245, 0.9) 0%, rgba(255, 225, 214, 0.7) 50%, rgba(255, 201, 173, 0.5) 100%)',
+        'blue-gradient': 'linear-gradient(135deg, rgba(240, 249, 255, 0.9) 0%, rgba(224, 242, 254, 0.7) 50%, rgba(186, 230, 253, 0.5) 100%)',
+        'mint-gradient': 'linear-gradient(135deg, rgba(240, 253, 244, 0.9) 0%, rgba(220, 252, 231, 0.7) 50%, rgba(187, 247, 208, 0.5) 100%)',
+        'mesh-gradient': 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139, 107, 255, 0.15), transparent), radial-gradient(ellipse 60% 40% at 80% 100%, rgba(255, 82, 132, 0.1), transparent), radial-gradient(ellipse 50% 30% at -10% 50%, rgba(14, 165, 233, 0.1), transparent)',
+        'mesh-gradient-dark': 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139, 107, 255, 0.1), transparent), radial-gradient(ellipse 60% 40% at 80% 100%, rgba(255, 82, 132, 0.08), transparent), radial-gradient(ellipse 50% 30% at -10% 50%, rgba(14, 165, 233, 0.08), transparent)',
       },
       transitionDuration: {
         'fast': '150ms',
         'normal': '200ms',
-        'slow': '250ms',
+        'slow': '300ms',
+        'slower': '400ms',
       },
       transitionTimingFunction: {
         'ease-out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',
         'ease-in-out-expo': 'cubic-bezier(0.87, 0, 0.13, 1)',
+        'spring': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
       },
       zIndex: {
         'dropdown': '100',
@@ -190,11 +306,6 @@ export default {
         'popover': '400',
         'tooltip': '500',
         'toast': '600',
-      },
-      backgroundImage: {
-        'neo-gradient': 'linear-gradient(145deg, #F7F3E3 0%, #E8E2CC 100%)',
-        'neo-gradient-hover': 'linear-gradient(145deg, #E8E2CC 0%, #D9D1B5 100%)',
-        'neo-gradient-pressed': 'linear-gradient(145deg, #D9D1B5 0%, #CAC09E 100%)',
       },
     },
   },

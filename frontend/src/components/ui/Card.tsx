@@ -2,22 +2,25 @@ import { HTMLAttributes, forwardRef } from 'react'
 import { cn } from '@/utils/helpers'
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
-  variant?: 'elevated' | 'flat' | 'pressed' | 'floating'
+  variant?: 'default' | 'elevated' | 'hover' | 'interactive' | 'lavender' | 'pink' | 'blush' | 'blue' | 'mint' | 'peach' | 'flat'
   hover?: boolean
   padding?: 'none' | 'sm' | 'md' | 'lg'
 }
 
 export const Card = forwardRef<HTMLDivElement, CardProps>(
-  ({ className, variant = 'elevated', hover = false, padding = 'md', children, ...props }, ref) => {
+  ({ className, variant = 'default', hover = false, padding = 'md', children, ...props }, ref) => {
     const variantClasses = {
-      elevated: 'surface-elevated',
-      flat: 'surface-flat border border-base-200 dark:border-base-700',
-      pressed: 'surface-pressed',
-      floating: 'surface-floating',
-    }
-    const hoverClasses = {
-      true: 'surface-elevated-hover',
-      false: '',
+      default: 'card',
+      elevated: 'card',
+      hover: 'card-hover',
+      interactive: 'card-interactive',
+      lavender: 'card-lavender',
+      pink: 'card-pink',
+      blush: 'card-blush',
+      blue: 'card-blue',
+      mint: 'card-mint',
+      peach: 'card-peach',
+      flat: 'glass-subtle rounded-2xl',
     }
     const paddingClasses = {
       none: 'p-0',
@@ -30,9 +33,8 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
       <div
         ref={ref}
         className={cn(
-          'rounded-2xl',
           variantClasses[variant],
-          hover && variant !== 'flat' && hoverClasses.true,
+          hover && variant !== 'flat' && 'card-hover',
           paddingClasses[padding],
           className
         )}
@@ -88,7 +90,7 @@ CardContent.displayName = 'CardContent'
 
 export const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => (
-    <div ref={ref} className={cn('mt-4 pt-4 border-t border-base-200 dark:border-base-700 flex items-center gap-3', className)} {...props}>
+    <div ref={ref} className={cn('mt-4 pt-4 border-t border-glass-200 dark:border-glass-dark-200 flex items-center gap-3', className)} {...props}>
       {children}
     </div>
   )

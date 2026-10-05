@@ -4,31 +4,35 @@
 
 @layer base {
   :root {
-    --color-base: #F7F3E3;
-    --color-base-elevated: #FEFDFB;
-    --color-border: #E8E2CC;
-    --color-text-primary: #37322B;
-    --color-text-secondary: #797059;
-    --color-text-muted: #BBB087;
-    --color-accent: #FE5D26;
-    --color-accent-hover: #E84A1E;
-    --color-accent-pressed: #C43A1A;
+    --color-bg-primary: #FAF8FF;
+    --color-bg-secondary: #F5F0FF;
+    --color-bg-tertiary: #EEE6FF;
+    --color-text-primary: #1F1F1F;
+    --color-text-secondary: #424242;
+    --color-text-muted: #787878;
+    --color-border: rgba(139, 107, 255, 0.15);
+    --color-border-hover: rgba(139, 107, 255, 0.25);
+    --color-accent: #8B6BFF;
+    --color-accent-hover: #7451E8;
+    --color-accent-pressed: #6140C4;
   }
 
   .dark {
-    --color-base: #1C1813;
-    --color-base-elevated: #2A251F;
-    --color-border: #3D382F;
-    --color-text-primary: #FAFAF9;
-    --color-text-secondary: #D0D0D0;
+    --color-bg-primary: #141223;
+    --color-bg-secondary: #1A182E;
+    --color-bg-tertiary: #232038;
+    --color-text-primary: #FAFAFA;
+    --color-text-secondary: #E8E8E8;
     --color-text-muted: #A3A3A3;
-    --color-accent: #FE5D26;
-    --color-accent-hover: #FF7A45;
-    --color-accent-pressed: #E84A1E;
+    --color-border: rgba(168, 143, 255, 0.2);
+    --color-border-hover: rgba(168, 143, 255, 0.35);
+    --color-accent: #A88FFF;
+    --color-accent-hover: #C9BBFF;
+    --color-accent-pressed: #8B6BFF;
   }
 
   * {
-    @apply border-base-200 dark:border-base-700;
+    @apply border-glass-300 dark:border-glass-dark-300;
   }
 
   html {
@@ -36,25 +40,39 @@
   }
 
   body {
-    @apply bg-base-100 dark:bg-base-950 text-ink-900 dark:text-ink-50 font-sans antialiased;
+    @apply bg-bg-light text-ink-900 dark:bg-bg-dark dark:text-ink-50 font-sans antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    background-image: radial-gradient(ellipse at top left, rgba(255,255,255,0.1) 0%, transparent 50%),
-                      radial-gradient(ellipse at bottom right, rgba(55,50,43,0.02) 0%, transparent 50%);
+    background-image: var(--bg-gradient);
+    background-attachment: fixed;
+  }
+
+  :root {
+    --bg-gradient: 
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139, 107, 255, 0.12), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(255, 82, 132, 0.08), transparent),
+      radial-gradient(ellipse 50% 30% at -10% 50%, rgba(14, 165, 233, 0.08), transparent);
+  }
+
+  .dark body {
+    --bg-gradient:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139, 107, 255, 0.1), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(255, 82, 132, 0.06), transparent),
+      radial-gradient(ellipse 50% 30% at -10% 50%, rgba(14, 165, 233, 0.06), transparent);
   }
 
   /* Focus styles - accessible with accent color */
   *:focus-visible {
-    @apply outline-none ring-2 ring-accent-500 ring-offset-2 ring-offset-base-100 dark:ring-offset-base-950;
+    @apply outline-none ring-2 ring-lavender-500 ring-offset-2 ring-offset-bg-light dark:ring-offset-bg-dark;
   }
 
   /* Selection */
   ::selection {
-    @apply bg-accent-100 text-ink-900 dark:bg-accent-900 dark:text-ink-50;
+    @apply bg-lavender-200 text-ink-900 dark:bg-lavender-800 dark:text-ink-50;
   }
 
-  /* Scrollbar - subtle neumorphic */
+  /* Scrollbar - subtle glassmorphic */
   ::-webkit-scrollbar {
-    @apply w-1.5 h-1.5;
+    @apply w-2 h-2;
   }
 
   ::-webkit-scrollbar-track {
@@ -62,190 +80,237 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-base-300 dark:bg-base-600 rounded-full;
+    @apply bg-glass-400 dark:bg-glass-dark-400 rounded-full;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-base-400 dark:bg-base-500;
+    @apply bg-glass-500 dark:bg-glass-dark-500;
   }
 }
 
 @layer components {
-/* ========================================
-      NEUMORPHIC SURFACE SYSTEM
+  /* ========================================
+      GLASSMORPHIC SURFACE SYSTEM
       ======================================== */
 
-  /* Level 0: Flat background */
-  .surface-flat {
-    @apply bg-base-100 dark:bg-base-950;
+  /* Glass surface utilities */
+  .glass {
+    @apply bg-glass-100 dark:bg-glass-dark-100
+           backdrop-blur-glass
+           border border-glass-200 dark:border-glass-dark-200;
   }
 
-  /* Level 1: Subtle raised components */
-  .surface-raised {
-    @apply bg-base-100 dark:bg-base-900 shadow-neo-1;
-    @apply border border-base-200/50 dark:border-base-700/50;
+  .glass-strong {
+    @apply bg-glass-200 dark:bg-glass-dark-200
+           backdrop-blur-glass-lg
+           border border-glass-300 dark:border-glass-dark-300;
   }
 
-  /* Level 2: Strong shadow for outer containers */
-  .shadow-2xl {
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
-  }
-  
-  .dark .shadow-2xl {
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  .glass-subtle {
+    @apply bg-glass-50 dark:bg-glass-dark-50
+           backdrop-blur-sm
+           border border-glass-100 dark:border-glass-dark-100;
   }
 
-  .surface-raised-hover {
-    @apply surface-raised transition-shadow duration-normal hover:shadow-neo-1-hover;
+  .glass-hover {
+    @apply glass transition-all duration-normal hover:bg-glass-200 dark:hover:bg-glass-dark-200
+           hover:border-glass-300 dark:hover:border-glass-dark-300
+           hover:shadow-glass-2;
   }
 
-  /* Level 2: Important cards / containers */
-  .surface-elevated {
-    @apply bg-base-100 dark:bg-base-900 shadow-neo-2;
-    @apply border border-base-200/50 dark:border-base-700/50;
+  .glass-pressed {
+    @apply glass transition-all duration-fast active:bg-glass-300 dark:active:bg-glass-dark-300
+           active:shadow-glass-1;
   }
 
-  .surface-elevated-hover {
-    @apply surface-elevated transition-shadow duration-normal hover:shadow-neo-2-hover;
+  /* Elevated glass surfaces */
+  .glass-elevated {
+    @apply glass shadow-glass-2;
   }
 
-  /* Level 3: Modals / floating elements */
-  .surface-floating {
-    @apply bg-base-100 dark:bg-base-900 shadow-neo-3;
-    @apply border border-base-200/50 dark:border-base-700/50;
+  .glass-elevated-hover {
+    @apply glass-elevated transition-all duration-normal hover:shadow-glass-3;
   }
 
-  /* Inset/Pressed surfaces */
-  .surface-pressed {
-    @apply bg-base-200 dark:bg-base-800 shadow-neo-inset;
-    @apply border border-base-200 dark:border-base-700;
+  .glass-floating {
+    @apply glass-strong shadow-glass-4;
   }
 
-  .surface-pressed-strong {
-    @apply bg-base-200 dark:bg-base-800 shadow-neo-inset-strong;
-    @apply border border-base-200 dark:border-base-700;
+  .glass-floating-hover {
+    @apply glass-floating transition-all duration-normal hover:shadow-glass-4;
   }
 
-  /* Accent surfaces */
-  .surface-accent {
-    @apply bg-accent-500 text-white shadow-neo-accent;
-    @apply border border-transparent;
+  /* Accent glass surfaces */
+  .glass-lavender {
+    @apply bg-lavender-50/80 dark:bg-lavender-900/30
+           backdrop-blur-glass
+           border border-lavender-200/50 dark:border-lavender-800/30;
   }
 
-  .surface-accent-hover {
-    @apply surface-accent transition-all duration-fast hover:shadow-neo-accent-hover;
+  .glass-pink {
+    @apply bg-pink-50/80 dark:bg-pink-900/30
+           backdrop-blur-glass
+           border border-pink-200/50 dark:border-pink-800/30;
   }
 
-  .surface-accent-pressed {
-    @apply surface-accent transition-all duration-fast active:shadow-neo-accent-pressed;
+  .glass-blush {
+    @apply bg-blush-50/80 dark:bg-blush-900/30
+           backdrop-blur-glass
+           border border-blush-200/50 dark:border-blush-800/30;
+  }
+
+  .glass-babyblue {
+    @apply bg-babyblue-50/80 dark:bg-babyblue-900/30
+           backdrop-blur-glass
+           border border-babyblue-200/50 dark:border-babyblue-800/30;
+  }
+
+  .glass-mint {
+    @apply bg-mint-50/80 dark:bg-mint-900/30
+           backdrop-blur-glass
+           border border-mint-200/50 dark:border-mint-800/30;
+  }
+
+  .glass-peach {
+    @apply bg-peach-50/80 dark:bg-peach-900/30
+           backdrop-blur-glass
+           border border-peach-200/50 dark:border-peach-800/30;
   }
 
   /* ========================================
-     CARD SYSTEM
-     ======================================== */
+      CARD SYSTEM
+      ======================================== */
 
   .card {
-    @apply surface-elevated rounded-2xl p-6;
+    @apply glass-elevated rounded-2xl p-6;
   }
 
   .card-hover {
-    @apply card surface-elevated-hover;
+    @apply card glass-elevated-hover;
   }
 
-  .card-pressed {
-    @apply surface-pressed rounded-2xl p-6;
+  .card-interactive {
+    @apply card-hover cursor-pointer;
   }
 
-  .card-flat {
-    @apply surface-flat rounded-2xl p-6 border border-base-200 dark:border-base-700;
-  }
-
-  /* Card padding variants */
   .card-padding-none { @apply p-0; }
   .card-padding-sm { @apply p-4; }
   .card-padding-md { @apply p-6; }
   .card-padding-lg { @apply p-8; }
 
+  /* Card variants */
+  .card-lavender { @apply glass-lavender rounded-2xl p-6; }
+  .card-pink { @apply glass-pink rounded-2xl p-6; }
+  .card-blush { @apply glass-blush rounded-2xl p-6; }
+  .card-blue { @apply glass-babyblue rounded-2xl p-6; }
+  .card-mint { @apply glass-mint rounded-2xl p-6; }
+  .card-peach { @apply glass-peach rounded-2xl p-6; }
+
   /* ========================================
-     BUTTON SYSTEM
-     ======================================== */
+      BUTTON SYSTEM
+      ======================================== */
 
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-xl
-           font-medium transition-all duration-fast
-           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500
+           font-medium transition-all duration-normal
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500
+           focus-visible:ring-offset-2 focus-visible:ring-offset-bg-light dark:focus-visible:ring-offset-bg-dark
            disabled:opacity-50 disabled:cursor-not-allowed
            select-none;
   }
 
-  /* Primary: Accent color with neumorphic raised effect */
+  /* Primary: Lavender glass with accent shadow */
   .btn-primary {
-    @apply btn surface-accent-hover surface-accent-pressed
+    @apply btn glass-lavender shadow-glass-lavender
+           hover:shadow-glass-lavender-hover hover:bg-lavender-100/90 dark:hover:bg-lavender-800/40
+           active:bg-lavender-200/90 dark:active:bg-lavender-700/40
+           text-lavender-700 dark:text-lavender-300
            px-4 py-2.5 text-body-md;
   }
 
   .btn-primary-sm { @apply btn-primary px-3 py-1.5 text-body-sm gap-1.5; }
   .btn-primary-lg { @apply btn-primary px-6 py-3 text-body-lg gap-2; }
 
-  /* Secondary: Neutral neumorphic raised */
+  /* Secondary: Neutral glass */
   .btn-secondary {
-    @apply btn surface-raised-hover
-           px-4 py-2.5 text-body-md
-           text-ink-900 dark:text-ink-100;
+    @apply btn glass hover:glass-hover
+           text-ink-700 dark:text-ink-300
+           px-4 py-2.5 text-body-md;
   }
 
   .btn-secondary-sm { @apply btn-secondary px-3 py-1.5 text-body-sm gap-1.5; }
   .btn-secondary-lg { @apply btn-secondary px-6 py-3 text-body-lg gap-2; }
 
-  /* Ghost: Flat with subtle hover */
+  /* Ghost: Minimal with subtle hover */
   .btn-ghost {
-    @apply btn bg-transparent text-ink-700 dark:text-ink-300
-           hover:bg-base-200 dark:hover:bg-base-800
-           active:bg-base-300 dark:active:bg-base-700
+    @apply btn bg-transparent text-ink-600 dark:text-ink-400
+           hover:bg-glass-100 dark:hover:bg-glass-dark-100
+           active:bg-glass-200 dark:active:bg-glass-dark-200
            px-4 py-2.5 text-body-md;
   }
 
   .btn-ghost-sm { @apply btn-ghost px-3 py-1.5 text-body-sm gap-1.5; }
   .btn-ghost-lg { @apply btn-ghost px-6 py-3 text-body-lg gap-2; }
 
-  /* Danger: Error color with neumorphic raised */
+  /* Danger: Pink glass */
   .btn-danger {
-    @apply btn bg-error-500 text-white
-           hover:bg-error-600 active:bg-error-700
-           shadow-neo-1 hover:shadow-neo-2 active:shadow-neo-1
+    @apply btn glass-pink shadow-glass-pink
+           hover:shadow-glass-pink hover:bg-pink-100/90 dark:hover:bg-pink-800/40
+           text-pink-700 dark:text-pink-300
            px-4 py-2.5 text-body-md;
   }
 
   .btn-danger-sm { @apply btn-danger px-3 py-1.5 text-body-sm gap-1.5; }
   .btn-danger-lg { @apply btn-danger px-6 py-3 text-body-lg gap-2; }
 
+  /* Accent variants */
+  .btn-blush {
+    @apply btn glass-blush shadow-glass-blush
+           hover:shadow-glass-blush hover:bg-blush-100/90 dark:hover:bg-blush-800/40
+           text-blush-700 dark:text-blush-300
+           px-4 py-2.5 text-body-md;
+  }
+
+  .btn-blue {
+    @apply btn glass-babyblue shadow-glass-babyblue
+           hover:shadow-glass-babyblue hover:bg-babyblue-100/90 dark:hover:bg-babyblue-800/40
+           text-babyblue-700 dark:text-babyblue-300
+           px-4 py-2.5 text-body-md;
+  }
+
+  .btn-mint {
+    @apply btn glass-mint shadow-glass-mint
+           hover:shadow-glass-mint hover:bg-mint-100/90 dark:hover:bg-mint-800/40
+           text-mint-700 dark:text-mint-300
+           px-4 py-2.5 text-body-md;
+  }
+
   /* Icon button */
   .btn-icon {
-    @apply btn p-2;
+    @apply btn p-2 rounded-xl;
   }
 
   .btn-icon-sm { @apply btn-icon p-1.5; }
   .btn-icon-lg { @apply btn-icon p-3; }
 
   /* ========================================
-     INPUT SYSTEM - INSET NEUMORPHIC
-     ======================================== */
+      INPUT SYSTEM - GLASSMORPHIC
+      ======================================== */
 
   .input {
     @apply w-full rounded-xl
-           bg-base-100 dark:bg-base-900
-           border border-base-300 dark:border-base-600
+           glass
            px-4 py-2.5 text-body-md text-ink-900 dark:text-ink-100
            placeholder:text-ink-400 dark:placeholder:text-ink-500
-           shadow-neo-inset
-           transition-all duration-fast
-           focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20 focus:outline-none
-           focus:shadow-neo-1
-           disabled:bg-base-200 dark:disabled:bg-base-800 disabled:cursor-not-allowed;
+           transition-all duration-normal
+           focus:border-lavender-400 focus:ring-2 focus:ring-lavender-500/20 focus:outline-none
+           focus:shadow-glass-2 focus:bg-glass-200 dark:focus:bg-glass-dark-200
+           disabled:bg-glass-50 dark:disabled:bg-glass-dark-50 disabled:cursor-not-allowed
+           disabled:opacity-50;
   }
 
   .input-error {
-    @apply input border-error-500 focus:border-error-500 focus:ring-error-500/20;
+    @apply input border-pink-300 focus:border-pink-400 focus:ring-pink-500/20;
   }
 
   .input-sm {
@@ -269,16 +334,16 @@
   }
 
   .error-text {
-    @apply mt-1.5 text-body-xs text-error-600 dark:text-error-400;
+    @apply mt-1.5 text-body-xs text-pink-600 dark:text-pink-400;
   }
 
   /* ========================================
-     SELECT / DROPDOWN
-     ======================================== */
+      SELECT / DROPDOWN
+      ======================================== */
 
   .select {
     @apply input appearance-none bg-no-repeat bg-right pr-10;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23797059'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23787878'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
   }
 
   .dark .select {
@@ -286,8 +351,8 @@
   }
 
   /* ========================================
-     BADGE SYSTEM
-     ======================================== */
+      BADGE SYSTEM
+      ======================================== */
 
   .badge {
     @apply inline-flex items-center px-2.5 py-1 rounded-full text-label-sm font-medium;
@@ -297,56 +362,79 @@
     @apply badge px-2 py-0.5 text-label-xs;
   }
 
-  .badge-default {
-    @apply badge bg-base-200 dark:bg-base-700 text-ink-700 dark:text-ink-300;
+  .badge-lg {
+    @apply badge px-3 py-1.5 text-label-md;
   }
 
-  .badge-primary {
-    @apply badge bg-accent-100 dark:bg-accent-900/30 text-accent-700 dark:text-accent-300;
+  .badge-glass {
+    @apply badge glass text-ink-600 dark:text-ink-400;
+  }
+
+  .badge-lavender {
+    @apply badge glass-lavender text-lavender-700 dark:text-lavender-300;
+  }
+
+  .badge-pink {
+    @apply badge glass-pink text-pink-700 dark:text-pink-300;
+  }
+
+  .badge-blush {
+    @apply badge glass-blush text-blush-700 dark:text-blush-300;
+  }
+
+  .badge-blue {
+    @apply badge glass-babyblue text-babyblue-700 dark:text-babyblue-300;
+  }
+
+  .badge-mint {
+    @apply badge glass-mint text-mint-700 dark:text-mint-300;
+  }
+
+  .badge-peach {
+    @apply badge glass-peach text-peach-700 dark:text-peach-300;
   }
 
   .badge-success {
-    @apply badge bg-success-50 dark:bg-success-900/30 text-success-700 dark:text-success-300;
+    @apply badge glass-mint text-mint-700 dark:text-mint-300;
   }
 
   .badge-warning {
-    @apply badge bg-warning-50 dark:bg-warning-900/30 text-warning-700 dark:text-warning-300;
+    @apply badge glass-peach text-peach-700 dark:text-peach-300;
   }
 
   .badge-error {
-    @apply badge bg-error-50 dark:bg-error-900/30 text-error-700 dark:text-error-300;
+    @apply badge glass-pink text-pink-700 dark:text-pink-300;
   }
 
   .badge-info {
-    @apply badge bg-info-50 dark:bg-info-900/30 text-info-700 dark:text-info-300;
+    @apply badge glass-babyblue text-babyblue-700 dark:text-babyblue-300;
   }
 
   .badge-outline {
-    @apply badge border border-base-300 dark:border-base-600 bg-transparent;
+    @apply badge border border-glass-300 dark:border-glass-dark-300 bg-transparent text-ink-600 dark:text-ink-400;
   }
 
   /* Status badges for pipeline */
-  .status-applied { @apply badge-default; }
-  .status-screening { @apply badge-warning; }
-  .status-shortlisted { @apply badge-primary; }
-  .status-assessment { @apply badge-info; }
-  .status-interview { @apply badge-info; }
-  .status-offer { @apply badge-success; }
-  .status-hired { @apply badge-success; }
-  .status-rejected { @apply badge-error; }
+  .status-applied { @apply badge-glass; }
+  .status-screening { @apply badge-peach; }
+  .status-shortlisted { @apply badge-lavender; }
+  .status-assessment { @apply badge-blue; }
+  .status-interview { @apply badge-blue; }
+  .status-offer { @apply badge-mint; }
+  .status-hired { @apply badge-mint; }
+  .status-rejected { @apply badge-pink; }
 
   /* Job status badges */
-  .job-active { @apply badge-success; }
-  .job-draft { @apply badge-default; }
+  .job-active { @apply badge-mint; }
+  .job-draft { @apply badge-glass; }
   .job-closed { @apply badge-outline; }
 
   /* ========================================
-     TABLE SYSTEM - FLAT NEUMORPHIC SURFACE
-     ======================================== */
+      TABLE SYSTEM - GLASSMORPHIC SURFACE
+      ======================================== */
 
   .table-container {
-    @apply rounded-2xl border border-base-200 dark:border-base-700 overflow-hidden;
-    @apply bg-base-100 dark:bg-base-900 shadow-neo-1;
+    @apply rounded-2xl glass overflow-hidden;
   }
 
   .table {
@@ -355,15 +443,15 @@
 
   .table th {
     @apply px-4 py-3 text-label-sm text-ink-500 dark:text-ink-400 font-medium
-           bg-base-100 dark:bg-base-800 border-b border-base-200 dark:border-base-700;
+           bg-glass-50 dark:bg-glass-dark-50 border-b border-glass-200 dark:border-glass-dark-200;
   }
 
   .table td {
-    @apply px-4 py-3 text-ink-900 dark:text-ink-100 border-b border-base-200/50 dark:border-base-700/50;
+    @apply px-4 py-3 text-ink-900 dark:text-ink-100 border-b border-glass-100 dark:border-glass-dark-100;
   }
 
   .table tbody tr {
-    @apply transition-colors duration-fast hover:bg-base-50 dark:hover:bg-base-900/50;
+    @apply transition-colors duration-fast hover:bg-glass-50 dark:hover:bg-glass-dark-50;
   }
 
   .table tbody tr:last-child td {
@@ -375,19 +463,19 @@
   }
 
   .table-row-selected {
-    @apply bg-accent-50 dark:bg-accent-900/20;
+    @apply bg-lavender-50/50 dark:bg-lavender-900/20;
   }
 
   /* ========================================
-     MODAL SYSTEM
-     ======================================== */
+      MODAL SYSTEM
+      ======================================== */
 
   .modal-overlay {
-    @apply fixed inset-0 bg-black/30 backdrop-blur-sm z-modal flex items-center justify-center p-4;
+    @apply fixed inset-0 bg-ink-900/30 backdrop-blur-glass z-modal flex items-center justify-center p-4;
   }
 
   .modal-content {
-    @apply surface-floating rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden
+    @apply glass-floating rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden
            animate-modal-in;
   }
 
@@ -398,25 +486,24 @@
   .modal-full { @apply modal-content max-w-[90vw]; }
 
   /* ========================================
-     TOAST SYSTEM
-     ======================================== */
+      TOAST SYSTEM
+      ======================================== */
 
   .toast {
-    @apply surface-floating rounded-xl p-4 border border-base-200/50 dark:border-base-700/50
-           animate-toast-in z-toast flex items-start gap-3 min-w-[300px] max-w-md;
+    @apply glass-floating rounded-xl p-4 animate-toast-in z-toast flex items-start gap-3 min-w-[300px] max-w-md;
   }
 
-  .toast-success { @apply toast border-l-4 border-success-500; }
-  .toast-error { @apply toast border-l-4 border-error-500; }
-  .toast-warning { @apply toast border-l-4 border-warning-500; }
-  .toast-info { @apply toast border-l-4 border-accent-500; }
+  .toast-success { @apply toast border-l-4 border-mint-500; }
+  .toast-error { @apply toast border-l-4 border-pink-500; }
+  .toast-warning { @apply toast border-l-4 border-peach-500; }
+  .toast-info { @apply toast border-l-4 border-lavender-500; }
 
   /* ========================================
-     SKELETON SYSTEM
-     ======================================== */
+      SKELETON SYSTEM
+      ======================================== */
 
   .skeleton {
-    @apply bg-base-200 dark:bg-base-700 animate-pulse rounded;
+    @apply bg-glass-200 dark:bg-glass-dark-200 animate-pulse rounded;
   }
 
   .skeleton-text {
@@ -436,19 +523,19 @@
   }
 
   .skeleton-card {
-    @apply surface-elevated rounded-2xl p-6 space-y-4 animate-pulse;
+    @apply card animate-pulse space-y-4;
   }
 
   /* ========================================
-     EMPTY STATE
-     ======================================== */
+      EMPTY STATE
+      ======================================== */
 
   .empty-state {
     @apply flex flex-col items-center justify-center py-16 px-6 text-center;
   }
 
   .empty-state-icon {
-    @apply w-16 h-16 text-base-400 dark:text-base-600 mb-4;
+    @apply w-16 h-16 text-glass-400 dark:text-glass-dark-400 mb-4;
   }
 
   .empty-state-title {
@@ -460,20 +547,20 @@
   }
 
   /* ========================================
-     AI ANALYSIS CARD
-     ======================================== */
+      AI ANALYSIS CARD
+      ======================================== */
 
   .ai-analysis-card {
-    @apply card border-l-4 border-accent-500 bg-accent-50/50 dark:bg-accent-900/10;
+    @apply card border-l-4 border-lavender-500 bg-lavender-50/50 dark:bg-lavender-900/10;
   }
 
   .ai-analysis-card-header {
-    @apply flex items-center gap-2 text-label-md text-accent-700 dark:text-accent-300 mb-4;
+    @apply flex items-center gap-2 text-label-md text-lavender-700 dark:text-lavender-300 mb-4;
   }
 
   /* ========================================
-     SCORE INDICATOR
-     ======================================== */
+      SCORE INDICATOR
+      ======================================== */
 
   .score-indicator {
     @apply inline-flex items-center gap-1.5;
@@ -488,21 +575,20 @@
   .score-circle-lg { @apply score-circle w-20 h-20; }
 
   /* ========================================
-     SIDEBAR NAVIGATION
-     ======================================== */
+      SIDEBAR NAVIGATION
+      ======================================== */
 
   .nav-item {
     @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-body-md
            text-ink-500 dark:text-ink-400
-           hover:bg-base-200 dark:hover:bg-base-800
-           hover:text-ink-900 dark:hover:text-ink-100
-           transition-all duration-fast
+           hover:glass-hover hover:text-ink-900 dark:hover:text-ink-100
+           transition-all duration-normal
            cursor-pointer;
   }
 
   .nav-item-active {
-    @apply nav-item bg-base-200 dark:bg-base-800 text-accent-700 dark:text-accent-300
-           font-medium shadow-neo-inset;
+    @apply nav-item glass-lavender text-lavender-700 dark:text-lavender-300
+           font-medium shadow-glass-lavender;
   }
 
   .nav-item-icon {
@@ -510,26 +596,24 @@
   }
 
   /* ========================================
-     TABS
-     ======================================== */
+      TABS
+      ======================================== */
 
   .tabs-list {
-    @apply flex overflow-x-auto scrollbar-hide gap-1 bg-base-100 dark:bg-base-900
-           p-1 rounded-xl shadow-neo-inset;
+    @apply flex overflow-x-auto scrollbar-hide gap-1 glass-subtle p-1 rounded-xl;
   }
 
   .tabs-trigger {
-    @apply px-4 py-2.5 text-label-md font-medium transition-all duration-fast
+    @apply px-4 py-2.5 text-label-md font-medium transition-all duration-normal
            rounded-lg flex items-center gap-2 whitespace-nowrap
            text-ink-500 dark:text-ink-400
            hover:text-ink-900 dark:hover:text-ink-100
-           hover:bg-base-200 dark:hover:bg-base-800
-           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500;
+           hover:bg-glass-200 dark:hover:bg-glass-dark-200
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500;
   }
 
   .tabs-trigger-active {
-    @apply tabs-trigger bg-base-100 dark:bg-base-900 text-accent-700 dark:text-accent-300
-           shadow-neo-1;
+    @apply tabs-trigger glass text-lavender-700 dark:text-lavender-300 shadow-glass-1;
   }
 
   .tabs-content {
@@ -537,8 +621,8 @@
   }
 
   /* ========================================
-     SECTION SPACING
-     ======================================== */
+      SECTION SPACING
+      ======================================== */
 
   .section {
     @apply space-y-6;
@@ -557,16 +641,16 @@
   }
 
   /* ========================================
-     PAGE CONTAINER
-     ======================================== */
+      PAGE CONTAINER
+      ======================================== */
 
   .page-container {
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8;
   }
 
   /* ========================================
-     GRID LAYOUTS
-     ======================================== */
+      GRID LAYOUTS
+      ======================================== */
 
   .grid-metrics {
     @apply grid gap-4 sm:grid-cols-2 lg:grid-cols-4;
@@ -585,16 +669,16 @@
   }
 
   /* ========================================
-     KANBAN
-     ======================================== */
+      KANBAN
+      ======================================== */
 
   .kanban-column {
-    @apply surface-raised rounded-2xl min-w-[280px] max-w-[280px] flex flex-col
+    @apply glass-strong rounded-2xl min-w-[280px] max-w-[280px] flex flex-col
            min-h-[500px] transition-shadow duration-normal;
   }
 
   .kanban-column-header {
-    @apply px-4 py-3 border-b border-base-200 dark:border-base-700 flex items-center justify-between;
+    @apply px-4 py-3 border-b border-glass-200 dark:border-glass-dark-200 flex items-center justify-between;
   }
 
   .kanban-column-content {
@@ -602,49 +686,49 @@
   }
 
   .kanban-card {
-    @apply surface-raised-hover rounded-xl p-4 transition-all duration-fast
-           border border-base-200/50 dark:border-base-700/50;
+    @apply glass-elevated-hover rounded-xl p-4 transition-all duration-normal
+           border border-glass-200/50 dark:border-glass-dark-200/50;
   }
 
   .kanban-card-dragging {
-    @apply shadow-neo-2 opacity-90 rotate-1;
+    @apply shadow-glass-3 opacity-90 rotate-1;
   }
 
   .kanban-card-drop-target {
-    @apply border-2 border-accent-500 bg-accent-50 dark:bg-accent-900/20;
+    @apply border-2 border-lavender-400 bg-lavender-50/50 dark:bg-lavender-900/20;
   }
 
   /* ========================================
-     PROGRESS BAR
-     ======================================== */
+      PROGRESS BAR
+      ======================================== */
 
   .progress-bar {
-    @apply h-2 bg-base-200 dark:bg-base-700 rounded-full overflow-hidden;
+    @apply h-2 bg-glass-200 dark:bg-glass-dark-200 rounded-full overflow-hidden;
   }
 
   .progress-fill {
-    @apply h-full bg-accent-500 rounded-full transition-all duration-normal ease-out-expo;
+    @apply h-full bg-lavender-500 rounded-full transition-all duration-normal ease-out-expo;
   }
 
   /* ========================================
-     DIVIDER
-     ======================================== */
+      DIVIDER
+      ======================================== */
 
   .divider {
-    @apply border-base-200 dark:border-base-700;
+    @apply border-glass-200 dark:border-glass-dark-200;
   }
 
   .divider-vertical {
-    @apply h-6 w-px bg-base-200 dark:bg-base-700 mx-3;
+    @apply h-6 w-px bg-glass-200 dark:bg-glass-dark-200 mx-3;
   }
 
   /* ========================================
-     AVATAR
-     ======================================== */
+      AVATAR
+      ======================================== */
 
   .avatar {
-    @apply inline-flex items-center justify-center rounded-full bg-base-200 dark:bg-base-700
-           text-ink-700 dark:text-ink-300 font-medium select-none;
+    @apply inline-flex items-center justify-center rounded-full glass
+           text-ink-600 dark:text-ink-400 font-medium select-none;
   }
 
   .avatar-xs { @apply avatar w-6 h-6 text-label-xs; }
@@ -653,18 +737,33 @@
   .avatar-lg { @apply avatar w-12 h-12 text-body-lg; }
   .avatar-xl { @apply avatar w-16 h-16 text-heading-md; }
 
-  .avatar-accent {
-    @apply avatar bg-accent-100 dark:bg-accent-900/30 text-accent-700 dark:text-accent-300;
+  .avatar-lavender {
+    @apply avatar glass-lavender text-lavender-700 dark:text-lavender-300;
+  }
+
+  .avatar-pink {
+    @apply avatar glass-pink text-pink-700 dark:text-pink-300;
+  }
+
+  .avatar-blush {
+    @apply avatar glass-blush text-blush-700 dark:text-blush-300;
+  }
+
+  .avatar-blue {
+    @apply avatar glass-babyblue text-babyblue-700 dark:text-babyblue-300;
+  }
+
+  .avatar-mint {
+    @apply avatar glass-mint text-mint-700 dark:text-mint-300;
   }
 
   /* ========================================
-     TOOLTIP
-     ======================================== */
+      TOOLTIP
+      ======================================== */
 
   .tooltip {
-    @apply absolute z-tooltip px-2.5 py-1.5 text-body-xs font-medium text-white
-           bg-ink-900 dark:bg-ink-100 text-ink-100 dark:text-ink-900
-           rounded-lg shadow-neo-3 opacity-0 invisible transition-all duration-fast;
+    @apply absolute z-tooltip px-2.5 py-1.5 text-body-xs font-medium text-ink-50
+           glass-strong rounded-lg shadow-glass-3 opacity-0 invisible transition-all duration-fast;
   }
 
   .tooltip-show {
@@ -672,25 +771,25 @@
   }
 
   /* ========================================
-     DROPDOWN MENU
-     ======================================== */
+      DROPDOWN MENU
+      ======================================== */
 
   .dropdown-menu {
-    @apply surface-floating rounded-xl p-1 min-w-[160px] animate-scale-in;
+    @apply glass-floating rounded-xl p-1 min-w-[160px] animate-scale-in;
   }
 
   .dropdown-item {
     @apply flex items-center gap-2 w-full px-3 py-2 text-body-sm text-ink-700 dark:text-ink-300
-           rounded-lg hover:bg-base-200 dark:hover:bg-base-800 transition-colors duration-fast;
+           rounded-lg hover:bg-glass-200 dark:hover:bg-glass-dark-200 transition-colors duration-fast;
   }
 
   .dropdown-divider {
-    @apply h-px bg-base-200 dark:bg-base-700 my-1;
+    @apply h-px bg-glass-200 dark:bg-glass-dark-200 my-1;
   }
 
   /* ========================================
-     FORM FIELD WRAPPER
-     ======================================== */
+      FORM FIELD WRAPPER
+      ======================================== */
 
   .form-field {
     @apply w-full space-y-1.5;
@@ -698,13 +797,60 @@
 
   .form-field-error .input,
   .form-field-error .select {
-    @apply border-error-500 focus:border-error-500 focus:ring-error-500/20;
+    @apply border-pink-300 focus:border-pink-400 focus:ring-pink-500/20;
   }
 
   .form-field-error .label::after {
     content: '*';
-    @apply text-error-500 ml-1;
+    @apply text-pink-500 ml-1;
   }
+
+  /* ========================================
+      SEARCH BAR
+      ======================================== */
+
+  .search-input {
+    @apply input pl-10 pr-4 bg-glass-100 dark:bg-glass-dark-100
+           focus:bg-glass-200 dark:focus:bg-glass-dark-200;
+  }
+
+  .search-wrapper {
+    @apply relative;
+  }
+
+  .search-icon {
+    @apply absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-400 dark:text-ink-500;
+  }
+
+  /* ========================================
+      PAGINATION
+      ======================================== */
+
+  .pagination {
+    @apply flex items-center justify-center gap-1;
+  }
+
+  .pagination-btn {
+    @apply btn-icon p-2 rounded-xl glass hover:glass-hover
+           text-ink-500 dark:text-ink-400
+           hover:text-ink-900 dark:hover:text-ink-100;
+  }
+
+  .pagination-btn-active {
+    @apply pagination-btn glass-lavender text-lavender-700 dark:text-lavender-300 shadow-glass-lavender;
+  }
+
+  /* ========================================
+      LOADING SPINNER
+      ======================================== */
+
+  .spinner {
+    @apply animate-spin rounded-full border-2 border-glass-300 border-t-lavender-500;
+  }
+
+  .spinner-sm { @apply spinner w-4 h-4 border-1.5; }
+  .spinner-md { @apply spinner w-6 h-6; }
+  .spinner-lg { @apply spinner w-8 h-8 border-3; }
 }
 
 @layer utilities {
@@ -791,13 +937,12 @@
     display: none;
   }
 
-  /* Neumorphic text shadow for headings on accent backgrounds */
-  .text-shadow-neo {
-    text-shadow: 1px 1px 0 rgba(255,255,255,0.3), -1px -1px 0 rgba(0,0,0,0.1);
+  /* Glassmorphism utilities */
+  .glass-morphism {
+    @apply bg-glass-100 dark:bg-glass-dark-100 backdrop-blur-glass-lg;
   }
 
-  /* Glassmorphism fallback for modals if needed */
-  .glass {
-    @apply bg-white/80 dark:bg-base-900/80 backdrop-blur-sm;
+  .glass-morphism-strong {
+    @apply bg-glass-200 dark:bg-glass-dark-200 backdrop-blur-glass-xl;
   }
 }

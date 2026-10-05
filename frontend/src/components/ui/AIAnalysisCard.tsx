@@ -37,7 +37,7 @@ export function AIAnalysisCard({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
         </svg>
         <span>AI Analysis</span>
-        <span className="text-body-xs text-accent-500 dark:text-accent-400 ml-auto">
+        <span className="text-body-xs text-lavender-500 dark:text-lavender-400 ml-auto">
           AI-generated
         </span>
       </div>
@@ -83,10 +83,10 @@ interface AIAnalysisCompactProps {
 
 export function AIAnalysisCompact({ score, label, matchingSkills = [], potentialGaps = [], className }: AIAnalysisCompactProps) {
   const getColor = (s: number) => {
-    if (s >= 80) return 'text-success-600 dark:text-success-400 bg-success-100 dark:bg-success-900/30'
-    if (s >= 60) return 'text-warning-600 dark:text-warning-400 bg-warning-100 dark:bg-warning-900/30'
-    if (s >= 40) return 'text-accent-500 dark:text-accent-400 bg-accent-100 dark:bg-accent-900/30'
-    return 'text-error-600 dark:text-error-400 bg-error-100 dark:bg-error-900/30'
+    if (s >= 80) return 'text-mint-600 dark:text-mint-400 bg-mint-100 dark:bg-mint-900/30'
+    if (s >= 60) return 'text-peach-600 dark:text-peach-400 bg-peach-100 dark:bg-peach-900/30'
+    if (s >= 40) return 'text-lavender-500 dark:text-lavender-400 bg-lavender-100 dark:bg-lavender-900/30'
+    return 'text-pink-600 dark:text-pink-400 bg-pink-100 dark:bg-pink-900/30'
   }
 
   const colorClass = getColor(score)
@@ -106,12 +106,12 @@ export function AIAnalysisCompact({ score, label, matchingSkills = [], potential
       {(matchingSkills.length > 0 || potentialGaps.length > 0) && (
         <div className="mt-4 flex flex-wrap gap-2">
           {matchingSkills.slice(0, 3).map((skill) => (
-            <span key={skill} className="badge-success text-body-xs">
+            <span key={skill} className="badge-mint text-body-xs">
               {skill}
             </span>
           ))}
           {potentialGaps.slice(0, 2).map((gap) => (
-            <span key={gap} className="badge-warning text-body-xs">
+            <span key={gap} className="badge-peach text-body-xs">
               {gap}
             </span>
           ))}

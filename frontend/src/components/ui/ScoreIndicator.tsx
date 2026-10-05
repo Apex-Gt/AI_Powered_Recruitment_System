@@ -16,17 +16,17 @@ export function ScoreIndicator({ score, size = 'md', showLabel = true, label, cl
   }
 
   const getColor = (s: number) => {
-    if (s >= 80) return 'text-success-600 dark:text-success-400'
-    if (s >= 60) return 'text-warning-600 dark:text-warning-400'
-    if (s >= 40) return 'text-accent-500 dark:text-accent-400'
-    return 'text-error-600 dark:text-error-400'
+    if (s >= 80) return 'text-mint-600 dark:text-mint-400'
+    if (s >= 60) return 'text-peach-600 dark:text-peach-400'
+    if (s >= 40) return 'text-lavender-500 dark:text-lavender-400'
+    return 'text-pink-600 dark:text-pink-400'
   }
 
   const getBgColor = (s: number) => {
-    if (s >= 80) return 'bg-success-100 dark:bg-success-900/30'
-    if (s >= 60) return 'bg-warning-100 dark:bg-warning-900/30'
-    if (s >= 40) return 'bg-accent-100 dark:bg-accent-900/30'
-    return 'bg-error-100 dark:bg-error-900/30'
+    if (s >= 80) return 'bg-mint-100 dark:bg-mint-900/30'
+    if (s >= 60) return 'bg-peach-100 dark:bg-peach-900/30'
+    if (s >= 40) return 'bg-lavender-100 dark:bg-lavender-900/30'
+    return 'bg-pink-100 dark:bg-pink-900/30'
   }
 
   const strokeColor = getColor(score)
@@ -42,7 +42,7 @@ export function ScoreIndicator({ score, size = 'md', showLabel = true, label, cl
       <div className="relative">
         <svg className="transform -rotate-90" width={size === 'sm' ? 40 : size === 'md' ? 56 : 80} height={size === 'sm' ? 40 : size === 'md' ? 56 : 80}>
           <circle
-            className={cn('stroke-base-200 dark:stroke-base-700', bgColor.replace('bg-', 'fill-'))}
+            className={cn('stroke-glass-200 dark:stroke-glass-dark-200', bgColor.replace('bg-', 'fill-'))}
             strokeWidth="4"
             fill="transparent"
             cx={size === 'sm' ? 20 : size === 'md' ? 28 : 40}
@@ -103,9 +103,9 @@ export function ScoreBreakdown({ breakdown, className }: ScoreBreakdownProps) {
             <span className="text-label-sm text-ink-700 dark:text-ink-300">{item.label}</span>
             <span className="text-label-sm font-medium text-ink-900 dark:text-ink-100">{item.value}%</span>
           </div>
-          <div className="h-2 bg-base-200 dark:bg-base-700 rounded-full overflow-hidden">
+          <div className="h-2 bg-glass-200 dark:bg-glass-dark-200 rounded-full overflow-hidden">
             <div
-              className="h-full bg-accent-500 rounded-full transition-all duration-1000 ease-out"
+              className="h-full bg-lavender-500 rounded-full transition-all duration-1000 ease-out"
               style={{ width: `${item.value}%` }}
             />
           </div>
@@ -128,14 +128,14 @@ export function AITags({ matchingSkills = [], relevantExperience = [], potential
       {matchingSkills.length > 0 && (
         <div>
           <h4 className="text-label-sm text-ink-700 dark:text-ink-300 mb-2 flex items-center gap-1.5">
-            <svg className="w-4 h-4 text-success-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <svg className="w-4 h-4 text-mint-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
             Matching Skills
           </h4>
           <div className="flex flex-wrap gap-2">
             {matchingSkills.map((skill) => (
-              <span key={skill} className="badge-success text-body-xs">
+              <span key={skill} className="badge-mint text-body-xs">
                 {skill}
               </span>
             ))}
@@ -145,15 +145,15 @@ export function AITags({ matchingSkills = [], relevantExperience = [], potential
       {relevantExperience.length > 0 && (
         <div>
           <h4 className="text-label-sm text-ink-700 dark:text-ink-300 mb-2 flex items-center gap-1.5">
-            <svg className="w-4 h-4 text-accent-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            <svg className="w-4 h-4 text-lavender-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 002-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
             Relevant Experience
           </h4>
           <div className="space-y-1">
             {relevantExperience.map((exp, i) => (
               <p key={i} className="text-body-sm text-ink-600 dark:text-ink-400 flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 text-accent-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <svg className="w-3.5 h-3.5 text-lavender-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
                 {exp}
@@ -165,14 +165,14 @@ export function AITags({ matchingSkills = [], relevantExperience = [], potential
       {potentialGaps.length > 0 && (
         <div>
           <h4 className="text-label-sm text-ink-700 dark:text-ink-300 mb-2 flex items-center gap-1.5">
-            <svg className="w-4 h-4 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <svg className="w-4 h-4 text-peach-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             Potential Gaps
           </h4>
           <div className="flex flex-wrap gap-2">
             {potentialGaps.map((gap) => (
-              <span key={gap} className="badge-warning text-body-xs">
+              <span key={gap} className="badge-peach text-body-xs">
                 {gap}
               </span>
             ))}
