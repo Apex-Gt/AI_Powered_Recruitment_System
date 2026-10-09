@@ -107,9 +107,14 @@ public class Job {
     @Positive
     private Integer vacancies;
 
+    @Positive
+    private String salaryCurrency;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
+
+    
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "created_by", nullable = false)
@@ -146,4 +151,6 @@ public class Job {
         }
         return maximumSalary.compareTo(minimumSalary) >= 0;
     }
+
+    
 }

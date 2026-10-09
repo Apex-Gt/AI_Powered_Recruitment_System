@@ -1,6 +1,7 @@
 package com.project.ai_resumerag_be.dto.request;
 
 import com.project.ai_resumerag_be.enumerators.EmploymentType;
+import com.project.ai_resumerag_be.enumerators.JobStatus;
 import com.project.ai_resumerag_be.enumerators.WorkMode;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -62,4 +63,6 @@ public class JobRequest {
 
     @NotEmpty(message = "At least one skill is required")
     private List<JobSkillRequest> skills;
+
+    private JobStatus status;
 }

@@ -41,7 +41,7 @@ The database/entity/business terminology must use Company.
 ## TECHNOLOGY
 
 Backend:
-- Java 21
+- Java 25 (latest LTS)
 - Spring Boot
 - Spring Security
 - JWT

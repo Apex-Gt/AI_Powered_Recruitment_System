@@ -2,7 +2,7 @@
 
 ## GENERAL
 
-1. Use Java 21.
+1. Use Java 25 (latest LTS).
 2. Use Spring Boot.
 3. Use PostgreSQL.
 4. Use UUID for entity IDs.

@@ -26,6 +26,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -41,21 +43,39 @@ public class JobServiceImplementation implements JobService {
     private final JobSkillMapper jobSkillMapper;
     private final JobMapper jobMapper;
 
-    @Override
-    public CommonResponse createJob(JobRequest request) {
-
+    private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
-        User user = customUserDetails.getUser();
+        return customUserDetails.getUser();
+    }
+
+    private void validateSalary(BigDecimal minimumSalary, BigDecimal maximumSalary) {
+        if (minimumSalary != null && maximumSalary != null && maximumSalary.compareTo(minimumSalary) < 0) {
+            throw new IllegalArgumentException("Maximum salary must be greater than or equal to minimum salary");
+        }
+    }
+
+    private void validateApplicationDeadline(LocalDate deadline) {
+        if (deadline != null && deadline.isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("Application deadline must be today or in the future");
+        }
+    }
+
+    @Override
+    public CommonResponse createJob(JobRequest request) {
+        User user = getCurrentUser();
 
         if (user.getRole() != Role.RECRUITER && user.getRole() != Role.ADMIN) {
-            throw new RuntimeException("Only recruiters and admins can create jobs");
+            throw new ResourceNotFoundException("Only recruiters and admins can create jobs");
         }
 
         Company company = user.getCompany();
         if (company == null) {
-            throw new RuntimeException("User is not associated with a company");
+            throw new ResourceNotFoundException("User is not associated with a company");
         }
+
+        validateSalary(request.getMinimumSalary(), request.getMaximumSalary());
+        validateApplicationDeadline(request.getApplicationDeadline());
 
         Job job = Job.builder()
                 .title(request.getTitle())
@@ -67,6 +87,7 @@ public class JobServiceImplementation implements JobService {
                 .educationRequired(request.getEducationRequired())
                 .minimumSalary(request.getMinimumSalary())
                 .maximumSalary(request.getMaximumSalary())
+                .salaryCurrency(request.getSalaryCurrency())
                 .description(request.getDescription())
                 .applicationDeadline(request.getApplicationDeadline())
                 .vacancies(request.getVacancies())
@@ -125,10 +146,7 @@ public class JobServiceImplementation implements JobService {
 
     @Override
     public CommonResponse getMyJobs() {
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
-        User user = customUserDetails.getUser();
+        User user = getCurrentUser();
 
         List<Job> jobs;
         if (user.getRole() == Role.ADMIN) {
@@ -152,9 +170,7 @@ public class JobServiceImplementation implements JobService {
 
     @Override
     public CommonResponse getAllJobsForAdmin() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
-        User user = customUserDetails.getUser();
+        User user = getCurrentUser();
 
         if (user.getRole() != Role.ADMIN) {
             throw new ResourceNotFoundException("Only admins can access this resource");
@@ -181,9 +197,7 @@ public class JobServiceImplementation implements JobService {
 
     @Override
     public CommonResponse getJobByIdForAdmin(UUID jobId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
-        User user = customUserDetails.getUser();
+        User user = getCurrentUser();
 
         if (user.getRole() != Role.ADMIN) {
             throw new ResourceNotFoundException("Only admins can access this resource");
@@ -207,9 +221,7 @@ public class JobServiceImplementation implements JobService {
 
     @Override
     public CommonResponse getJobByIdForRecruiter(UUID jobId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
-        User user = customUserDetails.getUser();
+        User user = getCurrentUser();
 
         if (user.getRole() != Role.RECRUITER && user.getRole() != Role.ADMIN) {
             throw new ResourceNotFoundException("Only recruiters and admins can access this resource");
@@ -232,25 +244,7 @@ public class JobServiceImplementation implements JobService {
         }
     }
 
-    @Transactional
-    @Override
-    public CommonResponse updateJobForAdmin(UUID jobId, JobRequest request) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
-        User user = customUserDetails.getUser();
-
-        if (user.getRole() != Role.ADMIN) {
-            throw new ResourceNotFoundException("Only admins can access this resource");
-        }
-
-        if (user.getCompany() == null) {
-            throw new ResourceNotFoundException("Admin is not associated with a company");
-        }
-
-        Job job = jobRepository.findByIdAndCompany(jobId, user.getCompany())
-                .orElseThrow(() -> new ResourceNotFoundException("Job not found"));
-
-        // Update allowed fields
+    private void updateJobFields(Job job, JobRequest request) {
         if (request.getTitle() != null) {
             job.setTitle(request.getTitle());
         }
@@ -293,7 +287,29 @@ public class JobServiceImplementation implements JobService {
         if (request.getStatus() != null) {
             job.setStatus(request.getStatus());
         }
-        // Cannot change: companyId, createdBy, createdAt, skills (separate endpoint)
+        // Cannot change: companyId, createdBy, createdAt, skills (use updateJobSkills endpoint)
+    }
+
+    @Transactional
+    @Override
+    public CommonResponse updateJobForAdmin(UUID jobId, JobRequest request) {
+        User user = getCurrentUser();
+
+        if (user.getRole() != Role.ADMIN) {
+            throw new ResourceNotFoundException("Only admins can access this resource");
+        }
+
+        if (user.getCompany() == null) {
+            throw new ResourceNotFoundException("Admin is not associated with a company");
+        }
+
+        Job job = jobRepository.findByIdAndCompany(jobId, user.getCompany())
+                .orElseThrow(() -> new ResourceNotFoundException("Job not found"));
+
+        validateSalary(request.getMinimumSalary(), request.getMaximumSalary());
+        validateApplicationDeadline(request.getApplicationDeadline());
+
+        updateJobFields(job, request);
 
         job = jobRepository.save(job);
 
@@ -309,9 +325,7 @@ public class JobServiceImplementation implements JobService {
     @Transactional
     @Override
     public CommonResponse updateJobForRecruiter(UUID jobId, JobRequest request) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
-        User user = customUserDetails.getUser();
+        User user = getCurrentUser();
 
         if (user.getRole() != Role.RECRUITER && user.getRole() != Role.ADMIN) {
             throw new ResourceNotFoundException("Only recruiters and admins can access this resource");
@@ -330,50 +344,10 @@ public class JobServiceImplementation implements JobService {
                     .orElseThrow(() -> new ResourceNotFoundException("Job not found"));
         }
 
-        // Update allowed fields
-        if (request.getTitle() != null) {
-            job.setTitle(request.getTitle());
-        }
-        if (request.getDepartment() != null) {
-            job.setDepartment(request.getDepartment());
-        }
-        if (request.getEmploymentType() != null) {
-            job.setEmploymentType(request.getEmploymentType());
-        }
-        if (request.getWorkMode() != null) {
-            job.setWorkMode(request.getWorkMode());
-        }
-        if (request.getLocation() != null) {
-            job.setLocation(request.getLocation());
-        }
-        if (request.getExperienceRequired() != null) {
-            job.setExperienceRequired(request.getExperienceRequired());
-        }
-        if (request.getEducationRequired() != null) {
-            job.setEducationRequired(request.getEducationRequired());
-        }
-        if (request.getMinimumSalary() != null) {
-            job.setMinimumSalary(request.getMinimumSalary());
-        }
-        if (request.getMaximumSalary() != null) {
-            job.setMaximumSalary(request.getMaximumSalary());
-        }
-        if (request.getSalaryCurrency() != null) {
-            job.setSalaryCurrency(request.getSalaryCurrency());
-        }
-        if (request.getDescription() != null) {
-            job.setDescription(request.getDescription());
-        }
-        if (request.getApplicationDeadline() != null) {
-            job.setApplicationDeadline(request.getApplicationDeadline());
-        }
-        if (request.getVacancies() != null) {
-            job.setVacancies(request.getVacancies());
-        }
-        if (request.getStatus() != null) {
-            job.setStatus(request.getStatus());
-        }
-        // Cannot change: companyId, createdBy, createdAt, skills (separate endpoint)
+        validateSalary(request.getMinimumSalary(), request.getMaximumSalary());
+        validateApplicationDeadline(request.getApplicationDeadline());
+
+        updateJobFields(job, request);
 
         job = jobRepository.save(job);
 
@@ -389,9 +363,7 @@ public class JobServiceImplementation implements JobService {
     @Transactional
     @Override
     public CommonResponse deleteJobForAdmin(UUID jobId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
-        User user = customUserDetails.getUser();
+        User user = getCurrentUser();
 
         if (user.getRole() != Role.ADMIN) {
             throw new ResourceNotFoundException("Only admins can access this resource");
@@ -417,9 +389,7 @@ public class JobServiceImplementation implements JobService {
     @Transactional
     @Override
     public CommonResponse deleteJobForRecruiter(UUID jobId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
-        User user = customUserDetails.getUser();
+        User user = getCurrentUser();
 
         if (user.getRole() != Role.RECRUITER && user.getRole() != Role.ADMIN) {
             throw new ResourceNotFoundException("Only recruiters and admins can access this resource");
@@ -444,6 +414,47 @@ public class JobServiceImplementation implements JobService {
         return CommonResponse.builder()
                 .code(200)
                 .message("Job deleted successfully")
+                .status(CommonResponseStatus.SUCCESS)
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+
+    @Transactional
+    @Override
+    public CommonResponse updateJobSkills(UUID jobId, List<JobSkillRequest> skillRequests) {
+        User user = getCurrentUser();
+
+        if (user.getRole() != Role.RECRUITER && user.getRole() != Role.ADMIN) {
+            throw new ResourceNotFoundException("Only recruiters and admins can update job skills");
+        }
+
+        Job job;
+        if (user.getRole() == Role.RECRUITER) {
+            job = jobRepository.findByIdAndCreatedBy(jobId, user)
+                    .orElseThrow(() -> new ResourceNotFoundException("Job not found or access denied"));
+        } else {
+            if (user.getCompany() == null) {
+                throw new ResourceNotFoundException("Admin is not associated with a company");
+            }
+            job = jobRepository.findByIdAndCompany(jobId, user.getCompany())
+                    .orElseThrow(() -> new ResourceNotFoundException("Job not found"));
+        }
+
+        if (skillRequests == null || skillRequests.isEmpty()) {
+            throw new IllegalArgumentException("At least one skill is required");
+        }
+
+        // Clear existing skills and add new ones
+        job.getSkills().clear();
+        List<JobSkill> skills = buildJobSkills(job, skillRequests);
+        job.getSkills().addAll(skills);
+
+        job = jobRepository.save(job);
+
+        return CommonResponse.builder()
+                .code(200)
+                .data(jobMapper.toJobResponse(job))
+                .message("Job skills updated successfully")
                 .status(CommonResponseStatus.SUCCESS)
                 .timestamp(LocalDateTime.now())
                 .build();

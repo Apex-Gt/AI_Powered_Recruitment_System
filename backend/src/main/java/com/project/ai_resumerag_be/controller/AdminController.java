@@ -2,6 +2,7 @@ package com.project.ai_resumerag_be.controller;
 
 import com.project.ai_resumerag_be.dto.request.CompanyRequest;
 import com.project.ai_resumerag_be.dto.request.JobRequest;
+import com.project.ai_resumerag_be.dto.request.JobSkillRequest;
 import com.project.ai_resumerag_be.dto.request.RecruiterRequest;
 import com.project.ai_resumerag_be.dto.response.CommonResponse;
 import com.project.ai_resumerag_be.service.CompanyService;
@@ -13,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -98,6 +100,13 @@ public class AdminController {
     @DeleteMapping("/jobs/{jobId}")
     public ResponseEntity<CommonResponse> deleteJob(@PathVariable UUID jobId) {
         CommonResponse response = jobService.deleteJobForAdmin(jobId);
+        return ResponseEntity.status(response.getCode()).body(response);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/jobs/{jobId}/skills")
+    public ResponseEntity<CommonResponse> updateJobSkills(@PathVariable UUID jobId, @Valid @RequestBody List<JobSkillRequest> skillRequests) {
+        CommonResponse response = jobService.updateJobSkills(jobId, skillRequests);
         return ResponseEntity.status(response.getCode()).body(response);
     }
 }

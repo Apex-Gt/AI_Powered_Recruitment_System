@@ -48,6 +48,9 @@ public class Company {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column
+    private String industry;
+
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();

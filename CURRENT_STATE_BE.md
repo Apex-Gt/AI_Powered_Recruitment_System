@@ -100,7 +100,7 @@
 ---
 
 ## 🔧 TECH STACK
-- **Java 21**, Spring Boot 4.1.0
+- **Java 25 (latest LTS)**, Spring Boot 4.1.0
 - Spring Security, JWT (jjwt 0.12.7)
 - Spring Data JPA, MapStruct
 - PostgreSQL + pgvector

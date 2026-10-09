@@ -23,8 +23,6 @@ import com.project.ai_resumerag_be.entity.User;
     import org.springframework.stereotype.Service;
 
 import jakarta.transaction.Transactional;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDateTime;
 
     @Slf4j

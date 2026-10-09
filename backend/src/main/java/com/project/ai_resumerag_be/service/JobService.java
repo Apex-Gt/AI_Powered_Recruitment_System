@@ -2,6 +2,7 @@ package com.project.ai_resumerag_be.service;
 
 import com.project.ai_resumerag_be.dto.response.CommonResponse;
 import com.project.ai_resumerag_be.dto.request.JobRequest;
+import com.project.ai_resumerag_be.dto.request.JobSkillRequest;
 import com.project.ai_resumerag_be.dto.response.JobResponse;
 
 import jakarta.validation.Valid;
@@ -17,6 +18,7 @@ public interface JobService {
     CommonResponse getJobByIdForRecruiter(UUID jobId);
     CommonResponse updateJobForAdmin(UUID jobId, JobRequest request);
     CommonResponse updateJobForRecruiter(UUID jobId, JobRequest request);
+    CommonResponse updateJobSkills(UUID jobId, List<JobSkillRequest> skillRequests);
     CommonResponse deleteJobForAdmin(UUID jobId);
     CommonResponse deleteJobForRecruiter(UUID jobId);
 }
