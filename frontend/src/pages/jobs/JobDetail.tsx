@@ -32,7 +32,7 @@ export function JobDetail() {
         
         const [, candidatesRes] = await Promise.all([
           jobRes,
-          candidateApi.getAll({ jobId: id, pageSize: 50 }),
+          candidateApi.getAllUnwrapped({ jobId: id, pageSize: 50 }),
         ])
         // Handle both response formats (direct Job or CommonResponse<Job>)
         const jobData = 'data' in jobRes ? jobRes.data : jobRes
@@ -252,9 +252,9 @@ export function JobDetail() {
                               )}
                             </TableCell>
                             <TableCell>
-                              <StatusBadge status={candidate.status} />
+                              <StatusBadge status={candidate.status || 'APPLIED'} />
                             </TableCell>
-                            <TableCell><span className="text-body-sm text-ink-500 dark:text-ink-400">{formatDate(candidate.appliedAt)}</span></TableCell>
+                            <TableCell><span className="text-body-sm text-ink-500 dark:text-ink-400">{formatDate(candidate.appliedAt || new Date().toISOString())}</span></TableCell>
                             <TableCell className="text-right">
                               <Link to={`/candidates/${candidate.id}`} className="p-2 text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 rounded-lg hover:bg-base-200 dark:hover:bg-base-800">
                                 <ChevronRight className="w-4 h-4" />

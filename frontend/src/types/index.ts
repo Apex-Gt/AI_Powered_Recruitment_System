@@ -66,14 +66,19 @@ export interface Candidate {
   candidateName: string
   candidateEmail: string
   phoneNumber: string
-  status: CandidateStatus
-  appliedAt: string
+  status?: CandidateStatus
+  appliedAt?: string
   jobId: string
-  jobTitle: string
+  jobTitle?: string
   aiMatchScore?: number
-  experience: number
-  skills: string[]
+  experience?: number
+  skills?: string[]
   resumeId?: string
+  location?: string
+  resumeFileName?: string
+  resumeFileUrl?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type CandidateStatus =
@@ -90,8 +95,8 @@ export interface Resume {
   id: string
   fileName: string
   fileUrl: string
-  extractedText: string
-  uploadedAt: string
+  extractedText?: string
+  uploadedAt?: string
   candidateId: string
 }
 

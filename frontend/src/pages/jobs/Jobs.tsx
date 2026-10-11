@@ -57,7 +57,7 @@ export function Jobs() {
       try {
         // Use admin-specific endpoint for admins to see all company jobs
         if (hasRole(['ADMIN'])) {
-          const response = await jobApi.getAllForAdmin(filters)
+          const response = await jobApi.getAllForAdminUnwrapped(filters)
           setJobs(response.data)
           setPagination({
             page: response.page,
@@ -66,7 +66,7 @@ export function Jobs() {
             totalPages: response.totalPages,
           })
         } else {
-          const response = await jobApi.getMyJobs(filters)
+          const response = await jobApi.getMyJobsUnwrapped(filters)
           setJobs(response.data)
           setPagination({
             page: response.page,

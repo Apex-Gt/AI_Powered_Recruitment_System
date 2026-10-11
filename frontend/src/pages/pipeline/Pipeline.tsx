@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Plus, Search, GripVertical } from 'lucide-react'
 import { cn } from '@/utils/helpers'
-import type { Candidate } from '@/types'
+import type { Candidate, CandidateStatus } from '@/types'
 import {
   DndContext,
   closestCenter,
@@ -23,7 +23,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
-const PIPELINE_STATUSES: Candidate['status'][] = [
+const PIPELINE_STATUSES: CandidateStatus[] = [
   'APPLIED',
   'SCREENING',
   'SHORTLISTED',
@@ -34,7 +34,7 @@ const PIPELINE_STATUSES: Candidate['status'][] = [
   'REJECTED',
 ]
 
-const STATUS_LABELS: Record<Candidate['status'], string> = {
+const STATUS_LABELS: Record<CandidateStatus, string> = {
   APPLIED: 'Applied',
   SCREENING: 'Screening',
   SHORTLISTED: 'Shortlisted',
@@ -46,7 +46,7 @@ const STATUS_LABELS: Record<Candidate['status'], string> = {
 }
 
 interface KanbanColumnProps {
-  status: Candidate['status']
+  status: CandidateStatus
   candidates: Candidate[]
 }
 
@@ -171,7 +171,7 @@ export function Pipeline() {
     const fetchCandidates = async () => {
       setIsLoading(true)
       try {
-        const response = await candidateApi.getAll({
+        const response = await candidateApi.getAllUnwrapped({
           page: 1,
           pageSize: 200,
           jobId: activeJobId,
@@ -187,7 +187,7 @@ export function Pipeline() {
     fetchCandidates()
   }, [activeJobId, searchQuery])
 
-  const onCandidateMove = async (candidateId: string, newStatus: Candidate['status']) => {
+  const onCandidateMove = async (candidateId: string, newStatus: CandidateStatus) => {
     try {
       await candidateApi.updateStatus(candidateId, newStatus)
       setCandidates((prev) =>
@@ -205,7 +205,7 @@ export function Pipeline() {
 
     if (over && active.id !== over.id) {
       const candidateId = active.id as string
-      const newStatus = over.id as Candidate['status']
+      const newStatus = over.id as CandidateStatus
       onCandidateMove(candidateId, newStatus)
     }
   }
@@ -215,7 +215,7 @@ export function Pipeline() {
       acc[status] = candidates.filter((c) => c.status === status)
       return acc
     },
-    {} as Record<Candidate['status'], Candidate[]>
+    {} as Record<CandidateStatus, Candidate[]>
   )
 
   if (isLoading) {

@@ -74,8 +74,8 @@ export function Interviews() {
       try {
         const [interviewsRes, jobsRes, candidatesRes] = await Promise.all([
           interviewApi.getAll({ pageSize: 100 }),
-          jobApi.getMyJobs({ pageSize: 100 }),
-          candidateApi.getAll({ pageSize: 200 }),
+          jobApi.getMyJobsUnwrapped({ pageSize: 100 }),
+          candidateApi.getAllUnwrapped({ pageSize: 200 }),
         ])
         setInterviews(interviewsRes.data)
         setJobs(jobsRes.data)

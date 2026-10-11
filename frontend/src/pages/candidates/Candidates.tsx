@@ -51,7 +51,7 @@ export function Candidates() {
     const fetchCandidates = async () => {
       setIsLoading(true)
       try {
-        const response = await candidateApi.getAll(filters)
+        const response = await candidateApi.getAllUnwrapped(filters)
         setCandidates(response.data)
         setPagination({
           page: response.page,
@@ -226,9 +226,9 @@ export function Candidates() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <StatusBadge status={candidate.status} />
+                        <StatusBadge status={candidate.status || 'APPLIED'} />
                       </TableCell>
-                      <TableCell><span className="text-body-sm text-ink-500 dark:text-ink-400">{formatDate(candidate.appliedAt)}</span></TableCell>
+                      <TableCell><span className="text-body-sm text-ink-500 dark:text-ink-400">{formatDate(candidate.appliedAt || new Date().toISOString())}</span></TableCell>
                       <TableCell className="text-right">
                         <Link to={`/candidates/${candidate.id}`} className="p-2 text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 rounded-lg hover:bg-base-200 dark:hover:bg-base-800" title="View">
                           <ChevronRightIcon className="w-4 h-4" />

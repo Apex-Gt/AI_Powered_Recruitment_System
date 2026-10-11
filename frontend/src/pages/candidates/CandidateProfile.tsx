@@ -28,9 +28,9 @@ export function CandidateProfile() {
       setIsLoading(true)
       try {
         const [candidateRes, aiRes, resumeRes] = await Promise.all([
-          candidateApi.getById(id),
-          candidateApi.getAiAnalysis(id).catch(() => null),
-          candidateApi.getById(id).then((c) => c.resumeId ? resumeApi.getById(c.resumeId!).catch(() => null) : null),
+          candidateApi.getByIdLegacyUnwrapped(id),
+          candidateApi.getAiAnalysisUnwrapped(id).catch(() => null),
+          candidateApi.getByIdLegacyUnwrapped(id).then((c) => c.resumeId ? resumeApi.getByIdUnwrapped(c.resumeId!).catch(() => null) : null),
         ])
         setCandidate(candidateRes)
         setAiAnalysis(aiRes)
@@ -71,9 +71,9 @@ export function CandidateProfile() {
   }
 
   const timelineEvents = [
-    { id: '1', title: 'Application Submitted', description: `Applied for ${candidate.jobTitle}`, timestamp: formatDate(candidate.appliedAt), type: 'info' as const },
-    { id: '2', title: 'Status: Applied', description: 'Initial application received', timestamp: formatDate(candidate.appliedAt), type: 'success' as const },
-    ...(candidate.status !== 'APPLIED' ? [{ id: '3', title: `Status: ${candidate.status}`, description: `Candidate moved to ${candidate.status}`, timestamp: formatDate(candidate.appliedAt), type: 'info' as const }] : []),
+    { id: '1', title: 'Application Submitted', description: `Applied for ${candidate.jobTitle || 'Unknown Job'}`, timestamp: formatDate(candidate.appliedAt || new Date().toISOString()), type: 'info' as const },
+    { id: '2', title: 'Status: Applied', description: 'Initial application received', timestamp: formatDate(candidate.appliedAt || new Date().toISOString()), type: 'success' as const },
+    ...((candidate.status && candidate.status !== 'APPLIED') ? [{ id: '3', title: `Status: ${candidate.status}`, description: `Candidate moved to ${candidate.status}`, timestamp: formatDate(candidate.appliedAt || new Date().toISOString()), type: 'info' as const }] : []),
   ]
 
   return (
@@ -94,8 +94,8 @@ export function CandidateProfile() {
             <div>
               <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">{candidate.candidateName}</h1>
               <div className="flex flex-wrap items-center gap-3 mt-1">
-                <StatusBadge status={candidate.status} className="text-body-sm" />
-                <span className="text-body-sm text-ink-500 dark:text-ink-400">{candidate.jobTitle}</span>
+                <StatusBadge status={candidate.status || 'APPLIED'} className="text-body-sm" />
+                <span className="text-body-sm text-ink-500 dark:text-ink-400">{candidate.jobTitle || 'Unknown'}</span>
                 {candidate.aiMatchScore !== undefined && (
                   <ScoreIndicator score={candidate.aiMatchScore} size="sm" showLabel />
                 )}
@@ -138,15 +138,15 @@ export function CandidateProfile() {
                   </div>
                   <div>
                     <p className="text-body-xs text-ink-500 dark:text-ink-400">Phone</p>
-                    <p className="text-body-md text-ink-900 dark:text-ink-100">{candidate.phoneNumber}</p>
+                    <p className="text-body-md text-ink-900 dark:text-ink-100">{candidate.phoneNumber || 'Not provided'}</p>
                   </div>
                   <div>
                     <p className="text-body-xs text-ink-500 dark:text-ink-400">Experience</p>
-                    <p className="text-body-md text-ink-900 dark:text-ink-100">{candidate.experience} years</p>
+                    <p className="text-body-md text-ink-900 dark:text-ink-100">{candidate.experience || 0} years</p>
                   </div>
                   <div>
                     <p className="text-body-xs text-ink-500 dark:text-ink-400">Applied</p>
-                    <p className="text-body-md text-ink-900 dark:text-ink-100">{formatDate(candidate.appliedAt)}</p>
+                    <p className="text-body-md text-ink-900 dark:text-ink-100">{formatDate(candidate.appliedAt || new Date().toISOString())}</p>
                   </div>
                 </div>
               </CardContent>
@@ -157,12 +157,12 @@ export function CandidateProfile() {
                 <CardTitle>Skills</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
-                {candidate.skills.map((skill) => (
+                {(candidate.skills || []).map((skill) => (
                   <span key={skill} className="badge-default gap-1">
                     {skill}
                   </span>
                 ))}
-                {candidate.skills.length === 0 && (
+                {(candidate.skills || []).length === 0 && (
                   <p className="text-body-sm text-ink-500 dark:text-ink-400">No skills listed</p>
                 )}
               </CardContent>
@@ -181,7 +181,7 @@ export function CandidateProfile() {
                       </div>
                       <div>
                         <p className="font-medium text-ink-900 dark:text-ink-100">{resume.fileName}</p>
-                        <p className="text-body-sm text-ink-500 dark:text-ink-400">Uploaded {formatDate(resume.uploadedAt)}</p>
+                        <p className="text-body-sm text-ink-500 dark:text-ink-400">Uploaded {formatDate(resume.uploadedAt || new Date().toISOString())}</p>
                       </div>
                     </div>
                     <div className="flex gap-2">

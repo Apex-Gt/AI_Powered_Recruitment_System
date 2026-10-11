@@ -13,12 +13,15 @@ class ApiClient {
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
 
+    const isFormData = options.body instanceof FormData
+    const headers: Record<string, string> = {
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...options.headers,
+    } as Record<string, string>
+
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
       credentials: 'include',
     })
 
@@ -46,14 +49,14 @@ class ApiClient {
   post<T>(endpoint: string, data: unknown): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: data instanceof FormData ? data : JSON.stringify(data),
     })
   }
 
   put<T>(endpoint: string, data: unknown): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'PUT',
-      body: JSON.stringify(data),
+      body: data instanceof FormData ? data : JSON.stringify(data),
     })
   }
 
@@ -71,7 +74,6 @@ class ApiClient {
 
 export const api = new ApiClient()
 
-// API endpoints
 export const authApi = {
   login: (email: string, password: string) =>
     api.post<CommonResponse<LoginResponse>>('/auth/login', { email, password }),
@@ -90,48 +92,108 @@ export const companyApi = {
 }
 
 export const jobApi = {
-  create: (data: CreateJobRequest) => api.post<Job>('/job', data),
-  getMyJobs: (params?: JobListParams) => api.get<PaginatedResponse<Job>>('/job/my-jobs', params as Record<string, unknown>),
+  create: (data: CreateJobRequest) => api.post<CommonResponse<Job>>('/job', data),
+  getMyJobs: (params?: JobListParams) => api.get<CommonResponse<PaginatedResponse<Job>>>('/job/my-jobs', params as Record<string, unknown>),
+  getMyJobsUnwrapped: async (params?: JobListParams) => {
+    const response = await api.get<CommonResponse<PaginatedResponse<Job>>>('/job/my-jobs', params as Record<string, unknown>)
+    return response.data
+  },
   getByIdForRecruiter: (id: string) => api.get<CommonResponse<Job>>(`/recruiter/jobs/${id}`),
+  getByIdForRecruiterUnwrapped: async (id: string) => {
+    const response = await api.get<CommonResponse<Job>>(`/recruiter/jobs/${id}`)
+    return response.data
+  },
   updateForRecruiter: (id: string, data: Partial<CreateJobRequest>) =>
     api.put<CommonResponse<Job>>(`/recruiter/jobs/${id}`, data),
-  getAllForAdmin: (params?: JobListParams) => api.get<PaginatedResponse<Job>>('/admin/jobs', params as Record<string, unknown>),
+  deleteForRecruiter: (id: string) => api.delete<CommonResponse<void>>(`/recruiter/jobs/${id}`),
+  updateJobSkills: (id: string, skills: JobSkillRequest[]) =>
+    api.put<CommonResponse<Job>>(`/recruiter/jobs/${id}/skills`, skills),
+  getAllForAdmin: (params?: JobListParams) => api.get<CommonResponse<PaginatedResponse<Job>>>('/admin/jobs', params as Record<string, unknown>),
+  getAllForAdminUnwrapped: async (params?: JobListParams) => {
+    const response = await api.get<CommonResponse<PaginatedResponse<Job>>>('/admin/jobs', params as Record<string, unknown>)
+    return response.data
+  },
   getByIdForAdmin: (id: string) => api.get<CommonResponse<Job>>(`/admin/jobs/${id}`),
   updateForAdmin: (id: string, data: Partial<CreateJobRequest>) =>
     api.put<CommonResponse<Job>>(`/admin/jobs/${id}`, data),
+  deleteForAdmin: (id: string) => api.delete<CommonResponse<void>>(`/admin/jobs/${id}`),
+  updateJobSkillsForAdmin: (id: string, skills: JobSkillRequest[]) =>
+    api.put<CommonResponse<Job>>(`/admin/jobs/${id}/skills`, skills),
 }
 
-// TODO: Backend not implemented - Candidate Management
 export const candidateApi = {
-  getAll: (params?: CandidateListParams) => api.get<PaginatedResponse<Candidate>>('/candidates', params as Record<string, unknown>),
-  getById: (id: string) => api.get<Candidate>(`/candidates/${id}`),
-  updateStatus: (id: string, status: CandidateStatus) =>
-    api.patch<Candidate>(`/candidates/${id}/status`, { status }),
-  getAiAnalysis: (id: string) => api.get<AIAnalysis>(`/candidates/${id}/ai-analysis`),
-  shortlist: (id: string) => api.post(`/candidates/${id}/shortlist`, {}),
-  reject: (id: string, reason?: string) =>
-    api.post(`/candidates/${id}/reject`, { reason }),
-  addNote: (id: string, note: string) =>
-    api.post(`/candidates/${id}/notes`, { note }),
-}
-
-// TODO: Backend not implemented - Resume Management
-export const resumeApi = {
-  upload: (file: File, candidateId: string) => {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('candidateId', candidateId)
-    return fetch(`${API_BASE}/resumes/upload`, {
-      method: 'POST',
-      body: formData,
-      credentials: 'include',
-    }).then((res) => res.json())
+  uploadResume: (data: FormData) =>
+    api.post<CommonResponse<CandidateResponse>>('/recruiter/candidates/upload', data),
+  bulkUploadResumes: (data: FormData) =>
+    api.post<CommonResponse<CandidateResponse[]>>('/recruiter/candidates/bulk-upload', data),
+  getAll: (params?: CandidateListParams) => api.get<CommonResponse<PaginatedResponse<CandidateResponse>>>('/recruiter/candidates', params as Record<string, unknown>),
+  getAllUnwrapped: async (params?: CandidateListParams) => {
+    const response = await api.get<CommonResponse<PaginatedResponse<CandidateResponse>>>('/recruiter/candidates', params as Record<string, unknown>)
+    return response.data
   },
-  getById: (id: string) => api.get<Resume>(`/resumes/${id}`),
-  parse: (id: string) => api.post<{ extractedText: string }>(`/resumes/${id}/parse`, {}),
+  getById: (id: string) => api.get<CommonResponse<CandidateResponse>>(`/recruiter/candidates/${id}`),
+  getByIdUnwrapped: async (id: string) => {
+    const response = await api.get<CommonResponse<CandidateResponse>>(`/recruiter/candidates/${id}`)
+    return response.data
+  },
+  scoreJob: (candidateId: string, jobId: string) =>
+    api.post<CommonResponse<void>>(`/recruiter/candidates/${candidateId}/score-job/${jobId}`, {}),
+  generateRAGSummary: (candidateId: string, jobId: string) =>
+    api.post<CommonResponse<void>>(`/recruiter/candidates/${candidateId}/rag-summary/${jobId}`, {}),
+  rankCandidates: (jobId: string, candidateIds: string[]) =>
+    api.post<CommonResponse<void>>(`/recruiter/candidates/jobs/${jobId}/rank-candidates`, candidateIds),
+  getMatchScore: (candidateId: string, jobId: string) =>
+    api.get<CommonResponse<MatchScore>>(`/recruiter/candidates/${candidateId}/match-score/${jobId}`),
+  getRAGSummary: (candidateId: string, jobId: string) =>
+    api.get<CommonResponse<RAGSummary>>(`/recruiter/candidates/${candidateId}/rag-summary/${jobId}`),
+  getRanking: (jobId: string) =>
+    api.get<CommonResponse<RankingResult>>(`/recruiter/candidates/jobs/${jobId}/ranking`),
+  healthCheck: () => api.get<CommonResponse<unknown>>('/recruiter/candidates/ai-service/health'),
+
+  // Backward compatibility - old endpoints that frontend pages expect
+  getAllLegacy: (params?: CandidateListParams) => api.get<CommonResponse<PaginatedResponse<Candidate>>>('/candidates', params as Record<string, unknown>),
+  getAllLegacyUnwrapped: async (params?: CandidateListParams) => {
+    const response = await api.get<CommonResponse<PaginatedResponse<Candidate>>>('/candidates', params as Record<string, unknown>)
+    return response.data
+  },
+  getByIdLegacy: (id: string) => api.get<CommonResponse<Candidate>>(`/candidates/${id}`),
+  getByIdLegacyUnwrapped: async (id: string) => {
+    const response = await api.get<CommonResponse<Candidate>>(`/candidates/${id}`)
+    return response.data
+  },
+  updateStatus: (id: string, status: CandidateStatus) =>
+    api.patch<CommonResponse<Candidate>>(`/candidates/${id}/status`, { status }),
+  getAiAnalysis: (id: string) => api.get<CommonResponse<AIAnalysis>>(`/candidates/${id}/ai-analysis`),
+  getAiAnalysisUnwrapped: async (id: string) => {
+    const response = await api.get<CommonResponse<AIAnalysis>>(`/candidates/${id}/ai-analysis`)
+    return response.data
+  },
+  shortlist: (id: string) => api.post<CommonResponse<void>>(`/candidates/${id}/shortlist`, {}),
+  reject: (id: string, reason?: string) =>
+    api.post<CommonResponse<void>>(`/candidates/${id}/reject`, { reason }),
+  addNote: (id: string, note: string) =>
+    api.post<CommonResponse<void>>(`/candidates/${id}/notes`, { note }),
 }
 
-// TODO: Backend not implemented - Assessments
+export const resumeApi = {
+  upload: (file: File, candidateName: string, candidateEmail: string, jobId: string, phoneNumber?: string, location?: string) => {
+    const formData = new FormData()
+    formData.append('resumeFile', file)
+    formData.append('candidateName', candidateName)
+    formData.append('candidateEmail', candidateEmail)
+    formData.append('jobId', jobId)
+    if (phoneNumber) formData.append('phoneNumber', phoneNumber)
+    if (location) formData.append('location', location)
+    return api.post<CommonResponse<CandidateResponse>>('/recruiter/candidates/upload', formData)
+  },
+  getById: (id: string) => api.get<CommonResponse<Resume>>(`/resumes/${id}`),
+  getByIdUnwrapped: async (id: string) => {
+    const response = await api.get<CommonResponse<Resume>>(`/resumes/${id}`)
+    return response.data
+  },
+  parse: (id: string) => api.post<CommonResponse<{ extractedText: string }>>(`/resumes/${id}/parse`, {}),
+}
+
 export const assessmentApi = {
   getAll: () => api.get<Assessment[]>('/assessments'),
   getById: (id: string) => api.get<Assessment>(`/assessments/${id}`),
@@ -144,7 +206,6 @@ export const assessmentApi = {
     api.post(`/assessments/${assessmentId}/submit`, { candidateId, answers }),
 }
 
-// TODO: Backend not implemented - Interviews
 export const interviewApi = {
   getAll: (params?: InterviewListParams) => api.get<PaginatedResponse<Interview>>('/interviews', params as Record<string, unknown>),
   getById: (id: string) => api.get<Interview>(`/interviews/${id}`),
@@ -156,7 +217,6 @@ export const interviewApi = {
   cancel: (id: string) => api.post(`/interviews/${id}/cancel`, {}),
 }
 
-// TODO: Backend not implemented - Analytics
 export const analyticsApi = {
   getOverview: () => api.get<AnalyticsOverview>('/analytics/overview'),
   getFunnel: () => api.get<FunnelData[]>('/analytics/funnel'),
@@ -167,19 +227,17 @@ export const analyticsApi = {
 
 export const userApi = {
   createRecruiter: (data: CreateRecruiterRequest) =>
-    api.post<User>('/admin/recruiters', data),
+    api.post<CommonResponse<User>>('/admin/recruiters', data),
   getRecruitersForAdmin: () => api.get<CommonResponse<User[]>>('/admin/recruiters'),
   getRecruiterByIdForAdmin: (id: string) => api.get<CommonResponse<User>>(`/admin/recruiters/${id}`),
   getCurrentUser: () => api.get<CommonResponse<User>>('/recruiter/me'),
   updateRecruiterForAdmin: (id: string, data: { userName?: string; email?: string; phoneNumber?: string; active?: boolean }) =>
     api.put<CommonResponse<User>>(`/admin/recruiters/${id}`, data),
+  deleteRecruiterForAdmin: (id: string) => api.delete<CommonResponse<void>>(`/admin/recruiters/${id}`),
   updateMe: (data: { userName: string; email: string; phoneNumber?: string }) =>
     api.put<CommonResponse<UserResponse>>('/auth/me', data),
-  // TODO: Backend not implemented - DELETE /admin/recruiters/{id}
-  // delete: (id: string) => api.delete(`/admin/recruiters/${id}`),
 }
 
-// Type imports for API
 import type { User, Company, Job, Candidate, Resume, AIAnalysis, Assessment, Interview, CandidateStatus, JobSkill, InterviewFeedback } from '@/types'
 import type { PaginatedResponse } from '@/types'
 
@@ -356,4 +414,85 @@ interface JobsMetrics {
   offersExtended: number
   hired: number
   byDepartment?: Record<string, number>
+}
+
+interface CandidateResponse {
+  id: string
+  candidateName: string
+  candidateEmail: string
+  phoneNumber: string
+  location?: string
+  jobId: string
+  resumeId: string
+  resumeFileName?: string
+  resumeFileUrl?: string
+  createdAt: string
+  updatedAt: string
+  status?: CandidateStatus
+  appliedAt?: string
+  jobTitle?: string
+  experience?: number
+  skills?: string[]
+}
+
+interface JobSkillRequest {
+  skillId: string
+  weight: number
+  required: boolean
+}
+
+interface MatchScore {
+  candidateId: string
+  jobId: string
+  overallScore: number
+  skillMatchScore: number
+  experienceMatchScore: number
+  educationMatchScore: number
+  semanticMatchScore: number
+  matchedSkills: string[]
+  missingSkills: string[]
+  skillCoverage: number
+  evidenceChunks: string[]
+  metadata: Record<string, unknown>
+  createdAt: string
+}
+
+interface EvidenceChunk {
+  chunkId: string
+  text: string
+  section: string
+  relevanceScore: number
+  sourcePdf: string
+}
+
+interface RAGSummary {
+  candidateId: string
+  jobId: string
+  strengths: string[]
+  matchedSkills: string[]
+  missingSkills: string[]
+  relevantExperience: string[]
+  evidence: EvidenceChunk[]
+  summaryText: string
+  confidenceScore: number
+  generatedAt: string
+  modelUsed: string
+  promptVersion: string
+}
+
+interface RankedCandidate {
+  candidateId: string
+  jobId: string
+  rank: number
+  overallScore: number
+  matchScore: MatchScore
+  ragSummary: RAGSummary | null
+}
+
+interface RankingResult {
+  jobId: string
+  candidates: RankedCandidate[]
+  totalCandidates: number
+  rankedAt: string
+  scoringVersion: string
 }
