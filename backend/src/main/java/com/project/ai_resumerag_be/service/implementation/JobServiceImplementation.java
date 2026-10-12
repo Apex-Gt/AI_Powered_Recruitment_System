@@ -19,7 +19,7 @@ import com.project.ai_resumerag_be.repository.JobRepository;
 import com.project.ai_resumerag_be.repository.SkillRepository;
 import com.project.ai_resumerag_be.service.JobService;
 import com.project.ai_resumerag_be.service.security.CustomUserDetails;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class JobServiceImplementation implements JobService {
 
     private final JobRepository jobRepository;

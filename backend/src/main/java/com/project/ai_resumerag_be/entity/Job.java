@@ -87,8 +87,7 @@ public class Job {
     private BigDecimal maximumSalary;
 
     @NotBlank(message = "Job description is required")
-    @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
 
     @Column(length = 500)

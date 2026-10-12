@@ -1,5 +1,8 @@
 const API_BASE = '/api'
 
+// In-flight request cache to prevent duplicate simultaneous requests
+const inFlightRequests = new Map<string, Promise<any>>()
+
 class ApiClient {
   private baseUrl: string
 
@@ -7,11 +10,26 @@ class ApiClient {
     this.baseUrl = baseUrl
   }
 
+  private getCacheKey(endpoint: string, options: RequestInit): string {
+    const method = options.method || 'GET'
+    // Include query params in cache key for GET requests
+    if (method === 'GET' && endpoint.includes('?')) {
+      return `${method}:${endpoint}`
+    }
+    return `${method}:${endpoint.split('?')[0]}`
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
+    const cacheKey = this.getCacheKey(endpoint, options)
+
+    // For GET requests, deduplicate simultaneous identical requests
+    if ((options.method === 'GET' || !options.method) && inFlightRequests.has(cacheKey)) {
+      return inFlightRequests.get(cacheKey) as Promise<T>
+    }
 
     const isFormData = options.body instanceof FormData
     const headers: Record<string, string> = {
@@ -19,22 +37,37 @@ class ApiClient {
       ...options.headers,
     } as Record<string, string>
 
-    const response = await fetch(url, {
+    // Add Authorization header if we have a token (fallback for cookie issues)
+    if (this.authToken) {
+      headers['Authorization'] = `Bearer ${this.authToken}`
+    }
+
+    const requestPromise = fetch(url, {
       ...options,
       headers,
       credentials: 'include',
+    }).then(async (response) => {
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'An error occurred' }))
+        throw new Error(error.message || `HTTP error! status: ${response.status}`)
+      }
+
+      if (response.status === 204) {
+        return {} as T
+      }
+
+      return response.json()
+    }).finally(() => {
+      // Clean up cache after request completes
+      inFlightRequests.delete(cacheKey)
     })
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'An error occurred' }))
-      throw new Error(error.message || `HTTP error! status: ${response.status}`)
+    // Cache the promise for GET requests
+    if ((options.method === 'GET' || !options.method)) {
+      inFlightRequests.set(cacheKey, requestPromise)
     }
 
-    if (response.status === 204) {
-      return {} as T
-    }
-
-    return response.json()
+    return requestPromise
   }
 
   get<T>(endpoint: string, params?: Record<string, unknown>): Promise<T> {
@@ -70,14 +103,38 @@ class ApiClient {
   delete<T>(endpoint: string): Promise<T> {
     return this.request<T>(endpoint, { method: 'DELETE' })
   }
+
+  // Auth token management for Authorization header fallback
+  private authToken: string | null = null
+
+  setAuthToken(token: string | null) {
+    this.authToken = token
+  }
+
+  getAuthToken(): string | null {
+    return this.authToken
+  }
+
+  // Clear auth token on logout
+  clearAuthToken() {
+    this.authToken = null
+  }
 }
 
 export const api = new ApiClient()
 
 export const authApi = {
   login: (email: string, password: string) =>
-    api.post<CommonResponse<LoginResponse>>('/auth/login', { email, password }),
-  logout: () => api.post('/auth/logout', {}),
+    api.post<CommonResponse<LoginResponse>>('/auth/login', { email, password }).then((res) => {
+      // Store token for Authorization header fallback
+      if (res.data?.accessToken) {
+        api.setAuthToken(res.data.accessToken)
+      }
+      return res
+    }),
+  logout: () => api.post('/auth/logout', {}).finally(() => {
+    api.clearAuthToken()
+  }),
   getMe: () => api.get<CommonResponse<UserResponse>>('/auth/me'),
   updateMe: (data: { userName: string; email: string; phoneNumber?: string }) =>
     api.put<CommonResponse<UserResponse>>('/auth/me', data),

@@ -1,4 +1,4 @@
-import { ReactNode, TableHTMLAttributes, ThHTMLAttributes, TdHTMLAttributes } from 'react'
+import { ReactNode, TableHTMLAttributes, ThHTMLAttributes, TdHTMLAttributes, HTMLAttributes } from 'react'
 import { cn } from '@/utils/helpers'
 
 interface Column<T> {
@@ -170,7 +170,23 @@ export function Table<T>({
   )
 }
 
-export function TableHeader({ className, children, ...props }: ThHTMLAttributes<HTMLTableHeaderCellElement>) {
+export function TableHeader({ className, children, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
+  return (
+    <thead className={cn('', className)} {...props}>
+      {children}
+    </thead>
+  )
+}
+
+export function TableBody({ className, children, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
+  return <tbody className={cn('', className)} {...props}>{children}</tbody>
+}
+
+export function TableRow({ className, children, ...props }: TableHTMLAttributes<HTMLTableRowElement>) {
+  return <tr className={cn('', className)} {...props}>{children}</tr>
+}
+
+export function TableHead({ className, children, ...props }: ThHTMLAttributes<HTMLTableHeaderCellElement>) {
   return (
     <th className={cn('px-4 py-3 text-label-sm text-ink-500 dark:text-ink-400 font-medium bg-glass-50 dark:bg-glass-dark-50 border-b border-glass-200 dark:border-glass-dark-200', className)} {...props}>
       {children}
@@ -184,18 +200,6 @@ export function TableCell({ className, children, ...props }: TdHTMLAttributes<HT
       {children}
     </td>
   )
-}
-
-export function TableRow({ className, children, ...props }: TableHTMLAttributes<HTMLTableRowElement>) {
-  return <tr className={cn('', className)} {...props}>{children}</tr>
-}
-
-export function TableBody({ className, children, ...props }: TableHTMLAttributes<HTMLTableSectionElement>) {
-  return <tbody className={cn('', className)} {...props}>{children}</tbody>
-}
-
-export function TableHead({ className, children, ...props }: TableHTMLAttributes<HTMLTableSectionElement>) {
-  return <thead className={cn('', className)} {...props}>{children}</thead>
 }
 
 export function TableFooter({ className, children, ...props }: TableHTMLAttributes<HTMLTableSectionElement>) {

@@ -1,107 +1,121 @@
 import { useEffect, useState } from 'react'
-import { analyticsApi } from '@/utils/api'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
 import { DonutChart, LineChartComponent, FunnelChart } from '@/components/charts'
 import { Users, Clock, Target, Briefcase, Loader2 } from 'lucide-react'
 import { cn } from '@/utils/helpers'
 
+// MVP: Use mock data since analytics backend is not implemented
+const MOCK_OVERVIEW = {
+  activeJobs: 3,
+  totalCandidates: 47,
+  shortlisted: 8,
+  interviews: 5,
+  offers: 2,
+}
+
+const MOCK_FUNNEL: FunnelData[] = [
+  { stage: 'Applied', count: 47, conversionRate: 100 },
+  { stage: 'Screening', count: 23, conversionRate: 49 },
+  { stage: 'Shortlisted', count: 8, conversionRate: 35 },
+  { stage: 'Assessment', count: 5, conversionRate: 63 },
+  { stage: 'Interview', count: 4, conversionRate: 80 },
+  { stage: 'Offer', count: 2, conversionRate: 50 },
+  { stage: 'Hired', count: 1, conversionRate: 50 },
+]
+
+const MOCK_TIME_TO_HIRE: TimeToHireData = {
+  average: 28,
+  median: 24,
+  byJob: [
+    { jobTitle: 'Senior Python Developer', days: 32 },
+    { jobTitle: 'Frontend Engineer', days: 26 },
+    { jobTitle: 'DevOps Engineer', days: 28 },
+    { jobTitle: 'Data Scientist', days: 22 },
+  ],
+}
+
+const MOCK_AI_MATCH_DIST: AiMatchDistribution = {
+  ranges: [
+    { range: '80-100%', count: 5 },
+    { range: '60-79%', count: 12 },
+    { range: '40-59%', count: 18 },
+    { range: '0-39%', count: 12 },
+  ],
+}
+
+const MOCK_JOBS_METRICS: JobsMetrics = {
+  total: 12,
+  active: 3,
+  draft: 4,
+  closed: 5,
+  avgApplicants: 4.2,
+  avgTimeToFill: 28,
+  offersExtended: 2,
+  hired: 1,
+  byDepartment: {
+    Engineering: 6,
+    Marketing: 2,
+    Sales: 1,
+    'Human Resources': 1,
+    Finance: 1,
+    Other: 1,
+  },
+}
+
 export function Analytics() {
-  const [overview, setOverview] = useState<AnalyticsOverview | null>(null)
-  const [funnel, setFunnel] = useState<FunnelData[]>([])
-  const [timeToHire, setTimeToHire] = useState<TimeToHireData | null>(null)
-  const [aiMatchDist, setAiMatchDist] = useState<AiMatchDistribution | null>(null)
-  const [jobsMetrics, setJobsMetrics] = useState<JobsMetrics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [overviewRes, funnelRes, timeRes, aiRes, jobsRes] = await Promise.all([
-          analyticsApi.getOverview(),
-          analyticsApi.getFunnel(),
-          analyticsApi.getTimeToHire(),
-          analyticsApi.getAiMatchDistribution(),
-          analyticsApi.getJobsMetrics(),
-        ])
-        setOverview(overviewRes)
-        setFunnel(funnelRes)
-        setTimeToHire(timeRes)
-        setAiMatchDist(aiRes)
-        setJobsMetrics(jobsRes)
-      } catch (error) {
-        console.error('Failed to fetch analytics data:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    fetchData()
+    // Simulate brief loading for UX
+    const timer = setTimeout(() => setIsLoading(false), 500)
+    return () => clearTimeout(timer)
   }, [])
 
-  const aiMatchData = aiMatchDist?.ranges.map((r) => ({
+  const aiMatchData = MOCK_AI_MATCH_DIST.ranges.map((r) => ({
     name: r.range,
     value: r.count,
     color: r.range.includes('80') ? '#22C55E' : r.range.includes('60') ? '#F59E0B' : r.range.includes('40') ? '#3B82F6' : '#EF4444',
-  })) ?? [
-    { name: '80-100%', value: 0, color: '#22C55E' },
-    { name: '60-79%', value: 0, color: '#F59E0B' },
-    { name: '40-59%', value: 0, color: '#3B82F6' },
-    { name: '0-39%', value: 0, color: '#EF4444' },
-  ]
+  }))
 
-  const funnelData = funnel.length > 0 ? funnel : [
-    { stage: 'Applied', count: 0, conversionRate: 100 },
-    { stage: 'Screening', count: 0, conversionRate: 0 },
-    { stage: 'Shortlisted', count: 0, conversionRate: 0 },
-    { stage: 'Assessment', count: 0, conversionRate: 0 },
-    { stage: 'Interview', count: 0, conversionRate: 0 },
-    { stage: 'Offer', count: 0, conversionRate: 0 },
-    { stage: 'Hired', count: 0, conversionRate: 0 },
-  ]
+  const funnelData = MOCK_FUNNEL
 
-  const timeToHireChartData = timeToHire?.byJob.map((j) => ({
+  const timeToHireChartData = MOCK_TIME_TO_HIRE.byJob.map((j) => ({
     name: j.jobTitle.length > 20 ? j.jobTitle.slice(0, 20) + '...' : j.jobTitle,
     days: j.days,
-    avg: timeToHire.average,
-  })) ?? []
+    avg: MOCK_TIME_TO_HIRE.average,
+  }))
 
-  const departmentData = jobsMetrics ? [
-    { name: 'Engineering', value: jobsMetrics.byDepartment?.Engineering || 0, color: '#FE5D26' },
-    { name: 'Marketing', value: jobsMetrics.byDepartment?.Marketing || 0, color: '#22C55E' },
-    { name: 'Sales', value: jobsMetrics.byDepartment?.Sales || 0, color: '#F59E0B' },
-    { name: 'HR', value: jobsMetrics.byDepartment?.['Human Resources'] || 0, color: '#3B82F6' },
-    { name: 'Finance', value: jobsMetrics.byDepartment?.Finance || 0, color: '#8B5CF6' },
-    { name: 'Other', value: jobsMetrics.byDepartment?.Other || 0, color: '#EC4899' },
-  ] : [
-    { name: 'Engineering', value: 0, color: '#FE5D26' },
-    { name: 'Marketing', value: 0, color: '#22C55E' },
-    { name: 'Sales', value: 0, color: '#F59E0B' },
-    { name: 'HR', value: 0, color: '#3B82F6' },
-    { name: 'Finance', value: 0, color: '#8B5CF6' },
-    { name: 'Other', value: 0, color: '#EC4899' },
+  const departmentData = [
+    { name: 'Engineering', value: MOCK_JOBS_METRICS.byDepartment?.Engineering || 0, color: '#FE5D26' },
+    { name: 'Marketing', value: MOCK_JOBS_METRICS.byDepartment?.Marketing || 0, color: '#22C55E' },
+    { name: 'Sales', value: MOCK_JOBS_METRICS.byDepartment?.Sales || 0, color: '#F59E0B' },
+    { name: 'HR', value: MOCK_JOBS_METRICS.byDepartment?.['Human Resources'] || 0, color: '#3B82F6' },
+    { name: 'Finance', value: MOCK_JOBS_METRICS.byDepartment?.Finance || 0, color: '#8B5CF6' },
+    { name: 'Other', value: MOCK_JOBS_METRICS.byDepartment?.Other || 0, color: '#EC4899' },
   ]
 
   const metricCards = [
     {
       title: 'Active Jobs',
-      value: overview?.activeJobs ?? jobsMetrics?.active ?? 0,
+      value: MOCK_OVERVIEW.activeJobs,
       icon: Briefcase,
       color: 'bg-accent-100 dark:bg-accent-900/30 text-accent-600 dark:text-accent-400',
     },
     {
       title: 'Total Candidates',
-      value: overview?.totalCandidates ?? jobsMetrics?.total ?? 0,
+      value: MOCK_OVERVIEW.totalCandidates,
       icon: Users,
       color: 'bg-info-100 dark:bg-info-900/30 text-info-600 dark:text-info-400',
     },
     {
       title: 'Avg Time to Hire',
-      value: timeToHire ? `${timeToHire.average} days` : '0 days',
+      value: `${MOCK_TIME_TO_HIRE.average} days`,
       icon: Clock,
       color: 'bg-success-100 dark:bg-success-900/30 text-success-600 dark:text-success-400',
     },
     {
       title: 'Offer Acceptance',
-      value: jobsMetrics && jobsMetrics.offersExtended > 0 ? `${Math.round((jobsMetrics.hired / jobsMetrics.offersExtended) * 100)}%` : '0%',
+      value: MOCK_JOBS_METRICS.offersExtended > 0 ? `${Math.round((MOCK_JOBS_METRICS.hired / MOCK_JOBS_METRICS.offersExtended) * 100)}%` : '0%',
       icon: Target,
       color: 'bg-warning-100 dark:bg-warning-900/30 text-warning-600 dark:text-warning-400',
     },
@@ -258,11 +272,11 @@ export function Analytics() {
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-accent-500" />
-                      <span className="text-body-sm text-ink-600 dark:text-ink-400">Average: {timeToHire?.average ?? 0} days</span>
+                      <span className="text-body-sm text-ink-600 dark:text-ink-400">Average: {MOCK_TIME_TO_HIRE.average} days</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-ink-400" />
-                      <span className="text-body-sm text-ink-600 dark:text-ink-400">Median: {timeToHire?.median ?? 0} days</span>
+                      <span className="text-body-sm text-ink-600 dark:text-ink-400">Median: {MOCK_TIME_TO_HIRE.median} days</span>
                     </div>
                   </div>
                 </div>
@@ -306,14 +320,6 @@ export function Analytics() {
       </div>
     </div>
   )
-}
-
-interface AnalyticsOverview {
-  activeJobs: number
-  totalCandidates: number
-  shortlisted: number
-  interviews: number
-  offers: number
 }
 
 interface FunnelData {

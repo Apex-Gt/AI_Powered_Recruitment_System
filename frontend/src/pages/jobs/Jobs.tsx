@@ -58,25 +58,26 @@ export function Jobs() {
         // Use admin-specific endpoint for admins to see all company jobs
         if (hasRole(['ADMIN'])) {
           const response = await jobApi.getAllForAdminUnwrapped(filters)
-          setJobs(response.data)
+          setJobs(response?.data ?? [])
           setPagination({
-            page: response.page,
-            pageSize: response.pageSize,
-            total: response.total,
-            totalPages: response.totalPages,
+            page: response?.page ?? 1,
+            pageSize: response?.pageSize ?? 10,
+            total: response?.total ?? 0,
+            totalPages: response?.totalPages ?? 0,
           })
         } else {
           const response = await jobApi.getMyJobsUnwrapped(filters)
-          setJobs(response.data)
+          setJobs(response?.data ?? [])
           setPagination({
-            page: response.page,
-            pageSize: response.pageSize,
-            total: response.total,
-            totalPages: response.totalPages,
+            page: response?.page ?? 1,
+            pageSize: response?.pageSize ?? 10,
+            total: response?.total ?? 0,
+            totalPages: response?.totalPages ?? 0,
           })
         }
       } catch (error) {
         console.error('Failed to fetch jobs:', error)
+        setJobs([])
       } finally {
         setIsLoading(false)
       }

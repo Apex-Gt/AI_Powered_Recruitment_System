@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
-import { analyticsApi } from '@/utils/api'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { DonutChart, LineChartComponent, FunnelChart } from '@/components/charts'
 import { Briefcase, Users, CheckCircle2, Target, Clock, Plus } from 'lucide-react'
 import { cn } from '@/utils/helpers'
+
+// MVP: Mock data since analytics backend is not implemented
 
 interface DashboardStats {
   activeJobs: number
@@ -32,6 +33,44 @@ interface AiMatchDistribution {
   ranges: { range: string; count: number }[]
 }
 
+const MOCK_STATS: DashboardStats = {
+  activeJobs: 3,
+  totalCandidates: 47,
+  shortlisted: 8,
+  interviews: 5,
+  offers: 2,
+}
+
+const MOCK_FUNNEL: FunnelData[] = [
+  { stage: 'Applied', count: 47, conversionRate: 100 },
+  { stage: 'Screening', count: 23, conversionRate: 49 },
+  { stage: 'Shortlisted', count: 8, conversionRate: 35 },
+  { stage: 'Assessment', count: 5, conversionRate: 63 },
+  { stage: 'Interview', count: 4, conversionRate: 80 },
+  { stage: 'Offer', count: 2, conversionRate: 50 },
+  { stage: 'Hired', count: 1, conversionRate: 50 },
+]
+
+const MOCK_TIME_TO_HIRE: TimeToHireData = {
+  average: 28,
+  median: 24,
+  byJob: [
+    { jobTitle: 'Senior Python Developer', days: 32 },
+    { jobTitle: 'Frontend Engineer', days: 26 },
+    { jobTitle: 'DevOps Engineer', days: 28 },
+    { jobTitle: 'Data Scientist', days: 22 },
+  ],
+}
+
+const MOCK_AI_MATCH_DIST: AiMatchDistribution = {
+  ranges: [
+    { range: '80-100%', count: 5 },
+    { range: '60-79%', count: 12 },
+    { range: '40-59%', count: 18 },
+    { range: '0-39%', count: 12 },
+  ],
+}
+
 export function Dashboard() {
   const { user, hasRole } = useAuth()
   const [stats, setStats] = useState<DashboardStats | null>(null)
@@ -43,16 +82,13 @@ export function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [statsRes, funnelRes, timeRes, aiRes] = await Promise.all([
-          analyticsApi.getOverview(),
-          analyticsApi.getFunnel(),
-          analyticsApi.getTimeToHire(),
-          analyticsApi.getAiMatchDistribution(),
-        ])
-        setStats(statsRes)
-        setFunnel(funnelRes)
-        setTimeToHire(timeRes)
-        setAiMatchDist(aiRes)
+        // Simulate brief loading for UX, then use mock data
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
+        setStats(MOCK_STATS)
+        setFunnel(MOCK_FUNNEL)
+        setTimeToHire(MOCK_TIME_TO_HIRE)
+        setAiMatchDist(MOCK_AI_MATCH_DIST)
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error)
       } finally {

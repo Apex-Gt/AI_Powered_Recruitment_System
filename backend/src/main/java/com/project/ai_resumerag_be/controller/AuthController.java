@@ -33,7 +33,7 @@ public class AuthController {
 
         cookie.setHttpOnly(true);
         cookie.setSecure(false); // true in prod for https
-        cookie.setPath("/");
+        cookie.setPath("/api"); // Match Spring Boot context-path
         cookie.setMaxAge(60 * 60); // 1hr
 
         response.addCookie(cookie);
@@ -55,7 +55,7 @@ public class AuthController {
         Cookie cookie = new Cookie("jwt", null);
         cookie.setHttpOnly(true);
         cookie.setSecure(false);
-        cookie.setPath("/");
+        cookie.setPath("/api"); // Match Spring Boot context-path
         cookie.setMaxAge(0);
         response.addCookie(cookie);
 
