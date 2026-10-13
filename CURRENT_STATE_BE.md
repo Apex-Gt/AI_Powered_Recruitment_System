@@ -80,7 +80,7 @@
 |--------|------------|---------------|
 | **Company** | id, companyName, gstNumber(unique), companyVerified, active | 1→N User, 1→N Job |
 | **User** | id, userName, email(unique), phoneNumber(unique), password, role, emailVerified, phoneNumberVerified | N→1 Company |
-| **Job** | id, title, department, employmentType, workMode, location, experienceRequired, educationRequired, salary range, description, jdEmbedding(vector), status, company_id, created_by | N→1 Company, N→1 User(createdBy), 1→N JobSkill |
+| **Job** | id, title, department, employmentType, workMode, location, experienceRequired, educationRequired, salary range, description(TEXT), jdEmbedding(vector), status, company_id, created_by | N→1 Company, N→1 User(createdBy), 1→N JobSkill |
 | **JobSkill** | id, skillName, type(REQUIRED/PREFERRED), weight | N→1 Job |
 | **Candidate** | id, candidateName, candidateEmail, phoneNumber, status, appliedAt | N→1 Job, 1→1 Resume |
 | **Resume** | id, fileName, fileUrl, extractedText, uploadedAt | 1→1 Candidate |
@@ -133,21 +133,22 @@
 
 ## 📋 RECENT CHANGES (Latest First)
 
-1. **DELETE endpoints for Admin & Recruiter** - Added DELETE /api/admin/recruiters/{id}, DELETE /api/admin/jobs/{id}, DELETE /api/recruiter/jobs/{id} with company isolation and ownership validation
-2. **RecruiterController added** - Dedicated endpoints for recruiter-specific operations (get my jobs, get job by ID, update job, get current user)
-3. **JobController enhanced** - Added admin-specific job endpoints (get all jobs, get job by ID, update job)
-4. **AdminController enhanced** - Added company management (get/update), recruiter listing/get/update, job management for admin
-5. **AuthController enhanced** - Added logout, get current user, update profile endpoints
-6. **Email service for recruiter credentials** - Admin-created recruiters receive credentials via email with company name
-7. **Dynamic company name in emails** - Uses admin's company name (from security context) instead of static config
-8. **Email authentication fix** - App now starts without email config; sends gracefully when configured with Gmail App Password
-9. **Job ownership enforcement** - Recruiters see only their jobs via `GET /job/my-jobs`
-10. **Recruiter creation by Admin** - `POST /admin/recruiters` with company isolation
-11. **Login response DTO** - Structured `LoginResponse` with user info + token metadata
-12. **Company registration response** - `CompanyRegistrationResponse` with CompanyInfo + AdminInfo
-13. **GST uniqueness check** - Prevents duplicate company registration
-14. **Method-level security** - Added `@EnableMethodSecurity` and `@PreAuthorize` annotations
-15. **Job entity fix** - Changed `createdBy` from Recruiter to User entity
+1. **Fixed JpaSystemException: Unable to access LOB stream** - Changed Job.description from `@Lob` to `@Column(columnDefinition = "TEXT")` in Job entity. PostgreSQL TEXT type doesn't require LOB handling, avoiding "Large Objects may not be used in auto-commit mode" error when lazy-loading description in getAllJobsForAdmin() and other job listing endpoints. Also fixed @Transactional import to use Spring's annotation (supports readOnly).
+2. **DELETE endpoints for Admin & Recruiter** - Added DELETE /api/admin/recruiters/{id}, DELETE /api/admin/jobs/{id}, DELETE /api/recruiter/jobs/{id} with company isolation and ownership validation
+3. **RecruiterController added** - Dedicated endpoints for recruiter-specific operations (get my jobs, get job by ID, update job, get current user)
+4. **JobController enhanced** - Added admin-specific job endpoints (get all jobs, get job by ID, update job)
+5. **AdminController enhanced** - Added company management (get/update), recruiter listing/get/update, job management for admin
+6. **AuthController enhanced** - Added logout, get current user, update profile endpoints
+7. **Email service for recruiter credentials** - Admin-created recruiters receive credentials via email with company name
+8. **Dynamic company name in emails** - Uses admin's company name (from security context) instead of static config
+9. **Email authentication fix** - App now starts without email config; sends gracefully when configured with Gmail App Password
+10. **Job ownership enforcement** - Recruiters see only their jobs via `GET /job/my-jobs`
+11. **Recruiter creation by Admin** - `POST /admin/recruiters` with company isolation
+12. **Login response DTO** - Structured `LoginResponse` with user info + token metadata
+13. **Company registration response** - `CompanyRegistrationResponse` with CompanyInfo + AdminInfo
+14. **GST uniqueness check** - Prevents duplicate company registration
+15. **Method-level security** - Added `@EnableMethodSecurity` and `@PreAuthorize` annotations
+16. **Job entity fix** - Changed `createdBy` from Recruiter to User entity
 
 ---
 
@@ -278,4 +279,4 @@ backend/
 
 ---
 
-*Last Updated: 2026-10-05*
+*Last Updated: 2026-10-13*
