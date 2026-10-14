@@ -202,6 +202,6 @@ export function TableCell({ className, children, ...props }: TdHTMLAttributes<HT
   )
 }
 
-export function TableFooter({ className, children, ...props }: TableHTMLAttributes<HTMLTableSectionElement>) {
-  return <tfoot className={cn('', className)} {...props}>{children}</tfoot>
+export function TableFooter({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('px-4 py-3 border-t border-glass-200 dark:border-glass-dark-200', className)} {...props}>{children}</div>
 }

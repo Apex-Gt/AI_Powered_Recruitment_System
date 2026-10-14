@@ -11,6 +11,7 @@ import { StatusBadge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Plus, Search, ChevronLeft, ChevronRight, Briefcase, Eye, Edit, Trash2 } from 'lucide-react'
 import { formatDate } from '@/utils/helpers'
+import toast from 'react-hot-toast'
 import type { Job } from '@/types'
 
 type JobStatus = 'ACTIVE' | 'DRAFT' | 'CLOSED'
@@ -100,6 +101,21 @@ export function Jobs() {
     const params = new URLSearchParams(searchParams)
     params.set('page', String(page))
     setSearchParams(params)
+  }
+
+  const handleDeleteJob = async (jobId: string) => {
+    if (!window.confirm('Are you sure you want to delete this job?')) return
+    try {
+      if (hasRole(['ADMIN'])) {
+        await jobApi.deleteForAdmin(jobId)
+      } else {
+        await jobApi.deleteForRecruiter(jobId)
+      }
+      setJobs((prev) => prev.filter((j) => j.id !== jobId))
+      toast.success('Job deleted')
+    } catch (error) {
+      toast.error('Failed to delete job')
+    }
   }
 
   const statusOptions = [
@@ -266,7 +282,7 @@ export function Jobs() {
                               <Link to={`/jobs/${job.id}/edit`} className="p-2 text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 rounded-lg hover:bg-base-200 dark:hover:bg-base-800" title="Edit">
                                 <Edit className="w-4 h-4" />
                               </Link>
-                              <Button variant="ghost" size="sm" className="p-2 text-error-500 hover:text-error-600 rounded-lg hover:bg-error-50 dark:hover:bg-error-900/20" title="Delete">
+                              <Button variant="ghost" size="sm" className="p-2 text-error-500 hover:text-error-600 rounded-lg hover:bg-error-50 dark:hover:bg-error-900/20" title="Delete" onClick={() => handleDeleteJob(job.id)}>
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </>

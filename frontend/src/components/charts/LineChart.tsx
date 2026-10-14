@@ -98,49 +98,45 @@ export function LineChartComponent({
 
 interface FunnelChartProps {
   data: { stage: string; count: number; conversionRate?: number }[]
-  height?: number
+  height?: number  // kept for API compatibility, no longer used for fixed height
   className?: string
 }
 
-export function FunnelChart({ data, height = 400, className }: FunnelChartProps) {
-  const maxCount = Math.max(...data.map((d) => d.count))
+export function FunnelChart({ data, className }: FunnelChartProps) {
+  const maxCount = Math.max(...data.map((d) => d.count), 1)
 
   return (
-    <div className={cn('w-full', className)} style={{ height }}>
-      <div className="flex flex-col items-center gap-4">
+    <div className={cn('w-full', className)}>
+      <div className="flex flex-col gap-2">
         {data.map((item, index) => {
-          const width = (item.count / maxCount) * 100
+          const widthPct = Math.max((item.count / maxCount) * 100, 12)
           const prevCount = index > 0 ? data[index - 1].count : item.count
           const rate = prevCount > 0 ? ((item.count / prevCount) * 100).toFixed(1) : '100'
 
           return (
-            <div
-              key={item.stage}
-              className="w-full max-w-md flex flex-col items-center gap-1 transition-all duration-500"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              <div
-                className="w-full bg-base-200 dark:bg-base-700 rounded-xl overflow-hidden relative"
-                style={{ width: `${width}%`, minWidth: '60px' }}
-              >
-                <div
-                  className="h-12 bg-accent-500 flex items-center justify-center px-4"
-                  style={{ width: '100%' }}
-                >
-                  <span className="text-label-md font-medium text-white text-center truncate">
-                    {item.stage}
+            <div key={item.stage} className="w-full">
+              {/* Stage label + meta row — always full width, always visible */}
+              <div className="flex items-baseline justify-between mb-1 px-1">
+                <span className="text-label-sm font-semibold text-ink-800 dark:text-ink-200">
+                  {item.stage}
+                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-label-sm font-bold text-ink-900 dark:text-ink-100">
+                    {item.count}
                   </span>
+                  {index > 0 && (
+                    <span className="text-body-xs text-ink-500 dark:text-ink-400">
+                      {rate}% from previous
+                    </span>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-4 w-full max-w-md px-2">
-                <span className="text-body-sm font-medium text-ink-900 dark:text-ink-100 w-24 text-right">
-                  {item.count}
-                </span>
-                {index > 0 && (
-                  <span className="text-body-xs text-ink-500 dark:text-ink-400">
-                    {rate}% from previous
-                  </span>
-                )}
+              {/* Funnel bar — width shrinks to show funnel shape */}
+              <div className="w-full bg-glass-200 dark:bg-glass-dark-300 rounded-lg h-8 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-lavender-500 to-lavender-400 dark:from-lavender-600 dark:to-lavender-500 rounded-lg transition-all duration-500"
+                  style={{ width: `${widthPct}%` }}
+                />
               </div>
             </div>
           )

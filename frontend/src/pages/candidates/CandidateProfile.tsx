@@ -11,7 +11,8 @@ import { ScoreIndicator } from '@/components/ui/ScoreIndicator'
 import { AIAnalysisCard } from '@/components/ui/AIAnalysisCard'
 import { ArrowLeft, CheckCircle2, XCircle, TrendingUp, AlertCircle, FileText, Download, Eye } from 'lucide-react'
 import { formatDate } from '@/utils/helpers'
-import type { Candidate, AIAnalysis, Resume } from '@/types'
+import toast from 'react-hot-toast'
+import type { Candidate, AIAnalysis, Resume, CandidateStatus } from '@/types'
 
 export function CandidateProfile() {
   const { id } = useParams<{ id: string }>()
@@ -21,18 +22,19 @@ export function CandidateProfile() {
   const [resume, setResume] = useState<Resume | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'profile' | 'ai-analysis' | 'timeline'>('profile')
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
     const fetchData = async () => {
       setIsLoading(true)
       try {
-        const [candidateRes, aiRes, resumeRes] = await Promise.all([
-          candidateApi.getByIdLegacyUnwrapped(id),
-          candidateApi.getAiAnalysisUnwrapped(id).catch(() => null),
-          candidateApi.getByIdLegacyUnwrapped(id).then((c) => c.resumeId ? resumeApi.getByIdUnwrapped(c.resumeId!).catch(() => null) : null),
-        ])
+        const candidateRes = await candidateApi.getByIdLegacyUnwrapped(id)
         setCandidate(candidateRes)
+        const [aiRes, resumeRes] = await Promise.all([
+          candidateApi.getAiAnalysisUnwrapped(id).catch(() => null),
+          candidateRes.resumeId ? resumeApi.getByIdUnwrapped(candidateRes.resumeId).catch(() => null) : Promise.resolve(null),
+        ])
         setAiAnalysis(aiRes)
         setResume(resumeRes)
       } catch (error) {
@@ -43,6 +45,34 @@ export function CandidateProfile() {
     }
     fetchData()
   }, [id])
+
+  const handleShortlist = async () => {
+    if (!candidate || !id) return
+    setActionLoading('shortlist')
+    try {
+      await candidateApi.shortlist(id)
+      setCandidate((prev) => prev ? { ...prev, status: 'SHORTLISTED' as CandidateStatus } : prev)
+      toast.success('Candidate shortlisted')
+    } catch (error) {
+      toast.error('Failed to shortlist candidate')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleReject = async () => {
+    if (!candidate || !id) return
+    setActionLoading('reject')
+    try {
+      await candidateApi.reject(id)
+      setCandidate((prev) => prev ? { ...prev, status: 'REJECTED' as CandidateStatus } : prev)
+      toast.error('Candidate rejected')
+    } catch (error) {
+      toast.error('Failed to reject candidate')
+    } finally {
+      setActionLoading(null)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -105,11 +135,11 @@ export function CandidateProfile() {
         </div>
         {hasRole(['ADMIN', 'RECRUITER']) && (
           <div className="flex gap-2">
-            <Button variant="secondary">
+            <Button variant="secondary" onClick={handleShortlist} loading={actionLoading === 'shortlist'}>
               <CheckCircle2 className="w-4 h-4 mr-2" />
               Shortlist
             </Button>
-            <Button variant="danger">
+            <Button variant="danger" onClick={handleReject} loading={actionLoading === 'reject'}>
               <XCircle className="w-4 h-4 mr-2" />
               Reject
             </Button>
@@ -211,7 +241,7 @@ export function CandidateProfile() {
                 <CardTitle>Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button variant="primary" className="w-full justify-start gap-3" size="lg">
+                <Button variant="primary" className="w-full justify-start gap-3" size="lg" onClick={handleShortlist} loading={actionLoading === 'shortlist'}>
                   <CheckCircle2 className="w-5 h-5" />
                   <div className="flex-1 text-left">
                     <p className="text-body-md font-medium text-white">Shortlist</p>
@@ -225,7 +255,7 @@ export function CandidateProfile() {
                     <p className="text-body-sm text-ink-500 dark:text-ink-400">Set up interview slot</p>
                   </div>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start gap-3" size="lg">
+                <Button variant="ghost" className="w-full justify-start gap-3" size="lg" onClick={handleReject} loading={actionLoading === 'reject'}>
                   <AlertCircle className="w-5 h-5" />
                   <div className="flex-1 text-left">
                     <p className="text-body-md font-medium text-ink-900 dark:text-ink-100">Reject</p>

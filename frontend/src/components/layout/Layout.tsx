@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Outlet, Navigate, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { useAuth } from '@/context/AuthContext'
@@ -6,6 +7,7 @@ import { cn } from '@/utils/helpers'
 export function Layout() {
   const location = useLocation()
   const { isAuthenticated, isLoading } = useAuth()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   if (isLoading) {
     return (
@@ -21,11 +23,11 @@ export function Layout() {
 
   return (
     <div className="min-h-screen bg-bg-light dark:bg-bg-dark">
-      <Sidebar />
+      <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((c) => !c)} />
       <div
         className={cn(
-          'transition-all duration-300',
-          'lg:pl-64'
+          'transition-all duration-300 overflow-x-hidden',
+          sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'
         )}
       >
         <header className="sticky top-0 z-sticky h-16 glass-subtle border-b border-glass-200 dark:border-glass-dark-200 shadow-glass-1">

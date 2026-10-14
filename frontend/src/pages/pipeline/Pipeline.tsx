@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { candidateApi } from '@/utils/api'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -13,6 +14,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   DragEndEvent,
 } from '@dnd-kit/core'
 import {
@@ -52,31 +54,31 @@ interface KanbanColumnProps {
 
 function KanbanColumn({ status, candidates }: KanbanColumnProps) {
   const label = STATUS_LABELS[status]
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: status })
 
   return (
-    <Card className="kanban-column w-72 flex-shrink-0 flex flex-col" style={{ minHeight: '600px' }}>
-      <CardHeader className="pb-3 kanban-column-header">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-body-lg">{label}</CardTitle>
-          <span className="text-body-sm text-ink-500 dark:text-ink-400">{candidates.length}</span>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1 min-h-[400px] kanban-column-content p-2">
-        <SortableContext items={candidates.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-          {candidates.map((candidate) => (
-            <CandidateCard
-              key={candidate.id}
-              candidate={candidate}
-            />
-          ))}
-          {candidates.length === 0 && (
-            <div className="h-24 border-2 border-dashed border-base-300 dark:border-base-600 rounded-xl flex items-center justify-center">
-              <span className="text-body-sm text-ink-400 dark:text-ink-500">Drop candidates here</span>
-            </div>
-          )}
-        </SortableContext>
-      </CardContent>
-    </Card>
+    <div ref={setDropRef} className={cn(isOver && 'ring-2 ring-lavender-400 rounded-2xl')}>
+      <Card className="kanban-column w-72 flex-shrink-0 flex flex-col" style={{minHeight: '600px'}}>
+        <CardHeader className="pb-3 kanban-column-header">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-body-lg">{label}</CardTitle>
+            <span className="text-body-sm text-ink-500 dark:text-ink-400">{candidates.length}</span>
+          </div>
+        </CardHeader>
+        <CardContent className="flex-1 min-h-[400px] kanban-column-content p-2">
+          <SortableContext items={candidates.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+            {candidates.map((candidate) => (
+              <CandidateCard key={candidate.id} candidate={candidate} />
+            ))}
+            {candidates.length === 0 && (
+              <div className="h-24 border-2 border-dashed border-base-300 dark:border-base-600 rounded-xl flex items-center justify-center">
+                <span className="text-body-sm text-ink-400 dark:text-ink-500">Drop candidates here</span>
+              </div>
+            )}
+          </SortableContext>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 
@@ -105,7 +107,7 @@ function CandidateCard({ candidate }: CandidateCardProps) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        'candidate-card p-4 bg-base-100 dark:bg-base-900 border border-base-200 dark:border-base-700 rounded-xl shadow-neo-1',
+        'candidate-card relative p-4 bg-base-100 dark:bg-base-900 border border-base-200 dark:border-base-700 rounded-xl shadow-neo-1',
         isDragging && 'shadow-lg ring-2 ring-accent-500'
       )}
     >
@@ -147,8 +149,6 @@ function CandidateCard({ candidate }: CandidateCardProps) {
     </div>
   )
 }
-
-import { Link } from 'react-router-dom'
 
 export function Pipeline() {
   const [candidates, setCandidates] = useState<Candidate[]>([])
@@ -202,10 +202,25 @@ export function Pipeline() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
+    if (!over) return
 
-    if (over && active.id !== over.id) {
-      const candidateId = active.id as string
-      const newStatus = over.id as CandidateStatus
+    const candidateId = active.id as string
+    const overId = over.id as string
+
+    let newStatus: CandidateStatus | undefined
+
+    if ((PIPELINE_STATUSES as string[]).includes(overId)) {
+      // Dropped directly on a column droppable
+      newStatus = overId as CandidateStatus
+    } else {
+      // Dropped on another candidate card — find that card's column
+      const targetCandidate = candidates.find((c) => c.id === overId)
+      if (targetCandidate) {
+        newStatus = targetCandidate.status as CandidateStatus
+      }
+    }
+
+    if (newStatus && candidateId !== overId) {
       onCandidateMove(candidateId, newStatus)
     }
   }

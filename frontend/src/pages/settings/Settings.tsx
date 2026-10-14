@@ -195,20 +195,12 @@ export function Settings() {
                 <CardDescription>Update your personal information</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Full Name *"
-                    placeholder="John Doe"
-                    error={profileMethods.formState.errors.userName?.message}
-                    {...profileMethods.register('userName')}
-                  />
-                  <Input
-                    label="Username *"
-                    placeholder="johndoe"
-                    error={profileMethods.formState.errors.userName?.message}
-                    {...profileMethods.register('userName')}
-                  />
-                </div>
+                <Input
+                  label="Username *"
+                  placeholder="johndoe"
+                  error={profileMethods.formState.errors.userName?.message}
+                  {...profileMethods.register('userName')}
+                />
                 <Input
                   label="Email *"
                   type="email"
@@ -266,8 +258,9 @@ export function Settings() {
                       error={passwordMethods.formState.errors.confirmPassword?.message}
                       {...passwordMethods.register('confirmPassword')}
                     />
-                    <CardFooter className="flex justify-end pt-4">
-                      <Button type="submit" size="lg" loading={isSaving}>
+                    <CardFooter className="flex items-center justify-between pt-4">
+                      <p className="text-body-sm text-ink-500 dark:text-ink-400">Password change coming soon</p>
+                      <Button type="button" size="lg" disabled variant="ghost">
                         <Key className="w-4 h-4 mr-2" />
                         Update Password
                       </Button>

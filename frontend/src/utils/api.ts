@@ -208,28 +208,28 @@ export const candidateApi = {
   healthCheck: () => api.get<CommonResponse<unknown>>('/recruiter/candidates/ai-service/health'),
 
   // Backward compatibility - old endpoints that frontend pages expect
-  getAllLegacy: (params?: CandidateListParams) => api.get<CommonResponse<PaginatedResponse<Candidate>>>('/candidates', params as Record<string, unknown>),
+  getAllLegacy: (params?: CandidateListParams) => api.get<CommonResponse<PaginatedResponse<Candidate>>>('/recruiter/candidates', params as Record<string, unknown>),
   getAllLegacyUnwrapped: async (params?: CandidateListParams) => {
-    const response = await api.get<CommonResponse<PaginatedResponse<Candidate>>>('/candidates', params as Record<string, unknown>)
+    const response = await api.get<CommonResponse<PaginatedResponse<Candidate>>>('/recruiter/candidates', params as Record<string, unknown>)
     return response.data
   },
-  getByIdLegacy: (id: string) => api.get<CommonResponse<Candidate>>(`/candidates/${id}`),
+  getByIdLegacy: (id: string) => api.get<CommonResponse<Candidate>>(`/recruiter/candidates/${id}`),
   getByIdLegacyUnwrapped: async (id: string) => {
-    const response = await api.get<CommonResponse<Candidate>>(`/candidates/${id}`)
+    const response = await api.get<CommonResponse<Candidate>>(`/recruiter/candidates/${id}`)
     return response.data
   },
   updateStatus: (id: string, status: CandidateStatus) =>
-    api.patch<CommonResponse<Candidate>>(`/candidates/${id}/status`, { status }),
-  getAiAnalysis: (id: string) => api.get<CommonResponse<AIAnalysis>>(`/candidates/${id}/ai-analysis`),
+    api.patch<CommonResponse<Candidate>>(`/recruiter/candidates/${id}/status`, { status }),
+  getAiAnalysis: (id: string) => api.get<CommonResponse<AIAnalysis>>(`/recruiter/candidates/${id}/ai-analysis`),
   getAiAnalysisUnwrapped: async (id: string) => {
-    const response = await api.get<CommonResponse<AIAnalysis>>(`/candidates/${id}/ai-analysis`)
+    const response = await api.get<CommonResponse<AIAnalysis>>(`/recruiter/candidates/${id}/ai-analysis`)
     return response.data
   },
-  shortlist: (id: string) => api.post<CommonResponse<void>>(`/candidates/${id}/shortlist`, {}),
+  shortlist: (id: string) => api.post<CommonResponse<void>>(`/recruiter/candidates/${id}/shortlist`, {}),
   reject: (id: string, reason?: string) =>
-    api.post<CommonResponse<void>>(`/candidates/${id}/reject`, { reason }),
+    api.post<CommonResponse<void>>(`/recruiter/candidates/${id}/reject`, { reason }),
   addNote: (id: string, note: string) =>
-    api.post<CommonResponse<void>>(`/candidates/${id}/notes`, { note }),
+    api.post<CommonResponse<void>>(`/recruiter/candidates/${id}/notes`, { note }),
 }
 
 export const resumeApi = {
