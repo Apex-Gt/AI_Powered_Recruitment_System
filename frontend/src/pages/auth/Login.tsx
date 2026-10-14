@@ -128,7 +128,7 @@ export function Login() {
                         error={errors.email}
                         placeholder="Email or Username"
                         autoComplete="email"
-                        className="h-[52px] rounded-[18px] px-6"
+                        className="h-[52px] rounded-field px-6"
                       />
 
                       <div className="relative">
@@ -140,7 +140,7 @@ export function Login() {
                           error={errors.password}
                           placeholder="Password"
                           autoComplete="current-password"
-                          className="h-[52px] rounded-[18px] px-6 pr-12"
+                          className="h-[52px] rounded-field px-6 pr-12"
                         />
 
                         <button
@@ -167,7 +167,7 @@ export function Login() {
                       className="w-full"
                       size="lg"
                       loading={isLoading}
-                      style={{ height: '52px', borderRadius: '18px' }}
+                      style={{ height: '52px' }}
                     >
                       Sign in
                       <ArrowRight className="w-5 h-5" />
