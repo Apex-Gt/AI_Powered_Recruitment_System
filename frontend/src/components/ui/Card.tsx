@@ -2,7 +2,7 @@ import { HTMLAttributes, forwardRef } from 'react'
 import { cn } from '@/utils/helpers'
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'elevated' | 'hover' | 'interactive' | 'lavender' | 'pink' | 'blush' | 'blue' | 'mint' | 'peach' | 'flat'
+  variant?: 'default' | 'elevated' | 'hover' | 'interactive' | 'flat'
   hover?: boolean
   padding?: 'none' | 'sm' | 'md' | 'lg'
 }
@@ -14,13 +14,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
       elevated: 'card',
       hover: 'card-hover',
       interactive: 'card-interactive',
-      lavender: 'card-lavender',
-      pink: 'card-pink',
-      blush: 'card-blush',
-      blue: 'card-blue',
-      mint: 'card-mint',
-      peach: 'card-peach',
-      flat: 'glass-subtle rounded-2xl',
+      flat: 'surface rounded-2xl',
     }
     const paddingClasses = {
       none: 'p-0',
@@ -90,7 +84,7 @@ CardContent.displayName = 'CardContent'
 
 export const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => (
-    <div ref={ref} className={cn('mt-4 pt-4 border-t border-glass-200 dark:border-glass-dark-200 flex items-center gap-3', className)} {...props}>
+    <div ref={ref} className={cn('mt-4 pt-4 border-t border-[var(--color-border)] flex items-center gap-3', className)} {...props}>
       {children}
     </div>
   )

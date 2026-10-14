@@ -57,7 +57,7 @@ function KanbanColumn({ status, candidates }: KanbanColumnProps) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: status })
 
   return (
-    <div ref={setDropRef} className={cn(isOver && 'ring-2 ring-lavender-400 rounded-2xl')}>
+    <div ref={setDropRef} className={cn(isOver && 'ring-2 ring-accent-400 rounded-2xl')}>
       <Card className="kanban-column w-72 flex-shrink-0 flex flex-col" style={{minHeight: '600px'}}>
         <CardHeader className="pb-3 kanban-column-header">
           <div className="flex items-center justify-between">

@@ -54,13 +54,12 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(135deg,#FEFDFB_0%,#F7F3E3_48%,#E8E2CC_100%)] dark:bg-[linear-gradient(135deg,#0A0A0A_0%,#1C1813_48%,#2A251F_100%)] flex items-center justify-center p-[2vh]">
-      <div className="relative w-[97vw] max-w-[1500px] h-[95vh] rounded-[32px] overflow-hidden bg-base-100 shadow-[0_28px_80px_rgba(55,50,43,0.20),inset_0_1px_0_rgba(255,255,255,0.35)] dark:bg-base-950 dark:shadow-[0_28px_80px_rgba(0,0,0,0.52),inset_0_1px_0_rgba(255,255,255,0.10)] border border-white/35 dark:border-white/10">
+    <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center p-[2vh]">
+      <div className="relative w-[97vw] max-w-[1500px] h-[95vh] rounded-[32px] overflow-hidden bg-[var(--color-surface)] border border-[var(--color-border)] shadow-card-light dark:shadow-card-dark">
         <div className="h-full flex flex-col lg:flex-row">
-          <div className="relative z-10 flex-1 min-h-0 flex flex-col rounded-t-[32px] lg:rounded-l-[32px] lg:rounded-tr-none bg-[linear-gradient(145deg,#ff9f45_0%,#FE5D26_42%,#e84a1e_72%,#9d2e16_100%)] p-8 md:p-12 lg:p-14 xl:p-16 overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_16%,rgba(255,255,255,0.28),transparent_28%),radial-gradient(circle_at_50%_42%,rgba(255,255,255,0.10),transparent_31%),radial-gradient(circle_at_66%_86%,rgba(125,37,19,0.32),transparent_38%)]" />
+          <div className="relative z-10 flex-1 min-h-0 flex flex-col rounded-t-[32px] lg:rounded-l-[32px] lg:rounded-tr-none bg-accent-500 p-8 md:p-12 lg:p-14 xl:p-16 overflow-hidden">
             <div className="relative z-10 flex h-full flex-col">
-              <p className="text-center text-body-sm text-white/52">
+              <p className="text-center text-body-sm text-white/80">
                 AI-powered recruitment made simple for modern hiring teams.
               </p>
 
@@ -84,8 +83,7 @@ export function Login() {
             </div>
           </div>
 
-          <div className="relative z-20 flex flex-1 min-h-0 items-center justify-center rounded-b-[32px] bg-base-100/62 p-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.58),-16px_0_46px_rgba(55,50,43,0.08)] backdrop-blur-[30px] md:p-12 lg:rounded-l-none lg:rounded-r-[32px] lg:p-14 xl:p-16 dark:bg-base-950/56">
-          <div className="absolute inset-0 rounded-[inherit] bg-[linear-gradient(145deg,rgba(254,253,251,0.42),rgba(247,243,227,0.18)_46%,rgba(255,255,255,0.08)_100%)] dark:bg-[linear-gradient(145deg,rgba(255,255,255,0.11),rgba(255,255,255,0.04)_42%,rgba(255,255,255,0.015)_100%)] pointer-events-none" />
+          <div className="relative z-20 flex flex-1 min-h-0 items-center justify-center rounded-b-[32px] bg-[var(--color-surface)] p-8 md:p-12 lg:rounded-l-none lg:rounded-r-[32px] lg:p-14 xl:p-16">
 
                 <div className="absolute top-8 left-8 md:top-10 md:left-10 lg:top-10 lg:left-10">
                   <Link to="/" className="inline-flex">
@@ -113,7 +111,7 @@ export function Login() {
 
                   <form onSubmit={handleSubmit} className="space-y-5">
                     {errors.general && (
-                      <div className="flex items-center gap-2 p-3 bg-error-50/85 dark:bg-error-900/22 border border-error-200/80 dark:border-error-800/70 rounded-[16px] backdrop-blur-[16px] shadow-[inset_0_1px_0_rgba(255,255,255,0.38)]">
+                      <div className="flex items-center gap-2 p-3 bg-error-50 dark:bg-error-900/30 border border-error-200 dark:border-error-800/70 rounded-[16px]">
                         <AlertCircle className="w-5 h-5 text-error-500 flex-shrink-0" />
                         <p className="text-body-sm text-error-600 dark:text-error-400">
                           {errors.general}
@@ -130,7 +128,7 @@ export function Login() {
                         error={errors.email}
                         placeholder="Email or Username"
                         autoComplete="email"
-                        className="h-[52px] rounded-[18px] bg-base-50/70 dark:bg-white/[0.07] border-base-200/80 dark:border-white/10 px-6 backdrop-blur-[14px] shadow-[0_8px_20px_rgba(55,50,43,0.04),inset_0_1px_0_rgba(255,255,255,0.55)] focus:border-accent-500 focus:ring-accent-500/20"
+                        className="h-[52px] rounded-[18px] px-6"
                       />
 
                       <div className="relative">
@@ -142,7 +140,7 @@ export function Login() {
                           error={errors.password}
                           placeholder="Password"
                           autoComplete="current-password"
-                          className="h-[52px] rounded-[18px] bg-base-50/70 dark:bg-white/[0.07] border-base-200/80 dark:border-white/10 px-6 pr-12 backdrop-blur-[14px] shadow-[0_8px_20px_rgba(55,50,43,0.04),inset_0_1px_0_rgba(255,255,255,0.55)] focus:border-accent-500 focus:ring-accent-500/20"
+                          className="h-[52px] rounded-[18px] px-6 pr-12"
                         />
 
                         <button
@@ -166,7 +164,7 @@ export function Login() {
 
                     <Button
                       type="submit"
-                      className="w-full bg-gradient-to-r from-[#FE5D26] via-[#ff562c] to-[#e9426d] hover:shadow-[0_18px_34px_rgba(254,93,38,0.34)] active:scale-[0.99] active:shadow-[inset_0_2px_8px_rgba(125,37,19,0.30)]"
+                      className="w-full"
                       size="lg"
                       loading={isLoading}
                       style={{ height: '52px', borderRadius: '18px' }}

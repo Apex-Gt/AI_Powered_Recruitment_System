@@ -1,7 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="">
   <head>
     <meta charset="UTF-8" />
+    <!-- Anti-flash: apply dark class before first paint -->
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('theme');
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = saved === 'dark' || (!saved && prefersDark) || (saved === 'system' && prefersDark);
+          if (isDark) document.documentElement.classList.add('dark');
+        } catch(e) {}
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="AI-Powered Intelligent Recruitment & Candidate Shortlisting Platform" />
@@ -9,8 +20,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-CsFC2udb.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CwemcbDV.css">
+    <script type="module" crossorigin src="/assets/index-xurZenOD.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Be8LDMVc.css">
   </head>
   <body class="antialiased">
     <div id="root"></div>

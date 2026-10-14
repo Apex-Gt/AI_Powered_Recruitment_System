@@ -277,7 +277,7 @@ export function Dashboard() {
                   data={timeToHireChartData}
                   keys={['days', 'avg']}
                   labels={{ days: 'Days to Hire', avg: 'Average' }}
-                  colors={['#FE5D26', '#797059']}
+                  colors={['#F97316', '#78716C']}
                   height={250}
                   index="name"
                   showDots

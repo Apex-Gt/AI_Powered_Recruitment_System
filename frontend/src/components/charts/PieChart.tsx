@@ -1,5 +1,6 @@
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { cn } from '@/utils/helpers'
+import { useTheme } from '@/context/ThemeContext'
 
 interface PieData {
   name: string
@@ -24,14 +25,23 @@ export function PieChartComponent({
   showLegend = true,
   showTooltip = true,
 }: PieChartProps) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+  const tooltipStyle = {
+    backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
+    border: `1px solid ${isDark ? '#333333' : '#E7E5E4'}`,
+    borderRadius: '12px',
+    color: isDark ? '#FAFAF9' : '#1C1917',
+  }
+
   const defaultColors = [
-    '#FE5D26', // accent-500
+    '#F97316', // accent-500
     '#22C55E', // success-500
     '#F59E0B', // warning-500
     '#3B82F6', // info-500
-    '#8B5CF6', // purple-500
+    '#14B8A6', // teal-500
     '#EF4444', // error-500
-    '#EC4899', // pink-500
+    '#78716C', // warm-grey-500
     '#06B6D4', // cyan-500
   ]
 
@@ -45,7 +55,7 @@ export function PieChartComponent({
             cy="50%"
             innerRadius={innerRadius}
             outerRadius={100}
-            fill="#E8E2CC"
+            fill="var(--color-surface-elevated)"
             paddingAngle={2}
             dataKey="value"
             nameKey="name"
@@ -58,13 +68,7 @@ export function PieChartComponent({
           </Pie>
           {showTooltip && (
             <Tooltip
-              contentStyle={{
-                backgroundColor: '#37322B',
-                border: 'none',
-                borderRadius: '12px',
-                boxShadow: '12px 12px 24px rgba(55, 50, 43, 0.12)',
-                color: '#FAFAF9',
-              }}
+              contentStyle={tooltipStyle}
               formatter={(value: number, name: string) => [value, name]}
             />
           )}
@@ -94,6 +98,14 @@ interface DonutChartProps {
 
 export function DonutChart({ data, height = 200, className, total, totalLabel = 'Total' }: DonutChartProps) {
   const totalValue = total ?? data.reduce((sum, d) => sum + d.value, 0)
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+  const tooltipStyle = {
+    backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
+    border: `1px solid ${isDark ? '#333333' : '#E7E5E4'}`,
+    borderRadius: '12px',
+    color: isDark ? '#FAFAF9' : '#1C1917',
+  }
 
   return (
     <div className={cn('relative w-full', className)} style={{ height }}>
@@ -105,7 +117,7 @@ export function DonutChart({ data, height = 200, className, total, totalLabel = 
             cy="50%"
             innerRadius={70}
             outerRadius={90}
-            fill="#E8E2CC"
+            fill="var(--color-surface-elevated)"
             paddingAngle={3}
             dataKey="value"
             nameKey="name"
@@ -115,13 +127,7 @@ export function DonutChart({ data, height = 200, className, total, totalLabel = 
             ))}
           </Pie>
           <Tooltip
-            contentStyle={{
-              backgroundColor: '#37322B',
-              border: 'none',
-              borderRadius: '12px',
-              boxShadow: '12px 12px 24px rgba(55, 50, 43, 0.12)',
-              color: '#FAFAF9',
-            }}
+            contentStyle={tooltipStyle}
             formatter={(value: number, name: string) => [value, name]}
           />
         </PieChart>
@@ -135,6 +141,6 @@ export function DonutChart({ data, height = 200, className, total, totalLabel = 
 }
 
 const defaultColors = [
-  '#FE5D26', '#22C55E', '#F59E0B', '#3B82F6',
-  '#8B5CF6', '#EF4444', '#EC4899', '#06B6D4',
+  '#F97316', '#22C55E', '#F59E0B', '#3B82F6',
+  '#14B8A6', '#EF4444', '#78716C', '#06B6D4',
 ]

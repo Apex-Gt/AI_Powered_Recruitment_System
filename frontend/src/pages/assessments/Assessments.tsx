@@ -280,7 +280,7 @@ export function Assessments() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className={cn('badge-default gap-1', assessment.type === 'CODING' && 'bg-purple-100 text-purple-600')}>
+                        <span className={cn('badge-default gap-1', assessment.type === 'CODING' && 'bg-info-100 text-info-600 dark:bg-info-900/30 dark:text-info-400')}>
                           {(() => {
                             const typeInfo = assessmentTypes.find((t) => t.value === assessment.type)
                             const Icon = typeInfo?.icon

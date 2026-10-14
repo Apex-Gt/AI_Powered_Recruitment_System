@@ -86,12 +86,12 @@ export function Analytics() {
   }))
 
   const departmentData = [
-    { name: 'Engineering', value: MOCK_JOBS_METRICS.byDepartment?.Engineering || 0, color: '#FE5D26' },
+    { name: 'Engineering', value: MOCK_JOBS_METRICS.byDepartment?.Engineering || 0, color: '#F97316' },
     { name: 'Marketing', value: MOCK_JOBS_METRICS.byDepartment?.Marketing || 0, color: '#22C55E' },
     { name: 'Sales', value: MOCK_JOBS_METRICS.byDepartment?.Sales || 0, color: '#F59E0B' },
     { name: 'HR', value: MOCK_JOBS_METRICS.byDepartment?.['Human Resources'] || 0, color: '#3B82F6' },
-    { name: 'Finance', value: MOCK_JOBS_METRICS.byDepartment?.Finance || 0, color: '#8B5CF6' },
-    { name: 'Other', value: MOCK_JOBS_METRICS.byDepartment?.Other || 0, color: '#EC4899' },
+    { name: 'Finance', value: MOCK_JOBS_METRICS.byDepartment?.Finance || 0, color: '#14B8A6' },
+    { name: 'Other', value: MOCK_JOBS_METRICS.byDepartment?.Other || 0, color: '#78716C' },
   ]
 
   const metricCards = [
@@ -263,7 +263,7 @@ export function Analytics() {
                   data={timeToHireChartData}
                   keys={['days', 'avg']}
                   labels={{ days: 'Days to Hire', avg: 'Average' }}
-                  colors={['#FE5D26', '#797059']}
+                  colors={['#F97316', '#78716C']}
                   height={250}
                   index="name"
                   showDots

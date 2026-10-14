@@ -1,5 +1,6 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area } from 'recharts'
 import { cn } from '@/utils/helpers'
+import { useTheme } from '@/context/ThemeContext'
 
 interface ChartData {
   name: string
@@ -29,31 +30,36 @@ export function LineChartComponent({
   area = false,
   showDots = false,
 }: LineChartProps) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+  const gridStroke = isDark ? '#333333' : '#E7E5E4'
+  const tickFill = isDark ? '#A8A29E' : '#78716C'
+  const tooltipStyle = {
+    backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
+    border: `1px solid ${isDark ? '#333333' : '#E7E5E4'}`,
+    borderRadius: '12px',
+    color: isDark ? '#FAFAF9' : '#1C1917',
+  }
+
   return (
     <div className={cn('w-full', className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#E8E2CC" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
           <XAxis
             dataKey={index}
-            tick={{ fill: '#9A9070', fontSize: 12 }}
+            tick={{ fill: tickFill, fontSize: 12 }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: '#9A9070', fontSize: 12 }}
+            tick={{ fill: tickFill, fontSize: 12 }}
             axisLine={false}
             tickLine={false}
           />
           <Tooltip
-            contentStyle={{
-              backgroundColor: '#37322B',
-              border: 'none',
-              borderRadius: '12px',
-              boxShadow: '12px 12px 24px rgba(55, 50, 43, 0.12)',
-              color: '#FAFAF9',
-            }}
-            labelStyle={{ color: '#A3A3A3', fontSize: '12px' }}
+            contentStyle={tooltipStyle}
+            labelStyle={{ color: tickFill, fontSize: '12px' }}
             formatter={(value: number, name: string) => [value, labels[name] || name]}
           />
           <Legend
@@ -132,9 +138,9 @@ export function FunnelChart({ data, className }: FunnelChartProps) {
                 </div>
               </div>
               {/* Funnel bar — width shrinks to show funnel shape */}
-              <div className="w-full bg-glass-200 dark:bg-glass-dark-300 rounded-lg h-8 overflow-hidden">
+              <div className="w-full bg-base-200 dark:bg-surface-dark-elevated rounded-lg h-8 overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-lavender-500 to-lavender-400 dark:from-lavender-600 dark:to-lavender-500 rounded-lg transition-all duration-500"
+                  className="h-full bg-accent-500 rounded-lg transition-all duration-500"
                   style={{ width: `${widthPct}%` }}
                 />
               </div>

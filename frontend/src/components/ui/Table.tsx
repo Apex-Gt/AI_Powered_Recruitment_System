@@ -73,7 +73,7 @@ export function Table<T>({
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={cn('px-4 py-3 text-label-sm text-ink-500 dark:text-ink-400 font-medium bg-glass-50 dark:bg-glass-dark-50 border-b border-glass-200 dark:border-glass-dark-200', col.headerClassName)}
+                  className={cn('px-4 py-3 text-label-sm text-ink-500 dark:text-ink-400 font-medium bg-base-50 dark:bg-surface-dark-elevated border-b border-[var(--color-border)]', col.headerClassName)}
                   style={{ width: col.width }}
                 >
                   <div className="skeleton-text h-4 w-3/4" />
@@ -96,7 +96,7 @@ export function Table<T>({
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={cn('px-4 py-3 text-label-sm text-ink-500 dark:text-ink-400 font-medium bg-glass-50 dark:bg-glass-dark-50 border-b border-glass-200 dark:border-glass-dark-200', col.headerClassName)}
+                  className={cn('px-4 py-3 text-label-sm text-ink-500 dark:text-ink-400 font-medium bg-base-50 dark:bg-surface-dark-elevated border-b border-[var(--color-border)]', col.headerClassName)}
                   style={{ width: col.width }}
                 >
                   {col.header}
@@ -124,7 +124,7 @@ export function Table<T>({
             {columns.map((col) => (
               <th
                 key={col.key}
-                className={cn('px-4 py-3 text-label-sm text-ink-500 dark:text-ink-400 font-medium bg-glass-50 dark:bg-glass-dark-50 border-b border-glass-200 dark:border-glass-dark-200', col.headerClassName)}
+                className={cn('px-4 py-3 text-label-sm text-ink-500 dark:text-ink-400 font-medium bg-base-50 dark:bg-surface-dark-elevated border-b border-[var(--color-border)]', col.headerClassName)}
                 style={{ width: col.width }}
                 scope="col"
               >
@@ -139,8 +139,8 @@ export function Table<T>({
               key={keyExtractor(row)}
               className={cn(
                 rowClassName?.(row),
-                striped && rowIndex % 2 === 0 && 'bg-glass-50 dark:bg-glass-dark-50',
-                hoverable && 'hover:bg-glass-100 dark:hover:bg-glass-dark-100',
+                striped && rowIndex % 2 === 0 && 'bg-base-50 dark:bg-surface-dark-elevated',
+                hoverable && 'hover:bg-base-100 dark:hover:bg-surface-dark-elevated',
                 onRowClick && 'cursor-pointer'
               )}
               onClick={() => onRowClick?.(row)}
@@ -157,7 +157,7 @@ export function Table<T>({
               {columns.map((col) => (
                 <td
                   key={col.key}
-                  className={cn('px-4 py-3 text-body-sm text-ink-900 dark:text-ink-100 border-b border-glass-100 dark:border-glass-dark-100', col.className)}
+                  className={cn('px-4 py-3 text-body-sm text-ink-900 dark:text-ink-100 border-b border-[var(--color-border)]', col.className)}
                 >
                   {col.render ? col.render(row, rowIndex) : (row as Record<string, unknown>)[col.key] as ReactNode}
                 </td>
@@ -188,7 +188,7 @@ export function TableRow({ className, children, ...props }: TableHTMLAttributes<
 
 export function TableHead({ className, children, ...props }: ThHTMLAttributes<HTMLTableHeaderCellElement>) {
   return (
-    <th className={cn('px-4 py-3 text-label-sm text-ink-500 dark:text-ink-400 font-medium bg-glass-50 dark:bg-glass-dark-50 border-b border-glass-200 dark:border-glass-dark-200', className)} {...props}>
+    <th className={cn('px-4 py-3 text-label-sm text-ink-500 dark:text-ink-400 font-medium bg-base-50 dark:bg-surface-dark-elevated border-b border-[var(--color-border)]', className)} {...props}>
       {children}
     </th>
   )
@@ -196,12 +196,12 @@ export function TableHead({ className, children, ...props }: ThHTMLAttributes<HT
 
 export function TableCell({ className, children, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <td className={cn('px-4 py-3 text-body-sm text-ink-900 dark:text-ink-100 border-b border-glass-100 dark:border-glass-dark-100', className)} {...props}>
+    <td className={cn('px-4 py-3 text-body-sm text-ink-900 dark:text-ink-100 border-b border-[var(--color-border)]', className)} {...props}>
       {children}
     </td>
   )
 }
 
 export function TableFooter({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('px-4 py-3 border-t border-glass-200 dark:border-glass-dark-200', className)} {...props}>{children}</div>
+  return <div className={cn('px-4 py-3 border-t border-[var(--color-border)]', className)} {...props}>{children}</div>
 }

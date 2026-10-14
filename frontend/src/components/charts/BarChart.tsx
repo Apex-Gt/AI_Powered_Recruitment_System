@@ -1,5 +1,6 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { cn } from '@/utils/helpers'
+import { useTheme } from '@/context/ThemeContext'
 
 interface ChartData {
   name: string
@@ -27,29 +28,33 @@ export function BarChartComponent({
   index = 'name',
   stacked = false,
 }: BarChartProps) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+  const gridStroke = isDark ? '#333333' : '#E7E5E4'
+  const tickFill = isDark ? '#A8A29E' : '#78716C'
+
   return (
     <div className={cn('w-full', className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} layout="vertical" margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#E8E2CC" vertical={false} />
-          <XAxis type="number" tick={{ fill: '#9A9070', fontSize: 12 }} axisLine={false} tickLine={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+          <XAxis type="number" tick={{ fill: tickFill, fontSize: 12 }} axisLine={false} tickLine={false} />
           <YAxis
             type="category"
             dataKey={index}
-            tick={{ fill: '#797059', fontSize: 12, fontWeight: 500 }}
+            tick={{ fill: tickFill, fontSize: 12, fontWeight: 500 }}
             axisLine={false}
             tickLine={false}
             width={120}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: '#37322B',
-              border: 'none',
+              backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
+              border: `1px solid ${gridStroke}`,
               borderRadius: '12px',
-              boxShadow: '12px 12px 24px rgba(55, 50, 43, 0.12)',
-              color: '#FAFAF9',
+              color: isDark ? '#FAFAF9' : '#1C1917',
             }}
-            labelStyle={{ color: '#A3A3A3', fontSize: '12px' }}
+            labelStyle={{ color: tickFill, fontSize: '12px' }}
             formatter={(value: number, name: string) => [value, labels[name] || name]}
           />
           <Legend

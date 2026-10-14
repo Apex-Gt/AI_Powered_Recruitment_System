@@ -11,8 +11,8 @@ export function Layout() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg-light dark:bg-bg-dark">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-lavender-500 border-t-transparent" />
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)]">
+        <div className="spinner spinner-lg" />
       </div>
     )
   }
@@ -22,15 +22,15 @@ export function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-bg-light dark:bg-bg-dark">
+    <div className="min-h-screen overflow-x-hidden bg-[var(--color-bg)]">
       <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((c) => !c)} />
       <div
         className={cn(
-          'transition-all duration-300 overflow-x-hidden',
+          'transition-all duration-300 min-w-0',
           sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'
         )}
       >
-        <header className="sticky top-0 z-sticky h-16 glass-subtle border-b border-glass-200 dark:border-glass-dark-200 shadow-glass-1">
+        <header className="sticky top-0 z-sticky h-16 bg-[var(--color-surface)] border-b border-[var(--color-border)] shadow-card-light dark:shadow-card-dark">
           <div className="h-full px-6 flex items-center justify-between">
             <h1 className="text-heading-lg font-semibold text-ink-900 dark:text-ink-100">
               {getPageTitle(location.pathname)}

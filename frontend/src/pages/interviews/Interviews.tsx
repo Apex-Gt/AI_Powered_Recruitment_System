@@ -339,7 +339,7 @@ export function Interviews() {
                         <div className="text-body-xs text-ink-400 dark:text-ink-500">{interview.duration} min</div>
                       </TableCell>
                       <TableCell>
-                        <span className={cn('badge-default gap-1', interview.type === 'VIDEO' && 'bg-purple-100 text-purple-600')}>
+                        <span className={cn('badge-default gap-1', interview.type === 'VIDEO' && 'bg-info-100 text-info-600 dark:bg-info-900/30 dark:text-info-400')}>
                           {(() => {
                             const typeInfo = interviewTypes.find((t) => t.value === interview.type)
                             const Icon = typeInfo?.icon
