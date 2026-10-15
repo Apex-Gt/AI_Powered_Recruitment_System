@@ -1,5 +1,5 @@
+import json
 from typing import Optional
-import structlog
 
 from app.core.config import settings
 from app.core.exceptions import RAGError
@@ -7,43 +7,45 @@ from app.core.logging import get_logger
 from app.models.schemas import (
     CandidateProfile,
     JobDescription,
+    MatchScore,
     RAGSummary,
     EvidenceChunk,
     ResumeChunk,
 )
+from app.services.llm import LLMService, get_llm_service
 from app.services.reranker import RerankerService
 
 logger = get_logger(__name__)
 
 
 class RAGSummaryService:
-    def __init__(self, reranker_service: RerankerService):
+    def __init__(self, reranker_service: RerankerService, llm: Optional[LLMService] = None):
         self.reranker_service = reranker_service
-        self._client = None
+        self._llm = llm
 
-    async def _get_client(self):
-        if self._client is None:
-            from openai import AsyncOpenAI
-            self._client = AsyncOpenAI(
-                api_key=settings.openai.api_key,
-                base_url=settings.openai.base_url,
-                timeout=60.0,
-            )
-        return self._client
+    @property
+    def llm(self) -> LLMService:
+        return self._llm or get_llm_service()
 
     async def generate_summary(
         self,
         candidate: CandidateProfile,
         job: JobDescription,
         retrieved_chunks: list[ResumeChunk],
-        match_score=None,
+        match_score: Optional[MatchScore] = None,
+        candidate_id: Optional[str] = None,
+        query: Optional[str] = None,
     ) -> RAGSummary:
         if not retrieved_chunks:
             raise RAGError("Cannot generate summary without retrieved chunks")
 
+        rerank_query = (query or job.description or job.title or "").strip()
+        if not rerank_query:
+            raise RAGError("Cannot generate summary without a query or job description")
+
         try:
             reranked_chunks = await self.reranker_service.rerank(
-                query=job.description,
+                query=rerank_query,
                 chunks=retrieved_chunks,
                 top_k=min(10, len(retrieved_chunks)),
             )
@@ -52,36 +54,27 @@ class RAGSummaryService:
 
             prompt = self._build_summary_prompt(candidate, job, top_evidence, match_score)
 
-            client = await self._get_client()
-            response = await client.chat.completions.create(
-                model=settings.model.llm_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an expert HR analyst. Generate a grounded, evidence-based candidate summary for a job match. Only use information from the provided resume chunks. Never invent information. If information is not in the chunks, state it's not mentioned.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=settings.model.llm_temperature,
-                max_tokens=settings.model.llm_max_tokens,
-                response_format={"type": "json_object"},
+            data = await self.llm.chat_json(
+                system="You are an expert HR analyst. Generate a grounded, evidence-based candidate summary for a job match. Only use information from the provided resume chunks. Never invent information. If information is not in the chunks, state it's not mentioned. Respond with a single JSON object.",
+                user=prompt,
             )
 
-            import json
-            content = response.choices[0].message.content
-            data = json.loads(content)
+            try:
+                confidence = max(0.0, min(1.0, float(data.get("confidence_score", 0.5))))
+            except (TypeError, ValueError):
+                confidence = 0.5
 
             summary = RAGSummary(
-                candidate_id=candidate.name,  # Will be set by caller
+                candidate_id=candidate_id or "",
                 job_id=job.job_id,
-                strengths=data.get("strengths", []),
-                matched_skills=data.get("matched_skills", []),
-                missing_skills=data.get("missing_skills", []),
-                relevant_experience=data.get("relevant_experience", []),
+                strengths=self._as_str_list(data.get("strengths")),
+                matched_skills=self._as_str_list(data.get("matched_skills")),
+                missing_skills=self._as_str_list(data.get("missing_skills")),
+                relevant_experience=self._as_str_list(data.get("relevant_experience")),
                 evidence=top_evidence,
-                summary_text=data.get("summary_text", ""),
-                confidence_score=data.get("confidence_score", 0.5),
-                model_used=settings.model.llm_model,
+                summary_text=str(data.get("summary_text") or ""),
+                confidence_score=confidence,
+                model_used=self.llm.model_name,
                 prompt_version=settings.scoring.prompt_version,
             )
 
@@ -92,12 +85,20 @@ class RAGSummaryService:
             logger.error("rag_summary_failed", error=str(e))
             raise RAGError(f"Failed to generate RAG summary: {e}") from e
 
+    @staticmethod
+    def _as_str_list(value) -> list[str]:
+        if not value:
+            return []
+        if isinstance(value, str):
+            return [value]
+        return [item if isinstance(item, str) else json.dumps(item, ensure_ascii=False) for item in value]
+
     def _build_summary_prompt(
         self,
         candidate: CandidateProfile,
         job: JobDescription,
         evidence_chunks: list[EvidenceChunk],
-        match_score=None,
+        match_score: Optional[MatchScore] = None,
     ) -> str:
         evidence_text = "\n\n".join(
             [
@@ -109,6 +110,8 @@ class RAGSummaryService:
         candidate_skills = ", ".join([s.name for s in candidate.skills])
         job_required_skills = ", ".join(job.required_skills)
         job_preferred_skills = ", ".join(job.preferred_skills)
+
+        highest_education = candidate.get_highest_education_level()
 
         match_info = ""
         if match_score:
@@ -134,7 +137,7 @@ Education Level: {job.education_level.value if job.education_level else "Not spe
 Candidate: {candidate.name}
 Candidate Skills: {candidate_skills}
 Total Experience: {candidate.total_experience_years} years
-Highest Education: {candidate.get_highest_education_level().value if candidate.get_highest_education_level() else "Not specified"}
+Highest Education: {highest_education.value if highest_education else "Not specified"}
 
 {match_info}
 

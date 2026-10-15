@@ -7,8 +7,8 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
-    "inngest>=0.5.19",
-    "qdrant-client>=1.9.0",
+    "inngest>=0.5.19,<0.6.0",
+    "qdrant-client>=1.10.0",
     "llama-index>=0.10.0",
     "llama-index-readers-file>=0.1.0",
     "pydantic>=2.5.0",
@@ -21,6 +21,10 @@ dependencies = [
     "python-json-logger>=2.0.0",
     "numpy>=1.26.0",
     "email-validator>=2.1.0",
+    "pypdf>=4.0.0",
+    # Local embedding / reranker (EMBEDDING_PROVIDER=local, RERANKER_PROVIDER=local, the default)
+    "FlagEmbedding>=1.2.10",
+    "torch>=2.2.0",
 ]
 
 [project.optional-dependencies]

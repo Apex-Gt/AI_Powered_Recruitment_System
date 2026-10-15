@@ -59,3 +59,7 @@ class RAGError(AIServiceError):
 class RankingError(AIServiceError):
     def __init__(self, message: str, details: dict | None = None):
         super().__init__(message, "RANKING_ERROR", details)
+
+class LLMError(AIServiceError):
+    def __init__(self, message: str, details: dict | None = None):
+        super().__init__(message, "LLM_ERROR", details)

@@ -1,6 +1,5 @@
+import re
 from typing import Optional
-from collections import Counter
-import structlog
 
 from app.core.config import settings
 from app.core.exceptions import ScoringError
@@ -14,6 +13,33 @@ from app.models.schemas import (
 )
 
 logger = get_logger(__name__)
+
+_SKILL_ALIASES = {
+    "js": "javascript",
+    "ts": "typescript",
+    "reactjs": "react",
+    "nodejs": "node",
+    "vuejs": "vue",
+    "angularjs": "angular",
+    "nextjs": "next",
+    "expressjs": "express",
+    "postgres": "postgresql",
+    "psql": "postgresql",
+    "mongo": "mongodb",
+    "k8s": "kubernetes",
+    "golang": "go",
+    "py": "python",
+    "ml": "machine learning",
+    "springboot": "spring boot",
+}
+
+
+def normalize_skill(name: str) -> str:
+    """Lowercase and canonicalise a skill name so 'React.js' == 'react' and 'Postgres' == 'PostgreSQL'."""
+    value = re.sub(r"\s+", " ", name.strip().lower())
+    value = re.sub(r"[.\s-]?js$", "", value) if value not in {"js", "node.js"} and len(value) > 3 else value
+    compact = value.replace(".", "").replace(" ", "")
+    return _SKILL_ALIASES.get(compact, _SKILL_ALIASES.get(value, value))
 
 
 class ScoringService:
@@ -29,10 +55,13 @@ class ScoringService:
         candidate: CandidateProfile,
         job: JobDescription,
     ) -> tuple[float, list[str], list[str], float]:
-        candidate_skills = {s.name.lower(): s for s in candidate.skills}
-        required_skills = {req.skill.lower(): req for req in job.requirements if req.required}
-        preferred_skills = {req.skill.lower(): req for req in job.requirements if not req.required}
-        all_job_skills = {**required_skills, **preferred_skills}
+        candidate_skills = {normalize_skill(s.name): s for s in candidate.skills}
+        requirements = list(job.requirements)
+        if not requirements:
+            requirements = [JobRequirement(skill=name, required=True) for name in job.required_skills]
+            requirements += [JobRequirement(skill=name, required=False) for name in job.preferred_skills]
+        required_skills = {normalize_skill(req.skill): req for req in requirements if req.required}
+        preferred_skills = {normalize_skill(req.skill): req for req in requirements if not req.required}
 
         matched_skills = []
         missing_skills = []

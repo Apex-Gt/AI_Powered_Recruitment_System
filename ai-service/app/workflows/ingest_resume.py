@@ -1,125 +1,140 @@
-import inngest
-import structlog
-import uuid
+"""Inngest workflows.
+
+Every ``step.run`` result is memoised by Inngest as JSON and handed back on the next
+invocation of the function, so any step that returns a pydantic model passes
+``output_type=`` to have it re-hydrated (the client uses ``PydanticSerializer``).
+Step ids are static so replays line up with the memoised state.
+"""
+
+import asyncio
 from typing import Optional
+
+import httpx
+import inngest
 
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.models.schemas import (
-    IngestResumeEvent,
-    ScoreJobEvent,
-    RAGSummaryEvent,
-    RankCandidatesEvent,
     CandidateProfile,
     JobDescription,
     MatchScore,
+    RAGSummary,
+    RankedCandidate,
+    RankingResult,
     ResumeChunk,
 )
-from app.services.pdf_processor import PDFProcessingService, CandidateExtractionService
-from app.services.embedding import create_embedding_service
-from app.services.qdrant import QdrantService
-from app.services.scoring import ScoringService
+from app.services.pdf_processor import CandidateExtractionService, PDFProcessingService
 from app.services.rag_summary import RAGSummaryService
-from app.services.reranker import create_reranker_service
+from app.services.registry import get_embedding_service, get_qdrant_service, get_reranker_service
+from app.services.scoring import ScoringService
 
 logger = get_logger(__name__)
 
-embedding_service = create_embedding_service()
-qdrant_service = QdrantService(embedding_service)
+embedding_service = get_embedding_service()
+qdrant_service = get_qdrant_service()
+reranker_service = get_reranker_service()
 pdf_processor = PDFProcessingService()
 candidate_extractor = CandidateExtractionService()
 scoring_service = ScoringService()
-reranker_service = create_reranker_service()
 rag_service = RAGSummaryService(reranker_service)
+
+_client_kwargs: dict = {}
+if settings.inngest.dev_mode and settings.environment != "production":
+    _client_kwargs = {
+        "api_base_url": settings.inngest.base_url,
+        "event_api_base_url": settings.inngest.base_url,
+    }
 
 inngest_client = inngest.Inngest(
     app_id="ai-service",
-    signing_key=settings.inngest.signing_key,
-    api_base_url=settings.inngest.base_url,
-    is_production=not settings.inngest.dev_mode,
+    event_key=settings.inngest.event_key or None,
+    signing_key=settings.inngest.signing_key or None,
+    is_production=settings.environment == "production" or not settings.inngest.dev_mode,
+    serializer=inngest.PydanticSerializer(),
+    **_client_kwargs,
 )
 
+MAX_RANKING_FETCH_CONCURRENCY = 10
 
-@inngest_client.create_function(
-    fn_id="candidate/ingest-resume",
-    trigger=inngest.TriggerEvent(event="candidate/ingest-resume"),
-    retries=3,
-)
-async def ingest_resume_workflow(ctx: inngest.Context, step: inngest.Step) -> dict:
+
+# --------------------------------------------------------------------------- #
+# Workflow handlers (plain coroutines so they can be unit-tested directly)
+# --------------------------------------------------------------------------- #
+
+
+async def ingest_resume_handler(ctx: inngest.Context, step: inngest.Step) -> dict:
     event_data = ctx.event.data
-    logger.info("ingest_resume_started", event=event_data)
-
     candidate_id = event_data["candidate_id"]
     resume_id = event_data["resume_id"]
     job_id = event_data.get("job_id")
     pdf_path = event_data["pdf_path"]
     source_pdf = event_data["source_pdf"]
+    logger.info("ingest_resume_started", candidate_id=candidate_id, resume_id=resume_id)
 
     try:
-        text = await step.run(
-            "extract_pdf_text",
-            lambda: pdf_processor.extract_text_from_pdf(pdf_path),
-        )
+        text = await step.run("extract_pdf_text", pdf_processor.extract_text_from_pdf, pdf_path)
 
         chunks = await step.run(
             "chunk_text",
-            lambda: pdf_processor.chunk_text(text, candidate_id, resume_id, job_id, source_pdf),
+            pdf_processor.chunk_text,
+            text,
+            candidate_id,
+            resume_id,
+            job_id,
+            source_pdf,
+            output_type=list[ResumeChunk],
         )
 
-        profile = await step.run(
-            "extract_candidate_profile",
-            lambda: candidate_extractor.extract_candidate_profile(text),
-        )
+        await step.run("embed_and_store_chunks", qdrant_service.upsert_chunks, chunks)
 
-        await step.run(
-            "embed_and_store_chunks",
-            lambda: qdrant_service.upsert_chunks(chunks),
-        )
+        profile: Optional[CandidateProfile] = None
+        if settings.llm.is_configured:
+            profile = await step.run(
+                "extract_candidate_profile",
+                candidate_extractor.extract_candidate_profile,
+                text,
+                output_type=CandidateProfile,
+            )
+            await step.run("store_candidate_profile", _store_candidate_profile, candidate_id, profile)
+        else:
+            logger.warning("profile_extraction_skipped_llm_not_configured", candidate_id=candidate_id)
 
         logger.info("ingest_resume_completed", candidate_id=candidate_id, resume_id=resume_id, chunks=len(chunks))
-
         return {
             "status": "completed",
             "candidate_id": candidate_id,
             "resume_id": resume_id,
             "job_id": job_id,
             "chunks_stored": len(chunks),
-            "candidate_profile": profile.model_dump(),
+            "candidate_profile": profile.model_dump(mode="json") if profile else None,
         }
-
     except Exception as e:
         logger.error("ingest_resume_failed", error=str(e), candidate_id=candidate_id)
         raise
 
 
-@inngest_client.create_function(
-    fn_id="candidate/score-job",
-    trigger=inngest.TriggerEvent(event="candidate/score-job"),
-    retries=3,
-)
-async def score_job_workflow(ctx: inngest.Context, step: inngest.Step) -> dict:
+async def score_job_handler(ctx: inngest.Context, step: inngest.Step) -> dict:
     event_data = ctx.event.data
-    logger.info("score_job_started", event=event_data)
-
     candidate_id = event_data["candidate_id"]
     job_id = event_data["job_id"]
-    job_description_data = event_data["job_description"]
-
-    job = JobDescription(**job_description_data)
+    job = JobDescription.model_validate(event_data["job_description"])
+    logger.info("score_job_started", candidate_id=candidate_id, job_id=job_id)
 
     try:
         query_embedding = await step.run(
             "embed_job_description",
-            lambda: embedding_service.embed_text(job.description),
+            embedding_service.embed_text,
+            f"{job.title}\n{job.description}".strip(),
         )
 
         candidate_chunks = await step.run(
             "retrieve_candidate_chunks",
-            lambda: qdrant_service.search_similar(
-                query_embedding=query_embedding,
-                candidate_id=candidate_id,
-                top_k=20,
-            ),
+            qdrant_service.search_similar,
+            query_embedding,
+            candidate_id,
+            None,
+            20,
+            output_type=list[ResumeChunk],
         )
 
         if not candidate_chunks:
@@ -134,80 +149,83 @@ async def score_job_workflow(ctx: inngest.Context, step: inngest.Step) -> dict:
 
         candidate_profile = await step.run(
             "get_candidate_profile_from_spring",
-            lambda: _fetch_candidate_profile(candidate_id),
+            _fetch_candidate_profile,
+            candidate_id,
+            output_type=Optional[CandidateProfile],
         )
 
         if candidate_profile is None:
             candidate_profile = await step.run(
                 "extract_profile_from_chunks",
-                lambda: _extract_profile_from_chunks(candidate_chunks),
+                _extract_profile_from_chunks,
+                candidate_chunks,
+                output_type=CandidateProfile,
             )
 
-        chunk_embeddings = await step.run(
-            "get_chunk_embeddings",
-            lambda: _get_chunk_embeddings(candidate_chunks),
-        )
+        chunk_embeddings = await step.run("get_chunk_embeddings", _get_chunk_embeddings, candidate_chunks)
 
         match_score = await step.run(
             "calculate_match_score",
-            lambda: scoring_service.score_candidate_job(
-                candidate=candidate_profile,
-                job=job,
-                candidate_chunks=candidate_chunks,
-                query_embedding=query_embedding,
-                chunk_embeddings=chunk_embeddings,
-            ),
+            _calculate_match_score,
+            candidate_profile,
+            job,
+            candidate_chunks,
+            query_embedding,
+            chunk_embeddings,
+            candidate_id,
+            job_id,
+            output_type=MatchScore,
         )
 
-        match_score.candidate_id = candidate_id
-        match_score.job_id = job_id
-
-        await step.run(
-            "store_match_score_in_spring",
-            lambda: _store_match_score(match_score),
-        )
+        await step.run("store_match_score_in_spring", _store_match_score, match_score)
 
         logger.info("score_job_completed", candidate_id=candidate_id, job_id=job_id, score=match_score.overall_score)
-
         return {
             "status": "completed",
             "candidate_id": candidate_id,
             "job_id": job_id,
-            "match_score": match_score.model_dump(),
+            "match_score": match_score.model_dump(mode="json"),
         }
-
     except Exception as e:
         logger.error("score_job_failed", error=str(e), candidate_id=candidate_id, job_id=job_id)
         raise
 
 
-@inngest_client.create_function(
-    fn_id="candidate/rag-summary",
-    trigger=inngest.TriggerEvent(event="candidate/rag-summary"),
-    retries=3,
-)
-async def rag_summary_workflow(ctx: inngest.Context, step: inngest.Step) -> dict:
+async def rag_summary_handler(ctx: inngest.Context, step: inngest.Step) -> dict:
     event_data = ctx.event.data
-    logger.info("rag_summary_started", event=event_data)
-
     candidate_id = event_data["candidate_id"]
     job_id = event_data["job_id"]
-    query = event_data.get("query", "")
-    top_k = event_data.get("top_k", 10)
+    query = event_data.get("query") or ""
+    top_k = event_data.get("top_k") or 10
+    logger.info("rag_summary_started", candidate_id=candidate_id, job_id=job_id)
 
     try:
-        query_embedding = await step.run(
-            "embed_query",
-            lambda: embedding_service.embed_text(query or f"Job {job_id} candidate {candidate_id}"),
-        )
+        if event_data.get("job_description"):
+            job = JobDescription.model_validate(event_data["job_description"])
+        else:
+            job = await step.run(
+                "get_job_description",
+                _fetch_job_description,
+                job_id,
+                output_type=Optional[JobDescription],
+            )
+        if job is None:
+            raise inngest.NonRetriableError(
+                f"No job description available for job {job_id}: pass jobDescription in the request "
+                "or expose GET /api/jobs/{id}/description on the backend"
+            )
+
+        search_text = (query or f"{job.title}\n{job.description}").strip()
+        query_embedding = await step.run("embed_query", embedding_service.embed_text, search_text)
 
         retrieved_chunks = await step.run(
             "retrieve_relevant_chunks",
-            lambda: qdrant_service.search_similar(
-                query_embedding=query_embedding,
-                candidate_id=candidate_id,
-                top_k=max(top_k, 20),
-            ),
+            qdrant_service.search_similar,
+            query_embedding,
+            candidate_id,
+            None,
+            max(top_k, 20),
+            output_type=list[ResumeChunk],
         )
 
         if not retrieved_chunks:
@@ -222,67 +240,65 @@ async def rag_summary_workflow(ctx: inngest.Context, step: inngest.Step) -> dict
 
         candidate_profile = await step.run(
             "get_candidate_profile",
-            lambda: _fetch_candidate_profile(candidate_id),
+            _fetch_candidate_profile,
+            candidate_id,
+            output_type=Optional[CandidateProfile],
         )
-
-        job = await step.run(
-            "get_job_description",
-            lambda: _fetch_job_description(job_id),
-        )
+        if candidate_profile is None:
+            candidate_profile = await step.run(
+                "extract_profile_from_chunks",
+                _extract_profile_from_chunks,
+                retrieved_chunks,
+                output_type=CandidateProfile,
+            )
 
         match_score = await step.run(
             "get_match_score",
-            lambda: _fetch_match_score(candidate_id, job_id),
+            _fetch_match_score,
+            candidate_id,
+            job_id,
+            output_type=Optional[MatchScore],
         )
 
         rag_summary = await step.run(
             "generate_rag_summary",
-            lambda: rag_service.generate_summary(
-                candidate=candidate_profile,
-                job=job,
-                retrieved_chunks=retrieved_chunks,
-                match_score=match_score,
-            ),
+            _generate_rag_summary,
+            candidate_profile,
+            job,
+            retrieved_chunks,
+            match_score,
+            candidate_id,
+            search_text,
+            output_type=RAGSummary,
         )
 
-        rag_summary.candidate_id = candidate_id
-        rag_summary.job_id = job_id
-
-        await step.run(
-            "store_rag_summary",
-            lambda: _store_rag_summary(rag_summary),
-        )
+        await step.run("store_rag_summary", _store_rag_summary, rag_summary)
 
         logger.info("rag_summary_completed", candidate_id=candidate_id, job_id=job_id)
-
         return {
             "status": "completed",
             "candidate_id": candidate_id,
             "job_id": job_id,
-            "rag_summary": rag_summary.model_dump(),
+            "rag_summary": rag_summary.model_dump(mode="json"),
         }
-
     except Exception as e:
         logger.error("rag_summary_failed", error=str(e), candidate_id=candidate_id, job_id=job_id)
         raise
 
 
-@inngest_client.create_function(
-    fn_id="job/rank-candidates",
-    trigger=inngest.TriggerEvent(event="job/rank-candidates"),
-    retries=3,
-)
-async def rank_candidates_workflow(ctx: inngest.Context, step: inngest.Step) -> dict:
+async def rank_candidates_handler(ctx: inngest.Context, step: inngest.Step) -> dict:
     event_data = ctx.event.data
-    logger.info("rank_candidates_started", event=event_data)
-
     job_id = event_data["job_id"]
     candidate_ids = event_data["candidate_ids"]
+    logger.info("rank_candidates_started", job_id=job_id, candidates=len(candidate_ids))
 
     try:
         match_scores = await step.run(
             "fetch_all_match_scores",
-            lambda: _fetch_all_match_scores(job_id, candidate_ids),
+            _fetch_all_match_scores,
+            job_id,
+            candidate_ids,
+            output_type=list[MatchScore],
         )
 
         if not match_scores:
@@ -294,152 +310,268 @@ async def rank_candidates_workflow(ctx: inngest.Context, step: inngest.Step) -> 
                 "warning": "No match scores available",
             }
 
-        sorted_scores = sorted(match_scores, key=lambda x: x.overall_score, reverse=True)
+        sorted_scores = sorted(match_scores, key=lambda s: (-s.overall_score, s.candidate_id))
 
-        ranked_candidates = []
-        for rank, score in enumerate(sorted_scores, 1):
-            rag_summary = await step.run(
-                f"fetch_rag_summary_{score.candidate_id}",
-                lambda cid=score.candidate_id: _fetch_rag_summary(cid, job_id),
-            )
-
-            ranked_candidates.append({
-                "candidate_id": score.candidate_id,
-                "job_id": job_id,
-                "rank": rank,
-                "overall_score": score.overall_score,
-                "match_score": score.model_dump(),
-                "rag_summary": rag_summary.model_dump() if rag_summary else None,
-            })
-
-        await step.run(
-            "store_ranking_results",
-            lambda: _store_ranking_results(job_id, ranked_candidates),
+        rag_summaries = await step.run(
+            "fetch_rag_summaries",
+            _fetch_rag_summaries,
+            job_id,
+            [s.candidate_id for s in sorted_scores],
+            output_type=dict[str, Optional[RAGSummary]],
         )
 
-        logger.info("rank_candidates_completed", job_id=job_id, candidates=len(ranked_candidates))
+        ranked = [
+            RankedCandidate(
+                candidate_id=score.candidate_id,
+                job_id=job_id,
+                rank=rank,
+                overall_score=score.overall_score,
+                match_score=score,
+                rag_summary=rag_summaries.get(score.candidate_id),
+            )
+            for rank, score in enumerate(sorted_scores, 1)
+        ]
+        ranking = RankingResult(
+            job_id=job_id,
+            candidates=ranked,
+            total_candidates=len(ranked),
+            scoring_version=settings.scoring.scoring_version,
+        )
 
+        await step.run("store_ranking_results", _store_ranking_results, ranking)
+
+        logger.info("rank_candidates_completed", job_id=job_id, candidates=len(ranked))
         return {
             "status": "completed",
             "job_id": job_id,
-            "ranked_candidates": ranked_candidates,
+            "ranked_candidates": [r.model_dump(mode="json") for r in ranked],
         }
-
     except Exception as e:
         logger.error("rank_candidates_failed", error=str(e), job_id=job_id)
         raise
 
 
-async def _fetch_candidate_profile(candidate_id: str) -> Optional[CandidateProfile]:
-    import httpx
+# --------------------------------------------------------------------------- #
+# Function registration (served by app.api.main via inngest.fast_api.serve)
+# --------------------------------------------------------------------------- #
+
+def _register(fn_id: str, event: str, handler):
+    """Register ``handler(ctx, step)``. The inngest 0.5 SDK calls functions with ``ctx`` only
+    and exposes the step API as ``ctx.step``, so adapt it here and keep handlers easy to test."""
+
+    async def entrypoint(ctx: inngest.Context) -> dict:
+        return await handler(ctx, ctx.step)
+
+    entrypoint.__name__ = handler.__name__.replace("_handler", "_workflow")
+    return inngest_client.create_function(
+        fn_id=fn_id,
+        trigger=inngest.TriggerEvent(event=event),
+        retries=3,
+    )(entrypoint)
+
+
+ingest_resume_workflow = _register("candidate/ingest-resume", "candidate/ingest-resume", ingest_resume_handler)
+score_job_workflow = _register("candidate/score-job", "candidate/score-job", score_job_handler)
+rag_summary_workflow = _register("candidate/rag-summary", "candidate/rag-summary", rag_summary_handler)
+rank_candidates_workflow = _register("job/rank-candidates", "job/rank-candidates", rank_candidates_handler)
+
+ALL_FUNCTIONS = [
+    ingest_resume_workflow,
+    score_job_workflow,
+    rag_summary_workflow,
+    rank_candidates_workflow,
+]
+
+
+# --------------------------------------------------------------------------- #
+# Step helpers
+# --------------------------------------------------------------------------- #
+
+
+def _spring_client() -> httpx.AsyncClient:
+    headers = {"Content-Type": "application/json"}
+    if settings.spring_boot.api_key:
+        headers["X-API-Key"] = settings.spring_boot.api_key
+    return httpx.AsyncClient(
+        base_url=settings.spring_boot.base_url,
+        timeout=settings.spring_boot.timeout,
+        headers=headers,
+    )
+
+
+async def _spring_get_json(path: str) -> Optional[dict]:
+    """GET a JSON object from Spring; None when it is absent (404) or unreachable."""
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(f"{settings.spring_boot.base_url}/api/candidates/{candidate_id}/profile")
-            if response.status_code == 200:
-                return CandidateProfile(**response.json())
+        async with _spring_client() as client:
+            response = await client.get(path)
+        if response.status_code == 200:
+            body = response.json()
+            if isinstance(body, dict) and isinstance(body.get("data"), dict):
+                return body["data"]  # unwrap the backend's {status, message, data} envelope
+            return body
+        if response.status_code != 404:
+            logger.warning("spring_get_unexpected_status", path=path, status=response.status_code)
     except Exception as e:
-        logger.warning("fetch_candidate_profile_failed", candidate_id=candidate_id, error=str(e))
+        logger.warning("spring_get_failed", path=path, error=str(e))
     return None
 
 
+async def _spring_post(path: str, payload: dict) -> None:
+    """POST to Spring; raises on any failure so the Inngest step is retried."""
+    async with _spring_client() as client:
+        response = await client.post(path, json=payload)
+    response.raise_for_status()
+
+
+async def _fetch_candidate_profile(candidate_id: str) -> Optional[CandidateProfile]:
+    body = await _spring_get_json(f"/api/candidates/{candidate_id}/profile")
+    if body is None:
+        return None
+    try:
+        return CandidateProfile.model_validate(body)
+    except Exception as e:
+        logger.warning("candidate_profile_invalid", candidate_id=candidate_id, error=str(e))
+        return None
+
+
 async def _extract_profile_from_chunks(chunks: list[ResumeChunk]) -> CandidateProfile:
-    full_text = "\n\n".join([c.text for c in chunks])
+    if not settings.llm.is_configured:
+        raise inngest.NonRetriableError(
+            "No candidate profile available from the backend and LLM_API_KEY is not set, "
+            "so one cannot be extracted from the resume text"
+        )
+    ordered = sorted(chunks, key=lambda c: c.metadata.get("start_char_idx") or 0)
+    full_text = "\n\n".join(c.text for c in ordered)
     return await candidate_extractor.extract_candidate_profile(full_text)
 
 
 async def _get_chunk_embeddings(chunks: list[ResumeChunk]) -> list[list[float]]:
-    embeddings = []
-    for chunk in chunks:
-        if chunk.embedding:
-            embeddings.append(chunk.embedding)
-        else:
-            emb = await embedding_service.embed_text(chunk.text)
-            embeddings.append(emb)
-    return embeddings
+    missing = [c for c in chunks if not c.embedding]
+    if missing:
+        vectors = await embedding_service.embed_batch([c.text for c in missing])
+        for chunk, vector in zip(missing, vectors):
+            chunk.embedding = vector
+    return [c.embedding for c in chunks if c.embedding]
+
+
+async def _calculate_match_score(
+    candidate: CandidateProfile,
+    job: JobDescription,
+    candidate_chunks: list[ResumeChunk],
+    query_embedding: list[float],
+    chunk_embeddings: list[list[float]],
+    candidate_id: str,
+    job_id: str,
+) -> MatchScore:
+    score = scoring_service.score_candidate_job(
+        candidate=candidate,
+        job=job,
+        candidate_chunks=candidate_chunks,
+        query_embedding=query_embedding,
+        chunk_embeddings=chunk_embeddings,
+    )
+    score.candidate_id = candidate_id
+    score.job_id = job_id
+    return score
+
+
+async def _generate_rag_summary(
+    candidate: CandidateProfile,
+    job: JobDescription,
+    chunks: list[ResumeChunk],
+    match_score: Optional[MatchScore],
+    candidate_id: str,
+    query: str,
+) -> RAGSummary:
+    summary = await rag_service.generate_summary(
+        candidate=candidate,
+        job=job,
+        retrieved_chunks=chunks,
+        match_score=match_score,
+        candidate_id=candidate_id,
+        query=query,
+    )
+    summary.candidate_id = candidate_id
+    summary.job_id = job.job_id or summary.job_id
+    return summary
+
+
+async def _store_candidate_profile(candidate_id: str, profile: CandidateProfile) -> None:
+    payload = profile.model_dump(mode="json")
+    payload["candidateId"] = candidate_id
+    await _spring_post("/api/ai/candidate-profile", payload)
 
 
 async def _store_match_score(match_score: MatchScore) -> None:
-    import httpx
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            await client.post(
-                f"{settings.spring_boot.base_url}/api/ai/match-scores",
-                json=match_score.model_dump(),
-            )
-    except Exception as e:
-        logger.error("store_match_score_failed", error=str(e))
+    await _spring_post("/api/ai/match-scores", match_score.to_wire())
 
 
-async def _fetch_job_description(job_id: str) -> JobDescription:
-    import httpx
+async def _fetch_job_description(job_id: str) -> Optional[JobDescription]:
+    body = await _spring_get_json(f"/api/jobs/{job_id}/description")
+    if body is None:
+        return None
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(f"{settings.spring_boot.base_url}/api/jobs/{job_id}/description")
-            if response.status_code == 200:
-                return JobDescription(**response.json())
+        return JobDescription.model_validate(body)
     except Exception as e:
-        logger.warning("fetch_job_description_failed", job_id=job_id, error=str(e))
-    return JobDescription(job_id=job_id, title="", company_id="", description="")
+        logger.warning("job_description_invalid", job_id=job_id, error=str(e))
+        return None
 
 
 async def _fetch_match_score(candidate_id: str, job_id: str) -> Optional[MatchScore]:
-    import httpx
+    body = await _spring_get_json(f"/api/ai/match-scores/{candidate_id}/{job_id}")
+    if body is None:
+        return None
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(f"{settings.spring_boot.base_url}/api/ai/match-scores/{candidate_id}/{job_id}")
-            if response.status_code == 200:
-                return MatchScore(**response.json())
+        return MatchScore.model_validate(body)
     except Exception as e:
-        logger.warning("fetch_match_score_failed", candidate_id=candidate_id, job_id=job_id, error=str(e))
-    return None
+        logger.warning("match_score_invalid", candidate_id=candidate_id, job_id=job_id, error=str(e))
+        return None
 
 
 async def _fetch_all_match_scores(job_id: str, candidate_ids: list[str]) -> list[MatchScore]:
-    import httpx
-    scores = []
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            for cid in candidate_ids:
-                response = await client.get(f"{settings.spring_boot.base_url}/api/ai/match-scores/{cid}/{job_id}")
-                if response.status_code == 200:
-                    scores.append(MatchScore(**response.json()))
-    except Exception as e:
-        logger.warning("fetch_all_match_scores_failed", job_id=job_id, error=str(e))
+    semaphore = asyncio.Semaphore(MAX_RANKING_FETCH_CONCURRENCY)
+
+    async def fetch(candidate_id: str) -> Optional[MatchScore]:
+        async with semaphore:
+            return await _fetch_match_score(candidate_id, job_id)
+
+    results = await asyncio.gather(*(fetch(cid) for cid in dict.fromkeys(candidate_ids)))
+    scores = [r for r in results if r is not None]
+    if len(scores) < len(set(candidate_ids)):
+        logger.warning(
+            "match_scores_missing_for_ranking",
+            job_id=job_id,
+            requested=len(set(candidate_ids)),
+            found=len(scores),
+        )
     return scores
 
 
-async def _fetch_rag_summary(candidate_id: str, job_id: str):
-    import httpx
+async def _fetch_rag_summary(candidate_id: str, job_id: str) -> Optional[RAGSummary]:
+    body = await _spring_get_json(f"/api/ai/rag-summaries/{candidate_id}/{job_id}")
+    if body is None:
+        return None
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(f"{settings.spring_boot.base_url}/api/ai/rag-summaries/{candidate_id}/{job_id}")
-            if response.status_code == 200:
-                from app.models.schemas import RAGSummary
-                return RAGSummary(**response.json())
+        return RAGSummary.model_validate(body)
     except Exception as e:
-        logger.warning("fetch_rag_summary_failed", candidate_id=candidate_id, job_id=job_id, error=str(e))
-    return None
+        logger.warning("rag_summary_invalid", candidate_id=candidate_id, job_id=job_id, error=str(e))
+        return None
 
 
-async def _store_rag_summary(rag_summary) -> None:
-    import httpx
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            await client.post(
-                f"{settings.spring_boot.base_url}/api/ai/rag-summaries",
-                json=rag_summary.model_dump(),
-            )
-    except Exception as e:
-        logger.error("store_rag_summary_failed", error=str(e))
+async def _fetch_rag_summaries(job_id: str, candidate_ids: list[str]) -> dict[str, Optional[RAGSummary]]:
+    semaphore = asyncio.Semaphore(MAX_RANKING_FETCH_CONCURRENCY)
+
+    async def fetch(candidate_id: str) -> Optional[RAGSummary]:
+        async with semaphore:
+            return await _fetch_rag_summary(candidate_id, job_id)
+
+    results = await asyncio.gather(*(fetch(cid) for cid in candidate_ids))
+    return dict(zip(candidate_ids, results))
 
 
-async def _store_ranking_results(job_id: str, ranked_candidates: list) -> None:
-    import httpx
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            await client.post(
-                f"{settings.spring_boot.base_url}/api/ai/rankings/{job_id}",
-                json={"ranked_candidates": ranked_candidates},
-            )
-    except Exception as e:
-        logger.error("store_ranking_results_failed", job_id=job_id, error=str(e))
+async def _store_rag_summary(rag_summary: RAGSummary) -> None:
+    await _spring_post("/api/ai/rag-summaries", rag_summary.to_wire())
+
+
+async def _store_ranking_results(ranking: RankingResult) -> None:
+    await _spring_post(f"/api/ai/rankings/{ranking.job_id}", ranking.to_wire())

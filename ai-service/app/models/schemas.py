@@ -1,6 +1,7 @@
 from enum import Enum
-from typing import Literal
-from pydantic import BaseModel, Field, EmailStr
+from typing import Any, Literal
+from pydantic import BaseModel, ConfigDict, Field, EmailStr, model_validator
+from pydantic.alias_generators import to_camel
 from datetime import datetime, timezone
 
 
@@ -11,6 +12,42 @@ class EducationLevel(str, Enum):
     MASTER = "master"
     PHD = "phd"
     OTHER = "other"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        # The Spring backend sends enum names such as "BACHELOR" / "HIGH_SCHOOL".
+        if isinstance(value, str):
+            normalized = value.strip().lower().replace(" ", "_").replace("-", "_")
+            for member in cls:
+                if member.value == normalized:
+                    return member
+            if normalized in {"bachelors", "bachelor's", "undergraduate"}:
+                return cls.BACHELOR
+            if normalized in {"masters", "master's", "postgraduate"}:
+                return cls.MASTER
+            if normalized in {"doctorate", "doctoral", "ph.d", "ph_d"}:
+                return cls.PHD
+        return None
+
+
+class CamelModel(BaseModel):
+    """Wire model shared with the Spring backend (camelCase JSON).
+
+    Accepts camelCase or snake_case on input, ignores explicit nulls so field defaults
+    apply, and should be serialised with ``by_alias=True`` when sent to Spring.
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_nulls(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if v is not None}
+        return data
+
+    def to_wire(self) -> dict:
+        return self.model_dump(mode="json", by_alias=True)
 
 
 class Skill(BaseModel):
@@ -72,7 +109,8 @@ class CandidateProfile(BaseModel):
         return len(self.skills)
 
     def get_highest_education_level(self) -> EducationLevel | None:
-        if not self.education:
+        levels = [e.level for e in self.education if e.level is not None]
+        if not levels:
             return None
         level_order = {
             EducationLevel.HIGH_SCHOOL: 1,
@@ -82,7 +120,7 @@ class CandidateProfile(BaseModel):
             EducationLevel.PHD: 5,
             EducationLevel.OTHER: 0,
         }
-        return max(self.education, key=lambda e: level_order.get(e.level, 0)).level if self.education else None
+        return max(levels, key=lambda level: level_order.get(level, 0))
 
 
 class ResumeChunk(BaseModel):
@@ -98,14 +136,14 @@ class ResumeChunk(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-class JobRequirement(BaseModel):
+class JobRequirement(CamelModel):
     skill: str
     required: bool = True
     min_years_experience: float | None = None
     weight: float = Field(1.0, ge=0, le=10)
 
 
-class JobDescription(BaseModel):
+class JobDescription(CamelModel):
     job_id: str
     title: str
     company_id: str
@@ -113,13 +151,13 @@ class JobDescription(BaseModel):
     requirements: list[JobRequirement] = Field(default_factory=list)
     required_skills: list[str] = Field(default_factory=list)
     preferred_skills: list[str] = Field(default_factory=list)
-    min_experience_years: float = 0.0
+    min_experience_years: float = Field(0.0, ge=0)
     education_level: EducationLevel | None = None
     location: str | None = None
     employment_type: str | None = None
 
 
-class MatchScore(BaseModel):
+class MatchScore(CamelModel):
     candidate_id: str
     job_id: str
     overall_score: float = Field(0.0, ge=0, le=100)
@@ -135,7 +173,7 @@ class MatchScore(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-class EvidenceChunk(BaseModel):
+class EvidenceChunk(CamelModel):
     chunk_id: str
     text: str
     section: str
@@ -143,7 +181,7 @@ class EvidenceChunk(BaseModel):
     source_pdf: str
 
 
-class RAGSummary(BaseModel):
+class RAGSummary(CamelModel):
     candidate_id: str
     job_id: str
     strengths: list[str] = Field(default_factory=list)
@@ -158,7 +196,7 @@ class RAGSummary(BaseModel):
     prompt_version: str
 
 
-class RankedCandidate(BaseModel):
+class RankedCandidate(CamelModel):
     candidate_id: str
     job_id: str
     rank: int
@@ -167,7 +205,7 @@ class RankedCandidate(BaseModel):
     rag_summary: RAGSummary | None = None
 
 
-class RankingResult(BaseModel):
+class RankingResult(CamelModel):
     job_id: str
     candidates: list[RankedCandidate]
     total_candidates: int
@@ -182,7 +220,7 @@ class WorkflowEvent(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
-class IngestResumeEvent(BaseModel):
+class IngestResumeEvent(CamelModel):
     candidate_id: str
     resume_id: str
     job_id: str | None = None
@@ -190,22 +228,23 @@ class IngestResumeEvent(BaseModel):
     source_pdf: str
 
 
-class ScoreJobEvent(BaseModel):
+class ScoreJobEvent(CamelModel):
     candidate_id: str
     job_id: str
     job_description: JobDescription
 
 
-class RAGSummaryEvent(BaseModel):
+class RAGSummaryEvent(CamelModel):
     candidate_id: str
     job_id: str
-    query: str
-    top_k: int = 10
+    query: str = ""
+    top_k: int = Field(10, ge=1, le=100)
+    job_description: JobDescription | None = None
 
 
-class RankCandidatesEvent(BaseModel):
+class RankCandidatesEvent(CamelModel):
     job_id: str
-    candidate_ids: list[str]
+    candidate_ids: list[str] = Field(..., min_length=1)
 
 
 class HealthCheckResponse(BaseModel):

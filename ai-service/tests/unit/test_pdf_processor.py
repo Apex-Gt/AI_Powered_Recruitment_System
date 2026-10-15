@@ -5,6 +5,8 @@ from pathlib import Path
 from app.services.pdf_processor import PDFProcessingService, CandidateExtractionService
 from app.models.schemas import ResumeChunk, CandidateProfile, Skill, Education, EducationLevel
 from app.core.exceptions import PDFProcessingError
+from app.core.config import settings
+from app.services.llm import LLMService
 
 
 @pytest.fixture
@@ -109,9 +111,11 @@ async def test_extract_candidate_profile_success(candidate_extractor):
     }
     """
 
-    with patch.object(candidate_extractor, '_get_client', return_value=AsyncMock()) as mock_client:
-        mock_client.return_value.chat.completions.create = AsyncMock(return_value=mock_response)
+    client = Mock()
+    client.chat.completions.create = AsyncMock(return_value=mock_response)
+    candidate_extractor._llm = LLMService(client=client)
 
+    with patch.object(settings.llm, "api_key", "test-key"):
         profile = await candidate_extractor.extract_candidate_profile("Test resume text")
 
         assert isinstance(profile, CandidateProfile)
@@ -129,8 +133,10 @@ async def test_extract_candidate_profile_empty_text(candidate_extractor):
 
 @pytest.mark.asyncio
 async def test_extract_candidate_profile_api_error(candidate_extractor):
-    with patch.object(candidate_extractor, '_get_client', return_value=AsyncMock()) as mock_client:
-        mock_client.return_value.chat.completions.create = AsyncMock(side_effect=Exception("API Error"))
+    client = Mock()
+    client.chat.completions.create = AsyncMock(side_effect=Exception("API Error"))
+    candidate_extractor._llm = LLMService(client=client)
 
+    with patch.object(settings.llm, "api_key", "test-key"):
         with pytest.raises(PDFProcessingError):
             await candidate_extractor.extract_candidate_profile("Test resume text")

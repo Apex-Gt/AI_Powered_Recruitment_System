@@ -15,9 +15,23 @@ def test_model_config_defaults():
     assert config.foundation_model == "Qwen3-Embedding-8B"
     assert config.embedding_model == "BGE-M3"
     assert config.embedding_dimensions == 1024
-    assert config.llm_model == "gpt-4o-mini"
-    assert config.llm_temperature == 0.1
-    assert config.llm_max_tokens == 4096
+
+
+def test_llm_config_defaults_to_free_groq_model():
+    from app.core.config import LLMConfig
+
+    config = LLMConfig(_env_file=None)
+    assert config.base_url == "https://api.groq.com/openai/v1"
+    assert config.model == "llama-3.3-70b-versatile"
+    assert config.temperature == 0.1
+    assert not config.is_configured  # hosted provider needs a key
+
+
+def test_llm_config_local_server_needs_no_key():
+    from app.core.config import LLMConfig
+
+    assert LLMConfig(_env_file=None, base_url="http://localhost:11434/v1").is_configured
+    assert LLMConfig(_env_file=None, api_key="k").is_configured
 
 
 def test_qdrant_config_defaults():

@@ -57,18 +57,44 @@ cd ai-service
 # Copy environment template
 cp .env.example .env
 
-# Edit .env with your API keys
-# Required: OPENAI_API_KEY
+# Edit .env: set LLM_API_KEY (free key from https://console.groq.com/keys)
 
-# Start dependencies (Qdrant + Inngest)
-docker-compose up -d qdrant inngest
+# Start Qdrant
+docker-compose up -d qdrant
 
-# Install dependencies
+# Install dependencies (includes torch + FlagEmbedding for the default local
+# BGE-M3 embedder/reranker; on CPU-only machines install torch first with
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu)
 pip install -e ".[dev]"
 
 # Run the service
 python main.py
+
+# In a second terminal: Inngest dev server pointed at the *host* service.
+# (The compose `inngest` service targets http://ai-service:8000, which only
+#  resolves when the service itself runs inside compose.)
+npx --yes inngest-cli@latest dev -u http://localhost:8000/api/inngest
 ```
+
+The first request that needs embeddings downloads `BAAI/bge-m3` (~2.3 GB) and the
+reranker (~2.3 GB) from Hugging Face; both run locally and free.
+
+Resume profile extraction and RAG summaries use the `LLM_*` settings: any OpenAI-compatible
+API. The default is **Groq's free tier** (`llama-3.3-70b-versatile`). Without a key, ingestion
+still stores and embeds the chunks but skips the structured profile.
+
+| Provider | `LLM_BASE_URL` | `LLM_MODEL` | Notes |
+|----------|----------------|-------------|-------|
+| Groq (default) | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` | free key, fast, JSON mode |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-2.5-flash` | free tier, large context |
+| OpenRouter | `https://openrouter.ai/api/v1` | `meta-llama/llama-3.3-70b-instruct:free` | free models, lower rate limits |
+| Ollama (local) | `http://localhost:11434/v1` | `qwen2.5:7b-instruct` | no key, resumes never leave your machine |
+
+Hosted free tiers send resume text to the provider; use Ollama if that is not acceptable.
+
+The Spring backend talks to this service in camelCase JSON (snake_case is accepted too)
+and its default `ai-service.base-url` is `http://localhost:8001`, so either set it to
+`http://localhost:8000` or run the service with `API_PORT=8001`.
 
 ### Docker Deployment
 
@@ -91,7 +117,9 @@ docker-compose down
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `API_HOST` | API bind host | `0.0.0.0` |
 | `API_PORT` | API port | `8000` |
-| `OPENAI_API_KEY` | OpenAI API key | **Required** |
+| `LLM_API_KEY` | Key for the LLM provider (not needed for local Ollama) | **Required** for hosted LLMs |
+| `LLM_BASE_URL` / `LLM_MODEL` | OpenAI-compatible endpoint and model | Groq / `llama-3.3-70b-versatile` |
+| `OPENAI_API_KEY` | Only if `EMBEDDING_PROVIDER`/`RERANKER_PROVIDER` is `openai` | Optional |
 | `QDRANT_HOST` | Qdrant host | `localhost` |
 | `QDRANT_PORT` | Qdrant port | `6333` |
 | `INNGEST_SIGNING_KEY` | Inngest signing key | Optional |
@@ -99,6 +127,9 @@ docker-compose down
 | `EMBEDDING_PROVIDER` | `local` or `openai` | `local` |
 | `RERANKER_PROVIDER` | `local` or `openai` | `local` |
 | `SPRING_BOOT_BASE_URL` | Spring Boot API URL | `http://localhost:8080` |
+| `SPRING_BOOT_API_KEY` | Sent as `X-API-Key` on callbacks to Spring | Optional |
+| `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000,http://localhost:5173,http://localhost:8080` |
+| `QDRANT_LOCATION` | e.g. `:memory:` for an in-process Qdrant (tests) | unset |
 
 See `.env.example` for complete list.
 
