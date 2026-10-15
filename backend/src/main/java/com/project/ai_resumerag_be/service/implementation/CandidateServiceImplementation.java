@@ -63,7 +63,11 @@ public class CandidateServiceImplementation implements CandidateService {
 
             String pdfPath = fileStorageService.getFilePath(resume.getFileUrl());
 
-            triggerIngestResume(candidate.getId(), resume.getId(), job.getId(), pdfPath).subscribe();
+            final UUID savedCandidateId = candidate.getId();
+            triggerIngestResume(savedCandidateId, resume.getId(), job.getId(), pdfPath)
+                    .subscribe(
+                            ok -> log.info("Resume ingestion started for candidate {}", savedCandidateId),
+                            err -> log.warn("Could not start resume ingestion for candidate {}: {}", savedCandidateId, err.getMessage()));
 
             return candidateMapper.toCandidateResponse(candidate);
         });
@@ -98,7 +102,11 @@ public class CandidateServiceImplementation implements CandidateService {
 
                         String pdfPath = fileStorageService.getFilePath(resume.getFileUrl());
 
-                        triggerIngestResume(candidate.getId(), resume.getId(), jobId, pdfPath).subscribe();
+                        final UUID savedCandidateId = candidate.getId();
+                        triggerIngestResume(savedCandidateId, resume.getId(), jobId, pdfPath)
+                                .subscribe(
+                                        ok -> log.info("Resume ingestion started for candidate {}", savedCandidateId),
+                                        err -> log.warn("Could not start resume ingestion for candidate {}: {}", savedCandidateId, err.getMessage()));
 
                         return candidateMapper.toCandidateResponse(candidate);
                     })

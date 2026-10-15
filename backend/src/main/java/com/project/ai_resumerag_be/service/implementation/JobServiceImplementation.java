@@ -62,6 +62,7 @@ public class JobServiceImplementation implements JobService {
         }
     }
 
+    @Transactional
     @Override
     public CommonResponse createJob(JobRequest request) {
         User user = getCurrentUser();
