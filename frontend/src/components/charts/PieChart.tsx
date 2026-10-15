@@ -35,7 +35,7 @@ export function PieChartComponent({
   }
 
   const defaultColors = [
-    '#F97316', // accent-500
+    '#F95F62', // accent-500
     '#22C55E', // success-500
     '#F59E0B', // warning-500
     '#3B82F6', // info-500
@@ -141,6 +141,6 @@ export function DonutChart({ data, height = 200, className, total, totalLabel = 
 }
 
 const defaultColors = [
-  '#F97316', '#22C55E', '#F59E0B', '#3B82F6',
+  '#F95F62', '#7C4DFF', '#22C55E', '#F59E0B',
   '#14B8A6', '#EF4444', '#78716C', '#06B6D4',
 ]

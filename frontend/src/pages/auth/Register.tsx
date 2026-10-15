@@ -7,8 +7,8 @@ import toast from 'react-hot-toast'
 import { companyApi } from '@/utils/api'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Card, CardFooter } from '@/components/ui/Card'
-import { ArrowLeft, ArrowRight, Check, Building2 } from 'lucide-react'
+import { AuthShell } from '@/components/auth/AuthShell'
+import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { cn } from '@/utils/helpers'
 import { Link } from 'react-router-dom'
 
@@ -105,39 +105,31 @@ export function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-base-100 dark:bg-base-950 flex items-center justify-center p-8">
-      <div className="w-full max-w-2xl">
-        <div className="text-center mb-8">
-          <Link to="/login" className="inline-flex items-center gap-2 text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-300 transition-colors mb-8">
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-body-md">Back to Login</span>
-          </Link>
-        </div>
+    <AuthShell>
+      <Link to="/login" className="mb-6 inline-flex cursor-pointer items-center gap-2 text-body-sm font-medium text-ink-500 transition-colors hover:text-ink-900 dark:text-ink-400 dark:hover:text-ink-100">
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Back to login
+      </Link>
 
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-accent-600 flex items-center justify-center mx-auto mb-6">
-            <Building2 className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">Create Your Account</h1>
-          <p className="text-body-md text-ink-500 dark:text-ink-400 mt-2">
-            {steps[currentStep].description}
-          </p>
-        </div>
+      <h1 className="text-display-sm font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Register your company</h1>
+      <p className="mt-2 text-body-md text-ink-500 dark:text-ink-400">{steps[currentStep].description}</p>
 
-        <div className="flex items-center justify-center gap-2 mb-8">
-          {steps.map((step, index) => (
-            <div key={step.number} className="flex items-center gap-2">
-              <div className={cn(
-                'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all',
-                index < currentStep ? 'bg-accent-500 text-white' : index === currentStep ? 'bg-accent-500 text-white' : 'bg-base-200 dark:bg-base-700 text-ink-400 dark:text-ink-500'
-              )}>
-                {index < currentStep ? <Check className="w-5 h-5" /> : step.number}
-              </div>
-              {index < steps.length - 1 && <div className={cn('w-12 h-0.5', index < currentStep ? 'bg-accent-500' : 'bg-base-200 dark:bg-base-700')} />}
-            </div>
-          ))}
-        </div>
-        <Card variant="flat" padding="lg">
+      <ol className="mt-6 mb-8 flex items-center gap-3" aria-label="Registration progress">
+        {steps.map((step, index) => (
+          <li key={step.number} className="flex flex-1 items-center gap-3" aria-current={index === currentStep ? 'step' : undefined}>
+            <span className={cn(
+              'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-body-sm font-semibold transition-colors',
+              index <= currentStep ? 'bg-gradient-to-br from-accent-600 to-brand-500 text-white' : 'bg-base-100 text-ink-500 dark:bg-base-700'
+            )}>
+              {index < currentStep ? <Check className="h-4 w-4" aria-hidden="true" /> : step.number}
+            </span>
+            <span className={cn('text-body-sm font-semibold', index <= currentStep ? 'text-ink-900 dark:text-ink-100' : 'text-ink-500')}>{step.title}</span>
+            {index < steps.length - 1 && <span className={cn('h-0.5 flex-1 rounded-full', index < currentStep ? 'bg-brand-500' : 'bg-base-200 dark:bg-base-700')} />}
+          </li>
+        ))}
+      </ol>
+
+      <div>
             {currentStep === 0 && (
               <form onSubmit={companyMethods.handleSubmit(handleCompanySubmit)} className="space-y-5">
                 <div className="space-y-5">
@@ -203,12 +195,12 @@ export function Register() {
                   </div>
                 </div>
 
-                <CardFooter className="flex justify-end pt-6">
+                <div className="flex justify-end pt-4">
                   <Button type="submit" size="lg" loading={isSubmitting}>
                     Next
                     <ArrowRight className="w-4 h-4" />
                   </Button>
-                </CardFooter>
+                </div>
               </form>
             )}
 
@@ -252,7 +244,7 @@ export function Register() {
                   />
                 </div>
 
-                <CardFooter className="flex justify-between pt-6">
+                <div className="flex justify-between pt-4">
                   <Button type="button" variant="secondary" size="lg" onClick={goBack}>
                     <ArrowLeft className="w-4 h-4" />
                     Back
@@ -261,18 +253,17 @@ export function Register() {
                     Create Account
                     <Check className="w-4 h-4" />
                   </Button>
-                </CardFooter>
+                </div>
               </form>
             )}
-          </Card>
-
-        <p className="text-center text-body-sm text-ink-500 dark:text-ink-400 mt-6">
-          Already have an account?{' '}
-          <Link to="/login" className="text-accent-600 dark:text-accent-400 hover:underline font-medium">
-            Sign in
-          </Link>
-        </p>
       </div>
-    </div>
+
+      <p className="mt-6 text-center text-body-sm text-ink-500 dark:text-ink-400">
+        Already have an account?{' '}
+        <Link to="/login" className="font-semibold text-accent-600 hover:underline dark:text-accent-400">
+          Sign in
+        </Link>
+      </p>
+    </AuthShell>
   )
 }

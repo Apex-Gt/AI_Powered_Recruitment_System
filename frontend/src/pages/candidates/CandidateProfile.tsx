@@ -10,7 +10,7 @@ import { Timeline } from '@/components/ui/Timeline'
 import { ScoreIndicator } from '@/components/ui/ScoreIndicator'
 import { AIAnalysisCard } from '@/components/ui/AIAnalysisCard'
 import { ArrowLeft, CheckCircle2, XCircle, TrendingUp, AlertCircle, FileText, Download, Eye } from 'lucide-react'
-import { formatDate } from '@/utils/helpers'
+import { formatDate, getInitials } from '@/utils/helpers'
 import toast from 'react-hot-toast'
 import type { Candidate, AIAnalysis, Resume, CandidateStatus } from '@/types'
 
@@ -116,13 +116,13 @@ export function CandidateProfile() {
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <div className="w-16 h-16 rounded-2xl bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center">
-              <span className="text-heading-xl font-bold text-accent-600 dark:text-accent-400">
-                {candidate.candidateName.charAt(0)}
+            <div className="w-16 h-16 rounded-xl bg-brand-100 dark:bg-brand-900/40 flex items-center justify-center">
+              <span className="text-heading-lg font-extrabold text-brand-700 dark:text-brand-200">
+                {getInitials(candidate.candidateName)}
               </span>
             </div>
             <div>
-              <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">{candidate.candidateName}</h1>
+              <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">{candidate.candidateName}</h1>
               <div className="flex flex-wrap items-center gap-3 mt-1">
                 <StatusBadge status={candidate.status || 'APPLIED'} className="text-body-sm" />
                 <span className="text-body-sm text-ink-500 dark:text-ink-400">{candidate.jobTitle || 'Unknown'}</span>
@@ -156,7 +156,7 @@ export function CandidateProfile() {
 
         <TabsContent value="profile" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <Card padding="lg">
+            <Card padding="md">
               <CardHeader>
                 <CardTitle>Contact Information</CardTitle>
               </CardHeader>
@@ -182,7 +182,7 @@ export function CandidateProfile() {
               </CardContent>
             </Card>
 
-            <Card padding="lg">
+            <Card padding="md">
               <CardHeader>
                 <CardTitle>Skills</CardTitle>
               </CardHeader>
@@ -199,7 +199,7 @@ export function CandidateProfile() {
             </Card>
 
             {resume && (
-              <Card padding="lg">
+              <Card padding="md">
                 <CardHeader>
                   <CardTitle>Resume</CardTitle>
                 </CardHeader>
@@ -236,7 +236,7 @@ export function CandidateProfile() {
           </div>
 
           <div className="space-y-6">
-            <Card padding="lg">
+            <Card padding="md">
               <CardHeader>
                 <CardTitle>Actions</CardTitle>
               </CardHeader>
@@ -279,7 +279,7 @@ export function CandidateProfile() {
               generatedAt={aiAnalysis.generatedAt}
             />
           ) : (
-            <Card padding="lg" className="text-center">
+            <Card padding="md" className="text-center">
               <CardContent className="py-12">
                 <TrendingUp className="w-16 h-16 text-base-400 dark:text-base-600 mx-auto mb-4" />
                 <h3 className="text-heading-md font-medium text-ink-900 dark:text-ink-100">No AI Analysis Available</h3>
@@ -296,7 +296,7 @@ export function CandidateProfile() {
         </TabsContent>
 
         <TabsContent value="timeline">
-          <Card padding="lg">
+          <Card padding="md">
             <CardContent>
               <Timeline items={timelineEvents} />
             </CardContent>

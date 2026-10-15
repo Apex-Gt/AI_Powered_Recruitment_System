@@ -57,7 +57,7 @@ function KanbanColumn({ status, candidates }: KanbanColumnProps) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: status })
 
   return (
-    <div ref={setDropRef} className={cn(isOver && 'ring-2 ring-accent-400 rounded-2xl')}>
+    <div ref={setDropRef} className={cn(isOver && 'ring-2 ring-brand-400 rounded-xl')}>
       <Card className="kanban-column w-72 flex-shrink-0 flex flex-col" style={{minHeight: '600px'}}>
         <CardHeader className="pb-3 kanban-column-header">
           <div className="flex items-center justify-between">
@@ -120,8 +120,8 @@ function CandidateCard({ candidate }: CandidateCardProps) {
         <GripVertical className="w-4 h-4 text-ink-400" />
       </button>
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center flex-shrink-0">
-          <span className="text-label-sm font-medium text-accent-600 dark:text-accent-400">
+        <div className="w-10 h-10 rounded-full bg-brand-100 dark:bg-brand-900/40 flex items-center justify-center flex-shrink-0">
+          <span className="text-label-sm font-bold text-brand-700 dark:text-brand-200">
             {candidate.candidateName.charAt(0)}
           </span>
         </div>
@@ -238,7 +238,7 @@ export function Pipeline() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">Pipeline</h1>
+            <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Pipeline</h1>
             <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Visualize and manage your recruitment pipeline</p>
           </div>
           <Button variant="secondary" disabled>
@@ -280,7 +280,7 @@ export function Pipeline() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">Pipeline</h1>
+            <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Pipeline</h1>
             <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Visualize and manage your recruitment pipeline</p>
           </div>
           <div className="flex items-center gap-4">

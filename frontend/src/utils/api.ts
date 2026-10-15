@@ -165,12 +165,60 @@ export const companyApi = {
     api.put<CommonResponse<Company>>('/admin/company', data),
 }
 
+// The backend returns job lists as a plain array and uses OPEN/ARCHIVED statuses.
+// Normalise to the shape the UI uses (ACTIVE/CLOSED) and paginate/filter client-side.
+type RawJob = Omit<Job, 'status' | 'skills'> & {
+  status: string
+  skills?: (Partial<JobSkill> & { skillId?: string })[]
+}
+
+function normalizeJob(raw: RawJob): Job {
+  const status = raw.status === 'OPEN' ? 'ACTIVE' : raw.status === 'ARCHIVED' ? 'CLOSED' : raw.status
+  return {
+    ...raw,
+    status: status as Job['status'],
+    skills: (raw.skills ?? []).map((s) => ({ ...s, id: s.id ?? s.skillId ?? '' })) as JobSkill[],
+  }
+}
+
+function toJobPage(payload: unknown, params: JobListParams = {}): PaginatedResponse<Job> {
+  const pageSize = params.pageSize ?? 10
+  const page = params.page ?? 1
+  const maybePage = payload as { data?: RawJob[]; total?: number; page?: number; pageSize?: number; totalPages?: number }
+  if (maybePage && !Array.isArray(payload) && Array.isArray(maybePage.data)) {
+    return {
+      data: maybePage.data.map(normalizeJob),
+      total: maybePage.total ?? maybePage.data.length,
+      page: maybePage.page ?? page,
+      pageSize: maybePage.pageSize ?? pageSize,
+      totalPages: maybePage.totalPages ?? 1,
+    }
+  }
+  const search = params.search?.trim().toLowerCase()
+  const all = (Array.isArray(payload) ? (payload as RawJob[]) : [])
+    .map(normalizeJob)
+    .filter((j) => !params.status || j.status === params.status)
+    .filter((j) => !params.department || j.department === params.department)
+    .filter((j) => !search || j.title.toLowerCase().includes(search))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  const totalPages = Math.max(1, Math.ceil(all.length / pageSize))
+  const current = Math.min(page, totalPages)
+  return {
+    data: all.slice((current - 1) * pageSize, current * pageSize),
+    total: all.length,
+    page: current,
+    pageSize,
+    totalPages: all.length === 0 ? 0 : totalPages,
+  }
+}
+
 export const jobApi = {
   create: (data: CreateJobRequest) => api.post<CommonResponse<Job>>('/job', data),
   getMyJobs: (params?: JobListParams) => api.get<CommonResponse<PaginatedResponse<Job>>>('/job/my-jobs', params as Record<string, unknown>),
   getMyJobsUnwrapped: async (params?: JobListParams) => {
-    const response = await api.get<CommonResponse<PaginatedResponse<Job>>>('/job/my-jobs', params as Record<string, unknown>)
-    return response.data
+    // Filtering and paging happen client-side, so don't send params to the backend
+    const response = await api.get<CommonResponse<unknown>>('/job/my-jobs')
+    return toJobPage(response.data, params)
   },
   getByIdForRecruiter: (id: string) => api.get<CommonResponse<Job>>(`/recruiter/jobs/${id}`),
   getByIdForRecruiterUnwrapped: async (id: string) => {
@@ -184,8 +232,8 @@ export const jobApi = {
     api.put<CommonResponse<Job>>(`/recruiter/jobs/${id}/skills`, skills),
   getAllForAdmin: (params?: JobListParams) => api.get<CommonResponse<PaginatedResponse<Job>>>('/admin/jobs', params as Record<string, unknown>),
   getAllForAdminUnwrapped: async (params?: JobListParams) => {
-    const response = await api.get<CommonResponse<PaginatedResponse<Job>>>('/admin/jobs', params as Record<string, unknown>)
-    return response.data
+    const response = await api.get<CommonResponse<unknown>>('/admin/jobs')
+    return toJobPage(response.data, params)
   },
   getByIdForAdmin: (id: string) => api.get<CommonResponse<Job>>(`/admin/jobs/${id}`),
   updateForAdmin: (id: string, data: Partial<CreateJobRequest>) =>
@@ -255,7 +303,8 @@ export const resumeApi = {
     formData.append('resumeFile', file)
     formData.append('candidateName', candidateName)
     formData.append('candidateEmail', candidateEmail)
-    formData.append('jobId', jobId)
+    // The backend binds jobId with @RequestPart, which needs a JSON-typed part (a plain form field is octet-stream)
+    formData.append('jobId', new Blob([JSON.stringify(jobId)], { type: 'application/json' }))
     if (phoneNumber) formData.append('phoneNumber', phoneNumber)
     if (location) formData.append('location', location)
     return api.post<CommonResponse<CandidateResponse>>('/recruiter/candidates/upload', formData)

@@ -8,19 +8,34 @@ export default {
   theme: {
     extend: {
       colors: {
-        // ORANGE ACCENT SCALE
+        // CORAL ACCENT SCALE
         accent: {
-          50:  '#FFF7ED',
-          100: '#FFEDD5',
-          200: '#FED7AA',
-          300: '#FDB785',
-          400: '#FB923C',
-          500: '#F97316',
-          600: '#EA580C',
-          700: '#C2410C',
-          800: '#9A3412',
-          900: '#7C2D12',
-          950: '#431407',
+          50:  '#FFF1F1',
+          100: '#FFE1E2',
+          200: '#FFC8CA',
+          300: '#FFA2A5',
+          400: '#FF7A7E',
+          500: '#F95F62',
+          600: '#DB3B42',
+          700: '#B92C34',
+          800: '#97282F',
+          900: '#7B262C',
+          950: '#430F13',
+        },
+
+        // VIOLET BRAND SCALE (secondary)
+        brand: {
+          50:  '#F6F2FF',
+          100: '#ECE5FF',
+          200: '#DCCFFF',
+          300: '#C0AAFF',
+          400: '#A07DFF',
+          500: '#7C4DFF',
+          600: '#6A38F0',
+          700: '#5A2BD0',
+          800: '#4A25A6',
+          900: '#3C2282',
+          950: '#231352',
         },
 
         // NEUTRAL BASE SCALE (warm-grey)
@@ -108,7 +123,7 @@ export default {
       },
 
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ['Plus Jakarta Sans', 'Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
         display: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
       },
 
@@ -164,11 +179,12 @@ export default {
       },
 
       boxShadow: {
-        'card-light':       '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)',
+        'card-light':       '0 1px 2px rgba(31,31,60,0.04), 0 4px 16px rgba(31,31,60,0.04)',
         'card-dark':        '0 1px 3px rgba(0,0,0,0.3),  0 1px 2px rgba(0,0,0,0.2)',
         'card-hover-light': '0 4px 12px rgba(0,0,0,0.1)',
         'card-hover-dark':  '0 4px 12px rgba(0,0,0,0.4)',
-        'accent':           '0 2px 8px rgba(249,115,22,0.25)',
+        'accent':           '0 6px 16px rgba(249,95,98,0.28)',
+        'soft':             '0 8px 30px rgba(31,31,60,0.06)',
       },
 
       transitionDuration: {

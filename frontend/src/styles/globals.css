@@ -10,19 +10,19 @@
 
 @layer base {
   :root {
-    --color-bg:               #FFFFFF;
-    --color-bg-secondary:     #FFF7ED;
+    --color-bg:               #F7F7FB;
+    --color-bg-secondary:     #FFF1F1;
     --color-surface:          #FFFFFF;
-    --color-surface-elevated: #F8FAFC;
+    --color-surface-elevated: #F7F7FB;
     --color-sidebar:          #FFFFFF;
     --color-input-bg:         #FFFFFF;
-    --color-text-primary:     #1C1917;
-    --color-text-secondary:   #78716C;
-    --color-border:           #E7E5E4;
-    --color-border-hover:     #D6D3D1;
-    --color-accent:           #EA580C;
-    --color-accent-hover:     #C2410C;
-    --color-accent-ring:      rgba(234, 88, 12, 0.2);
+    --color-text-primary:     #1B1B2F;
+    --color-text-secondary:   #6B6B80;
+    --color-border:           #ECECF3;
+    --color-border-hover:     #D9D9E6;
+    --color-accent:           #DB3B42;
+    --color-accent-hover:     #B92C34;
+    --color-accent-ring:      rgba(124, 77, 255, 0.22);
   }
 
   .dark {
@@ -36,9 +36,9 @@
     --color-text-secondary:   #A8A29E;
     --color-border:           #333333;
     --color-border-hover:     #444444;
-    --color-accent:           #F97316;
-    --color-accent-hover:     #FB923C;
-    --color-accent-ring:      rgba(249, 115, 22, 0.2);
+    --color-accent:           #FF7A7E;
+    --color-accent-hover:     #FFA2A5;
+    --color-accent-ring:      rgba(160, 125, 255, 0.3);
   }
 
   html {
@@ -110,7 +110,7 @@
   /* ===== CARD SYSTEM ===== */
 
   .card {
-    @apply surface rounded-2xl p-6 shadow-card-light dark:shadow-card-dark;
+    @apply surface rounded-xl p-6 shadow-soft dark:shadow-card-dark;
   }
 
   .card-hover {
@@ -137,7 +137,7 @@
   /* ===== BUTTON SYSTEM ===== */
 
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md font-medium
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-semibold cursor-pointer
            transition-all duration-200
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
            disabled:opacity-50 disabled:cursor-not-allowed
@@ -146,8 +146,8 @@
 
   /* Primary — orange solid */
   .btn-primary {
-    @apply btn bg-accent-500 dark:bg-accent-500 text-white
-           hover:bg-accent-600 dark:hover:bg-accent-400
+    @apply btn text-white bg-gradient-to-r from-accent-600 to-brand-500
+           hover:from-accent-700 hover:to-brand-600
            focus-visible:ring-accent-500
            shadow-accent
            px-4 py-2.5 text-body-md;
@@ -195,7 +195,7 @@
   /* ===== INPUT SYSTEM ===== */
 
   .input {
-    @apply w-full rounded-md px-4 py-2.5 text-body-md
+    @apply w-full rounded-lg px-4 py-2.5 text-body-md
            text-ink-900 dark:text-ink-100
            placeholder:text-ink-400 dark:placeholder:text-ink-500
            transition-all duration-200
@@ -207,7 +207,7 @@
   }
 
   .input:focus {
-    border-color: var(--color-accent);
+    border-color: #7C4DFF;
   }
 
   .input-error {
@@ -218,7 +218,7 @@
   .input-sm { @apply input px-3 py-2 text-body-sm; }
   .input-lg { @apply input px-5 py-3 text-body-lg; }
 
-  .label    { @apply block text-label-md text-ink-700 dark:text-ink-300 mb-1.5; }
+  .label    { @apply block text-label-md font-semibold text-ink-700 dark:text-ink-300 mb-1.5; }
   .label-sm { @apply label text-label-sm; }
 
   .helper-text { @apply mt-1.5 text-body-xs text-ink-500 dark:text-ink-400; }
@@ -227,7 +227,9 @@
   /* ===== SELECT ===== */
 
   .select {
-    @apply input appearance-none bg-no-repeat bg-right pr-10;
+    @apply input appearance-none bg-no-repeat pr-9;
+    background-size: 0.875rem 0.875rem;
+    background-position: right 0.75rem center;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2378716C'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
   }
 
@@ -248,7 +250,7 @@
            border border-[var(--color-border)];
   }
 
-  .badge-primary  { @apply badge bg-accent-100 dark:bg-accent-900/30 text-accent-700 dark:text-accent-300; }
+  .badge-primary  { @apply badge bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-200; }
   .badge-lavender { @apply badge-primary; }
 
   .badge-success,
@@ -283,14 +285,16 @@
   /* ===== TABLE SYSTEM ===== */
 
   .table-container {
-    @apply rounded-2xl border border-[var(--color-border)] overflow-hidden;
+    @apply rounded-xl border border-[var(--color-border)] overflow-hidden shadow-soft;
     background-color: var(--color-surface);
   }
+
+  .list-card .table-container { @apply rounded-none border-0 shadow-none; }
 
   .table { @apply w-full text-left text-body-sm; }
 
   .table th {
-    @apply px-4 py-3 text-label-sm text-ink-500 dark:text-ink-400 font-medium
+    @apply px-4 py-3 text-label-sm text-ink-500 dark:text-ink-400 font-semibold uppercase tracking-wide
            bg-base-50 dark:bg-surface-dark-elevated
            border-b border-[var(--color-border)];
   }
@@ -317,7 +321,7 @@
   }
 
   .modal-content {
-    @apply surface rounded-2xl shadow-card-dark
+    @apply surface rounded-xl shadow-card-dark
            max-w-lg w-full max-h-[90vh] overflow-hidden
            animate-modal-in;
   }
@@ -382,10 +386,9 @@
 
   .nav-item-active {
     @apply nav-item
-           border-l-4 border-accent-500 pl-[8px]
-           text-accent-600 dark:text-accent-400
-           font-medium
-           bg-accent-50 dark:bg-accent-900/20;
+           text-brand-600 dark:text-brand-300
+           font-semibold
+           bg-brand-50 dark:bg-brand-900/30;
   }
 
   .nav-item-icon { @apply w-5 h-5 flex-shrink-0; }
@@ -410,7 +413,7 @@
   .tabs-trigger-active {
     @apply tabs-trigger
            bg-white dark:bg-surface-dark-card
-           text-accent-600 dark:text-accent-400
+           text-brand-600 dark:text-brand-300
            shadow-card-light dark:shadow-card-dark
            border border-[var(--color-border)];
   }
@@ -438,7 +441,7 @@
   /* ===== KANBAN ===== */
 
   .kanban-column {
-    @apply surface rounded-2xl min-w-[280px] max-w-[280px]
+    @apply surface rounded-xl min-w-[280px] max-w-[280px]
            flex flex-col min-h-[500px] transition-shadow duration-200;
   }
 
@@ -457,7 +460,7 @@
   }
 
   .kanban-card-dragging    { @apply shadow-card-dark opacity-90 rotate-1; }
-  .kanban-card-drop-target { @apply border-2 border-accent-400 bg-accent-50 dark:bg-accent-900/20; }
+  .kanban-card-drop-target { @apply border-2 border-brand-400 bg-brand-50 dark:bg-brand-900/20; }
 
   /* ===== PROGRESS BAR ===== */
 

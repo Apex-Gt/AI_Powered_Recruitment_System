@@ -86,7 +86,7 @@ export function Analytics() {
   }))
 
   const departmentData = [
-    { name: 'Engineering', value: MOCK_JOBS_METRICS.byDepartment?.Engineering || 0, color: '#F97316' },
+    { name: 'Engineering', value: MOCK_JOBS_METRICS.byDepartment?.Engineering || 0, color: '#F95F62' },
     { name: 'Marketing', value: MOCK_JOBS_METRICS.byDepartment?.Marketing || 0, color: '#22C55E' },
     { name: 'Sales', value: MOCK_JOBS_METRICS.byDepartment?.Sales || 0, color: '#F59E0B' },
     { name: 'HR', value: MOCK_JOBS_METRICS.byDepartment?.['Human Resources'] || 0, color: '#3B82F6' },
@@ -125,7 +125,7 @@ export function Analytics() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">Analytics</h1>
+          <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Analytics</h1>
           <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Recruitment metrics and insights</p>
         </div>
 
@@ -203,7 +203,7 @@ export function Analytics() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">Analytics</h1>
+        <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Analytics</h1>
         <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Recruitment metrics and insights</p>
       </div>
 
@@ -263,7 +263,7 @@ export function Analytics() {
                   data={timeToHireChartData}
                   keys={['days', 'avg']}
                   labels={{ days: 'Days to Hire', avg: 'Average' }}
-                  colors={['#F97316', '#78716C']}
+                  colors={['#F95F62', '#7C4DFF']}
                   height={250}
                   index="name"
                   showDots

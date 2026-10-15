@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { jobApi, candidateApi } from '@/utils/api'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
@@ -9,16 +9,31 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/Table'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Edit, ArrowLeft, Briefcase, MapPin, Calendar, DollarSign, Users, Target, ChevronRight, Plus } from 'lucide-react'
-import { formatDate, formatCurrency } from '@/utils/helpers'
+import { MatchScore } from '@/components/ui/ListPage'
+import { UploadResumesModal } from '@/components/candidates/UploadResumesModal'
+import { formatDate, formatCurrency, getInitials } from '@/utils/helpers'
 import type { Job, Candidate } from '@/types'
 
 export function JobDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { hasRole } = useAuth()
   const [job, setJob] = useState<Job | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'candidates'>('overview')
+  const [uploadOpen, setUploadOpen] = useState(false)
+
+  const reloadCandidates = async () => {
+    if (!id) return
+    try {
+      const res = await candidateApi.getAllUnwrapped({ jobId: id, pageSize: 50 })
+      setCandidates(res.data)
+      setActiveTab('candidates')
+    } catch (error) {
+      console.error('Failed to refresh candidates:', error)
+    }
+  }
 
   useEffect(() => {
     if (!id) return
@@ -65,7 +80,7 @@ export function JobDetail() {
           icon={<Briefcase className="w-16 h-16" />}
           title="Job not found"
           description="The job you're looking for doesn't exist or has been removed."
-          action={{ label: 'Back to Jobs', onClick: () => {} }}
+          action={{ label: 'Back to jobs', onClick: () => navigate('/jobs') }}
         />
       </div>
     )
@@ -80,7 +95,7 @@ export function JobDetail() {
           </Button>
         </Link>
         <div className="flex-1">
-          <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">{job.title}</h1>
+          <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">{job.title}</h1>
           <div className="flex flex-wrap items-center gap-3 mt-2">
             <StatusBadge status={job.status} className="text-body-sm" />
             <span className="text-body-sm text-ink-500 dark:text-ink-400">{job.department}</span>
@@ -106,7 +121,7 @@ export function JobDetail() {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
-              <Card padding="lg">
+              <Card padding="md">
                 <CardHeader>
                   <CardTitle>Job Details</CardTitle>
                 </CardHeader>
@@ -172,7 +187,7 @@ export function JobDetail() {
                 </CardContent>
               </Card>
 
-              <Card padding="lg">
+              <Card padding="md">
                 <CardHeader>
                   <CardTitle>Description</CardTitle>
                 </CardHeader>
@@ -183,7 +198,7 @@ export function JobDetail() {
                 </CardContent>
               </Card>
 
-              <Card padding="lg">
+              <Card padding="md">
                 <CardHeader>
                   <CardTitle>Required Skills</CardTitle>
                 </CardHeader>
@@ -203,11 +218,12 @@ export function JobDetail() {
 
             <TabsContent value="candidates">
               {candidates.length === 0 ? (
-                <Card padding="lg" className="text-center">
+                <Card padding="md" className="text-center">
                   <EmptyState
                     icon={<Users className="w-16 h-16" />}
                     title="No candidates yet"
-                    description="Candidates will appear here once they apply to this job."
+                    description="Upload resumes to add candidates to this job."
+                    action={hasRole(['ADMIN', 'RECRUITER']) ? { label: 'Add candidates', onClick: () => setUploadOpen(true) } : undefined}
                   />
                 </Card>
               ) : (
@@ -230,26 +246,16 @@ export function JobDetail() {
                           <TableRow key={candidate.id}>
                             <TableCell>
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center">
-                                  <span className="text-label-sm font-medium text-accent-600 dark:text-accent-400">
-                                    {candidate.candidateName.charAt(0)}
-                                  </span>
-                                </div>
-                                <span className="font-medium text-ink-900 dark:text-ink-100">{candidate.candidateName}</span>
+                                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-label-sm font-bold text-brand-700 dark:bg-brand-900/40 dark:text-brand-200">
+                                  {getInitials(candidate.candidateName)}
+                                </span>
+                                <Link to={`/candidates/${candidate.id}`} className="font-semibold text-ink-900 no-underline hover:text-brand-600 dark:text-ink-100 dark:hover:text-brand-300">{candidate.candidateName}</Link>
                               </div>
                             </TableCell>
                             <TableCell><span className="text-body-sm text-ink-500 dark:text-ink-400">{candidate.candidateEmail}</span></TableCell>
                             <TableCell><span className="text-body-sm text-ink-500 dark:text-ink-400">{candidate.experience} yrs</span></TableCell>
                             <TableCell>
-                              {candidate.aiMatchScore !== undefined ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-success-600 dark:text-success-400">
-                                    {candidate.aiMatchScore}%
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-body-sm text-ink-400 dark:text-ink-500">Not analyzed</span>
-                              )}
+                              <MatchScore score={candidate.aiMatchScore} />
                             </TableCell>
                             <TableCell>
                               <StatusBadge status={candidate.status || 'APPLIED'} />
@@ -272,7 +278,7 @@ export function JobDetail() {
         </div>
 
         <div className="space-y-6">
-          <Card padding="lg">
+          <Card padding="md">
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
@@ -286,11 +292,11 @@ export function JobDetail() {
                   </div>
                 </Button>
               </Link>
-              <Button variant="ghost" className="w-full justify-start gap-3" size="lg">
+              <Button variant="ghost" className="w-full justify-start gap-3" size="lg" onClick={() => setUploadOpen(true)}>
                 <Plus className="w-5 h-5" />
                 <div className="flex-1 text-left">
                   <p className="text-body-md font-medium text-ink-900 dark:text-ink-100">Add Candidate</p>
-                  <p className="text-body-sm text-ink-500 dark:text-ink-400">Manually add applicant</p>
+                  <p className="text-body-sm text-ink-500 dark:text-ink-400">Upload resumes</p>
                 </div>
               </Button>
               <Button variant="ghost" className="w-full justify-start gap-3" size="lg">
@@ -303,7 +309,7 @@ export function JobDetail() {
             </CardContent>
           </Card>
 
-          <Card padding="lg" variant="flat">
+          <Card padding="md" variant="flat">
             <CardHeader>
               <CardTitle>Job Statistics</CardTitle>
             </CardHeader>
@@ -326,7 +332,7 @@ export function JobDetail() {
               </div>
               <div className="flex items-center justify-between p-3 bg-base-50 dark:bg-base-800/50 rounded-xl">
                 <span className="text-body-sm text-ink-500 dark:text-ink-400">Offers Extended</span>
-                <span className="text-heading-md font-bold text-accent-600 dark:text-accent-400">
+                <span className="text-heading-md font-bold text-brand-600 dark:text-brand-300">
                   {candidates.filter((c) => c.status === 'OFFER').length}
                 </span>
               </div>
@@ -340,6 +346,13 @@ export function JobDetail() {
           </Card>
         </div>
       </div>
+
+      <UploadResumesModal
+        isOpen={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onUploaded={reloadCandidates}
+        fixedJob={{ id: job.id, title: job.title }}
+      />
     </div>
   )
 }

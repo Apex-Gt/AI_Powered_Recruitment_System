@@ -191,7 +191,7 @@ export function Interviews() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">Interviews</h1>
+            <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Interviews</h1>
             <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Schedule and manage interviews</p>
           </div>
           <Button variant="secondary" disabled>
@@ -236,7 +236,7 @@ export function Interviews() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">Interviews</h1>
+          <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Interviews</h1>
           <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Schedule and manage interviews</p>
         </div>
         {hasRole(['ADMIN', 'RECRUITER']) && (

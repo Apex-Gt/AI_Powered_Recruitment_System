@@ -128,7 +128,7 @@ export function Settings() {
     return (
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
-          <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">Settings</h1>
+          <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Settings</h1>
           <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Manage your account and preferences</p>
         </div>
         <Tabs defaultValue="profile" className="space-y-6 animate-pulse">
@@ -163,7 +163,7 @@ export function Settings() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
-        <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">Settings</h1>
+        <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Settings</h1>
         <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Manage your account and preferences</p>
       </div>
 

@@ -10,141 +10,152 @@ import {
   UserRound,
   Building2,
   Settings,
-  ChevronLeft,
-  ChevronRight,
-  Sun,
-  Moon,
+  Kanban,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Sparkles,
+  X,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { useTheme } from '@/context/ThemeContext'
 import type { Role } from '@/types'
 
-const navigation = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'RECRUITER', 'PLATFORM_ADMIN'] as Role[] },
-  { label: 'Jobs', href: '/jobs', icon: Briefcase, roles: ['ADMIN', 'RECRUITER', 'PLATFORM_ADMIN'] as Role[] },
-  { label: 'Candidates', href: '/candidates', icon: Users, roles: ['ADMIN', 'RECRUITER', 'PLATFORM_ADMIN'] as Role[] },
-  { label: 'Assessments', href: '/assessments', icon: CheckSquare, roles: ['ADMIN', 'RECRUITER', 'PLATFORM_ADMIN'] as Role[] },
-  { label: 'Interviews', href: '/interviews', icon: Calendar, roles: ['ADMIN', 'RECRUITER', 'PLATFORM_ADMIN'] as Role[] },
-  { label: 'Analytics', href: '/analytics', icon: BarChart3, roles: ['ADMIN', 'PLATFORM_ADMIN'] as Role[] },
-  { label: 'Team', href: '/team', icon: UserRound, roles: ['ADMIN', 'PLATFORM_ADMIN'] as Role[] },
-  { label: 'Company', href: '/company', icon: Building2, roles: ['ADMIN', 'PLATFORM_ADMIN'] as Role[] },
-  { label: 'Settings', href: '/settings', icon: Settings, roles: ['ADMIN', 'RECRUITER', 'PLATFORM_ADMIN'] as Role[] },
+const ALL: Role[] = ['ADMIN', 'RECRUITER', 'PLATFORM_ADMIN']
+const ADMINS: Role[] = ['ADMIN', 'PLATFORM_ADMIN']
+
+const sections = [
+  {
+    label: 'Main',
+    items: [{ label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ALL }],
+  },
+  {
+    label: 'Recruitment',
+    items: [
+      { label: 'Jobs', href: '/jobs', icon: Briefcase, roles: ALL },
+      { label: 'Candidates', href: '/candidates', icon: Users, roles: ALL },
+      { label: 'Pipeline', href: '/pipeline', icon: Kanban, roles: ALL },
+      { label: 'Assessments', href: '/assessments', icon: CheckSquare, roles: ALL },
+      { label: 'Interviews', href: '/interviews', icon: Calendar, roles: ALL },
+    ],
+  },
+  {
+    label: 'Insights',
+    items: [{ label: 'Analytics', href: '/analytics', icon: BarChart3, roles: ADMINS }],
+  },
+  {
+    label: 'Workspace',
+    items: [
+      { label: 'Team', href: '/team', icon: UserRound, roles: ADMINS },
+      { label: 'Company', href: '/company', icon: Building2, roles: ADMINS },
+      { label: 'Settings', href: '/settings', icon: Settings, roles: ALL },
+    ],
+  },
 ]
 
 interface SidebarProps {
   collapsed?: boolean
+  mobileOpen?: boolean
   onToggle?: () => void
+  onCloseMobile?: () => void
 }
 
-export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed = false, mobileOpen = false, onToggle, onCloseMobile }: SidebarProps) {
   const location = useLocation()
   const { user, hasRole } = useAuth()
-  const { theme, setTheme } = useTheme()
 
-  const filteredNav = navigation.filter((item) => !item.roles || (user && hasRole(item.roles)))
+  // On mobile the drawer is always full width; collapse only applies from lg up.
+  const compact = collapsed
 
-  if (collapsed) {
-    return (
+  const isActive = (href: string) =>
+    location.pathname === href || (href !== '/dashboard' && location.pathname.startsWith(href))
+
+  return (
+    <>
+      {mobileOpen && (
+        <div className="fixed inset-0 z-[190] bg-black/40 lg:hidden" onClick={onCloseMobile} aria-hidden="true" />
+      )}
       <aside
-        className="fixed left-0 top-0 z-sticky h-screen w-16 bg-[var(--color-sidebar)] border-r border-[var(--color-border)] flex flex-col transition-all duration-normal shadow-card-light dark:shadow-card-dark"
-        aria-label="Sidebar navigation (collapsed)"
+        className={cn(
+          'fixed left-0 top-0 z-[200] flex h-screen flex-col border-r border-[var(--color-border)] bg-[var(--color-sidebar)] transition-all duration-300',
+          'w-64 -translate-x-full lg:translate-x-0',
+          mobileOpen && 'translate-x-0',
+          compact ? 'lg:w-[76px]' : 'lg:w-64'
+        )}
+        aria-label="Sidebar navigation"
       >
-        <div className="flex h-16 items-center justify-center border-b border-[var(--color-border)]">
-          <span className="text-heading-md font-bold text-accent-600 dark:text-accent-400">RA</span>
+        <div className={cn('flex h-16 items-center px-4', compact ? 'lg:justify-center' : 'justify-between')}>
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent-500 to-brand-500 shadow-accent">
+              <Sparkles className="h-5 w-5 text-white" aria-hidden="true" />
+            </span>
+            <span className={cn('text-heading-md font-extrabold text-ink-900 dark:text-ink-100', compact && 'lg:hidden')}>
+              NexHire
+            </span>
+          </div>
+          <button
+            onClick={onCloseMobile}
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-ink-500 hover:bg-base-100 dark:hover:bg-surface-dark-elevated lg:hidden"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
-        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto" aria-label="Main navigation">
-          {filteredNav.map((item) => {
-            const Icon = item.icon
-            const isActive = location.pathname === item.href || (item.href !== '/dashboard' && location.pathname.startsWith(item.href))
+
+        <nav className="flex-1 overflow-y-auto px-3 pb-4" aria-label="Main navigation">
+          {sections.map((section) => {
+            const items = section.items.filter((i) => user && hasRole(i.roles))
+            if (items.length === 0) return null
             return (
-              <NavLink
-                key={item.href}
-                to={item.href}
-                className={cn(
-                  'nav-item justify-center px-2',
-                  isActive && 'nav-item-active'
-                )}
-                title={item.label}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <Icon className="nav-item-icon w-5 h-5 mx-auto" aria-hidden="true" />
-              </NavLink>
+              <div key={section.label} className="mt-4 first:mt-2">
+                <p className={cn('mb-1.5 px-3 text-label-xs font-semibold uppercase tracking-wider text-ink-400', compact && 'lg:hidden')}>
+                  {section.label}
+                </p>
+                <div className="space-y-0.5">
+                  {items.map((item) => {
+                    const Icon = item.icon
+                    const active = isActive(item.href)
+                    return (
+                      <NavLink
+                        key={item.href}
+                        to={item.href}
+                        onClick={onCloseMobile}
+                        title={compact ? item.label : undefined}
+                        className={cn('nav-item', active && 'nav-item-active', compact && 'lg:justify-center lg:px-0')}
+                        aria-current={active ? 'page' : undefined}
+                      >
+                        <Icon className="nav-item-icon" aria-hidden="true" />
+                        <span className={cn(compact && 'lg:hidden')}>{item.label}</span>
+                      </NavLink>
+                    )
+                  })}
+                </div>
+              </div>
             )
           })}
         </nav>
-        <div className="p-2 border-t border-[var(--color-border)]">
+
+        <div className="space-y-2 border-t border-[var(--color-border)] p-3">
           <button
             onClick={onToggle}
-            className="nav-item justify-center px-2"
-            aria-label="Expand sidebar"
-            title="Expand sidebar"
+            className={cn('nav-item hidden w-full lg:flex', compact && 'lg:justify-center lg:px-0')}
+            aria-label={compact ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            <ChevronRight className="w-5 h-5 mx-auto" aria-hidden="true" />
+            {compact ? <PanelLeftOpen className="nav-item-icon" /> : <PanelLeftClose className="nav-item-icon" />}
+            <span className={cn(compact && 'lg:hidden')}>Collapse</span>
           </button>
+
+          <div className={cn('flex items-center gap-3 rounded-xl bg-base-50 p-2.5 dark:bg-surface-dark-elevated', compact && 'lg:justify-center lg:p-1.5')}>
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-400 to-brand-500 text-label-md font-bold text-white">
+              {user?.userName?.charAt(0).toUpperCase() || 'U'}
+            </div>
+            <div className={cn('min-w-0 flex-1', compact && 'lg:hidden')}>
+              <p className="truncate text-label-md font-semibold text-ink-900 dark:text-ink-100">{user?.userName || 'User'}</p>
+              <p className="truncate text-body-xs capitalize text-ink-500 dark:text-ink-400">
+                {user?.role?.replace('_', ' ').toLowerCase() || 'role'}
+              </p>
+            </div>
+          </div>
         </div>
       </aside>
-    )
-  }
-
-  return (
-    <aside
-      className="fixed left-0 top-0 z-sticky h-screen w-64 bg-[var(--color-sidebar)] border-r border-[var(--color-border)] flex flex-col transition-all duration-normal shadow-card-light dark:shadow-card-dark"
-      aria-label="Sidebar navigation"
-    >
-      <div className="flex h-16 items-center justify-between px-4 border-b border-[var(--color-border)]">
-        <span className="text-heading-md font-bold text-accent-600 dark:text-accent-400">RecruitAI</span>
-        <button
-          onClick={onToggle}
-          className="nav-item-icon p-1 rounded-lg hover:bg-base-100 dark:hover:bg-surface-dark-elevated"
-          aria-label="Collapse sidebar"
-        >
-          <ChevronLeft className="w-5 h-5" aria-hidden="true" />
-        </button>
-      </div>
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" aria-label="Main navigation">
-        {filteredNav.map((item) => {
-          const Icon = item.icon
-          const isActive = location.pathname === item.href || (item.href !== '/dashboard' && location.pathname.startsWith(item.href))
-          return (
-            <NavLink
-              key={item.href}
-              to={item.href}
-              className={cn('nav-item', isActive && 'nav-item-active')}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <Icon className="nav-item-icon" aria-hidden="true" />
-              {item.label}
-            </NavLink>
-          )
-        })}
-      </nav>
-      <div className="p-3 border-t border-[var(--color-border)] space-y-3">
-        <div className="flex items-center gap-3 px-2">
-          <div className="w-8 h-8 rounded-full bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center flex-shrink-0">
-            <span className="text-label-md font-medium text-accent-600 dark:text-accent-400">
-              {user?.userName?.charAt(0).toUpperCase() || 'U'}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-label-sm font-medium text-ink-900 dark:text-ink-100 truncate">{user?.userName || 'User'}</p>
-            <p className="text-body-xs text-ink-500 dark:text-ink-400 capitalize">{user?.role?.toLowerCase() || 'role'}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 px-2">
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="nav-item flex-1 justify-start"
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          >
-            {theme === 'dark' ? (
-              <Sun className="w-5 h-5" aria-hidden="true" />
-            ) : (
-              <Moon className="w-5 h-5" aria-hidden="true" />
-            )}
-            <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
-          </button>
-        </div>
-      </div>
-    </aside>
+    </>
   )
 }

@@ -1,375 +1,374 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  PolarAngleAxis,
+  RadialBar,
+  RadialBarChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import { AlertCircle, ArrowDownRight, ArrowUpRight, Briefcase, CalendarDays, CheckCircle2, ChevronRight, Gift, Sparkles, Users, Video } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
-import { DonutChart, LineChartComponent, FunnelChart } from '@/components/charts'
-import { Briefcase, Users, CheckCircle2, Target, Clock, Plus } from 'lucide-react'
-import { cn } from '@/utils/helpers'
+import { useTheme } from '@/context/ThemeContext'
+import { Card } from '@/components/ui/Card'
+import { StatusBadge } from '@/components/ui/Badge'
+import { cn, formatDate, getInitials, formatRelativeTime } from '@/utils/helpers'
+import { useDashboardData, type RangeDays } from './useDashboardData'
 
-// MVP: Mock data since analytics backend is not implemented
+const CORAL = '#F95F62'
+const VIOLET = '#7C4DFF'
 
-interface DashboardStats {
-  activeJobs: number
-  totalCandidates: number
-  shortlisted: number
-  interviews: number
-  offers: number
+function Change({ value }: { value: number | null }) {
+  if (value === null) return <span className="text-body-xs text-ink-500">New this period</span>
+  const up = value >= 0
+  return (
+    <span className="flex items-center gap-1.5">
+      <span
+        className={cn(
+          'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-label-xs font-semibold',
+          up ? 'bg-success-50 text-success-600 dark:bg-success-900/30' : 'bg-error-50 text-error-600 dark:bg-error-900/30'
+        )}
+      >
+        {up ? <ArrowUpRight className="h-3 w-3" aria-hidden="true" /> : <ArrowDownRight className="h-3 w-3" aria-hidden="true" />}
+        {Math.abs(value)}%
+      </span>
+      <span className="text-body-xs text-ink-500">vs last period</span>
+    </span>
+  )
 }
 
-interface FunnelData {
-  stage: string
-  count: number
-  conversionRate: number
+interface StatCardProps {
+  title: string
+  value: number
+  icon: React.ElementType
+  href: string
+  change: number | null
+  series: number[]
+  color: string
+  tint: string
 }
 
-interface TimeToHireData {
-  average: number
-  median: number
-  byJob: { jobTitle: string; days: number }[]
+function StatCard({ title, value, icon: Icon, href, change, series, color, tint }: StatCardProps) {
+  const data = series.map((v, i) => ({ i, v }))
+  return (
+    <Link to={href} className="block rounded-xl no-underline">
+      <Card hover padding="md" className="h-full cursor-pointer">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg', tint)}>
+                <Icon className="h-4 w-4" style={{ color }} aria-hidden="true" />
+              </span>
+              <p className="text-body-sm font-medium text-ink-500 dark:text-ink-400">{title}</p>
+            </div>
+            <p className="mt-3 text-display-sm font-extrabold tracking-tight text-ink-900 dark:text-ink-100">{value.toLocaleString()}</p>
+          </div>
+          <div className="h-16 w-24 flex-shrink-0" aria-hidden="true">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                <Bar dataKey="v" fill={color} radius={[3, 3, 0, 0]} opacity={0.85} isAnimationActive={false} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div className="mt-3">
+          <Change value={change} />
+        </div>
+      </Card>
+    </Link>
+  )
 }
 
-interface AiMatchDistribution {
-  ranges: { range: string; count: number }[]
+function SectionHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
+  return (
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div>
+        <h2 className="text-heading-sm font-bold text-ink-900 dark:text-ink-100">{title}</h2>
+        {subtitle && <p className="mt-0.5 text-body-xs text-ink-500 dark:text-ink-400">{subtitle}</p>}
+      </div>
+      {action}
+    </div>
+  )
 }
 
-const MOCK_STATS: DashboardStats = {
-  activeJobs: 3,
-  totalCandidates: 47,
-  shortlisted: 8,
-  interviews: 5,
-  offers: 2,
+function EmptyNote({ icon: Icon, text }: { icon: React.ElementType; text: string }) {
+  return (
+    <div className="flex h-full min-h-[140px] flex-col items-center justify-center gap-2 text-center text-ink-400">
+      <Icon className="h-8 w-8 opacity-50" aria-hidden="true" />
+      <p className="text-body-sm">{text}</p>
+    </div>
+  )
 }
 
-const MOCK_FUNNEL: FunnelData[] = [
-  { stage: 'Applied', count: 47, conversionRate: 100 },
-  { stage: 'Screening', count: 23, conversionRate: 49 },
-  { stage: 'Shortlisted', count: 8, conversionRate: 35 },
-  { stage: 'Assessment', count: 5, conversionRate: 63 },
-  { stage: 'Interview', count: 4, conversionRate: 80 },
-  { stage: 'Offer', count: 2, conversionRate: 50 },
-  { stage: 'Hired', count: 1, conversionRate: 50 },
-]
-
-const MOCK_TIME_TO_HIRE: TimeToHireData = {
-  average: 28,
-  median: 24,
-  byJob: [
-    { jobTitle: 'Senior Python Developer', days: 32 },
-    { jobTitle: 'Frontend Engineer', days: 26 },
-    { jobTitle: 'DevOps Engineer', days: 28 },
-    { jobTitle: 'Data Scientist', days: 22 },
-  ],
-}
-
-const MOCK_AI_MATCH_DIST: AiMatchDistribution = {
-  ranges: [
-    { range: '80-100%', count: 5 },
-    { range: '60-79%', count: 12 },
-    { range: '40-59%', count: 18 },
-    { range: '0-39%', count: 12 },
-  ],
+function Avatar({ name, className }: { name: string; className?: string }) {
+  return (
+    <span className={cn('flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-label-sm font-bold text-brand-700 dark:bg-brand-900/40 dark:text-brand-200', className)}>
+      {getInitials(name)}
+    </span>
+  )
 }
 
 export function Dashboard() {
   const { user, hasRole } = useAuth()
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [funnel, setFunnel] = useState<FunnelData[]>([])
-  const [timeToHire, setTimeToHire] = useState<TimeToHireData | null>(null)
-  const [aiMatchDist, setAiMatchDist] = useState<AiMatchDistribution | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const { resolvedTheme } = useTheme()
+  const [range, setRange] = useState<RangeDays>(30)
+  const d = useDashboardData(range)
+  const isDark = resolvedTheme === 'dark'
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Simulate brief loading for UX, then use mock data
-        await new Promise(resolve => setTimeout(resolve, 300))
-        
-        setStats(MOCK_STATS)
-        setFunnel(MOCK_FUNNEL)
-        setTimeToHire(MOCK_TIME_TO_HIRE)
-        setAiMatchDist(MOCK_AI_MATCH_DIST)
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    fetchData()
-  }, [])
+  const grid = isDark ? '#333333' : '#ECECF3'
+  const tick = isDark ? '#A8A29E' : '#6B6B80'
+  const tooltipStyle = {
+    backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
+    border: `1px solid ${isDark ? '#333333' : '#ECECF3'}`,
+    borderRadius: 12,
+    color: isDark ? '#FAFAF9' : '#1B1B2F',
+    fontSize: 12,
+  }
 
-  const metricCards = [
-    {
-      title: 'Active Jobs',
-      value: stats?.activeJobs ?? 0,
-      icon: Briefcase,
-      color: 'bg-accent-100 dark:bg-accent-900/30 text-accent-600 dark:text-accent-400',
-      href: '/jobs',
-      change: '+12%',
-      changeLabel: 'vs last month',
-    },
-    {
-      title: 'Total Candidates',
-      value: stats?.totalCandidates ?? 0,
-      icon: Users,
-      color: 'bg-info-100 dark:bg-info-900/30 text-info-600 dark:text-info-400',
-      href: '/candidates',
-      change: '+8%',
-      changeLabel: 'vs last month',
-    },
-    {
-      title: 'Shortlisted',
-      value: stats?.shortlisted ?? 0,
-      icon: CheckCircle2,
-      color: 'bg-success-100 dark:bg-success-900/30 text-success-600 dark:text-success-400',
-      href: '/pipeline',
-      change: '+15%',
-      changeLabel: 'vs last month',
-    },
-    {
-      title: 'Interviews Scheduled',
-      value: stats?.interviews ?? 0,
-      icon: Target,
-      color: 'bg-warning-100 dark:bg-warning-900/30 text-warning-600 dark:text-warning-400',
-      href: '/interviews',
-      change: '+5%',
-      changeLabel: 'vs last month',
-    },
-  ]
+  const firstName = user?.userName?.split(' ')[0] || 'there'
+  const maxFunnel = Math.max(1, ...d.funnel.map((f) => f.count))
 
-  const aiMatchData = aiMatchDist?.ranges.map((r) => ({
-    name: r.range,
-    value: r.count,
-    color: r.range.includes('80') ? '#22C55E' : r.range.includes('60') ? '#F59E0B' : '#EF4444',
-  })) ?? [
-    { name: '80-100%', value: 0, color: '#22C55E' },
-    { name: '60-79%', value: 0, color: '#F59E0B' },
-    { name: '40-59%', value: 0, color: '#3B82F6' },
-    { name: '0-39%', value: 0, color: '#EF4444' },
-  ]
-
-  const funnelData = funnel.length > 0 ? funnel : [
-    { stage: 'Applied', count: 0, conversionRate: 100 },
-    { stage: 'Screening', count: 0, conversionRate: 0 },
-    { stage: 'Shortlisted', count: 0, conversionRate: 0 },
-    { stage: 'Assessment', count: 0, conversionRate: 0 },
-    { stage: 'Interview', count: 0, conversionRate: 0 },
-    { stage: 'Offer', count: 0, conversionRate: 0 },
-    { stage: 'Hired', count: 0, conversionRate: 0 },
-  ]
-
-  const timeToHireChartData = timeToHire?.byJob.map((j) => ({
-    name: j.jobTitle.length > 20 ? j.jobTitle.slice(0, 20) + '...' : j.jobTitle,
-    days: j.days,
-    avg: timeToHire.average,
-  })) ?? []
-
-  if (isLoading) {
+  if (d.isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="space-y-3">
-                <div className="h-4 bg-base-200 dark:bg-base-700 rounded w-3/4" />
-                <div className="h-8 bg-base-200 dark:bg-base-700 rounded w-1/4" />
-              </CardContent>
-            </Card>
+      <div className="space-y-6" aria-busy="true" aria-label="Loading dashboard">
+        <div className="h-14 w-64 animate-pulse rounded-xl bg-base-200 dark:bg-surface-dark-elevated" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Card key={i} className="h-36 animate-pulse" />
           ))}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="animate-pulse"><CardContent className="h-80" /></Card>
-          <Card className="animate-pulse"><CardContent className="h-80" /></Card>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="animate-pulse"><CardContent className="h-80" /></Card>
-          <Card className="animate-pulse"><CardContent className="h-80" /></Card>
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <Card className="h-80 animate-pulse xl:col-span-2" />
+          <Card className="h-80 animate-pulse" />
         </div>
       </div>
     )
   }
 
+  const gaugeData = [
+    { name: 'Strong matches', value: d.strongPct, fill: VIOLET },
+    { name: 'Average match', value: d.avgMatch, fill: CORAL },
+  ]
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">
-            Welcome back, {user?.userName?.split(' ')[0] || 'User'}!
-          </h1>
-          <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">
-            Here's what's happening with your recruitment pipeline today.
-          </p>
+          <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Dashboard</h1>
+          <p className="mt-0.5 text-body-sm text-ink-500 dark:text-ink-400">Welcome back, {firstName}. Here's your hiring pipeline at a glance.</p>
         </div>
-        {hasRole(['ADMIN', 'RECRUITER']) && (
-          <Link to="/jobs/create">
-            <Button size="lg">
-              <Plus className="w-5 h-5" />
-              Create Job
-            </Button>
-          </Link>
-        )}
+        <label className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-body-sm text-ink-700 dark:text-ink-300">
+          <CalendarDays className="h-4 w-4 text-ink-500" aria-hidden="true" />
+          <span className="sr-only">Date range</span>
+          <select
+            value={range}
+            onChange={(e) => setRange(Number(e.target.value) as RangeDays)}
+            className="cursor-pointer bg-transparent font-medium outline-none"
+          >
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+          </select>
+        </label>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metricCards.map((card, index) => {
-          const Icon = card.icon
-          return (
-            <Link key={index} to={card.href} className="no-underline">
-              <Card hover variant="elevated" padding="md">
-                <CardContent className="flex items-start justify-between">
-                  <div>
-                    <p className="text-body-sm text-ink-500 dark:text-ink-400">{card.title}</p>
-                    <p className="text-display-sm font-bold text-ink-900 dark:text-ink-100 mt-1">
-                      {card.value.toLocaleString()}
-                    </p>
-                    <div className="flex items-center gap-1 mt-2">
-                      <span className={cn('text-body-xs font-medium', card.change.startsWith('+') ? 'text-success-600' : 'text-error-600')}>
-                        {card.change}
-                      </span>
-                      <span className="text-body-xs text-ink-400 dark:text-ink-500">{card.changeLabel}</span>
-                    </div>
-                  </div>
-                  <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center', card.color)}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          )
-        })}
+      {d.error && (
+        <div role="alert" className="flex items-center gap-2 rounded-lg border border-error-200 bg-error-50 p-3 text-body-sm text-error-600 dark:border-error-800/70 dark:bg-error-900/30 dark:text-error-400">
+          <AlertCircle className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+          {d.error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="Active Jobs" value={d.stats.activeJobs} icon={Briefcase} href="/jobs" change={d.stats.activeJobsChange}
+          series={d.series.map((s) => s.jobs)} color={CORAL} tint="bg-accent-50 dark:bg-accent-900/30" />
+        <StatCard title="Candidates" value={d.stats.candidates} icon={Users} href="/candidates" change={d.stats.candidatesChange}
+          series={d.series.map((s) => s.applied)} color={VIOLET} tint="bg-brand-50 dark:bg-brand-900/30" />
+        <StatCard title="Shortlisted" value={d.stats.shortlisted} icon={CheckCircle2} href="/pipeline" change={d.stats.shortlistedChange}
+          series={d.series.map((s) => s.shortlisted)} color={CORAL} tint="bg-accent-50 dark:bg-accent-900/30" />
+        <StatCard title="Offers" value={d.stats.offers} icon={Gift} href="/pipeline" change={d.stats.offersChange}
+          series={d.series.map((s) => s.offers)} color={VIOLET} tint="bg-brand-50 dark:bg-brand-900/30" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card padding="lg">
-          <CardHeader>
-            <CardTitle>AI Match Distribution</CardTitle>
-            <CardDescription>Candidate match scores across all active jobs</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DonutChart
-              data={aiMatchData}
-              height={280}
-              total={aiMatchData.reduce((sum, d) => sum + d.value, 0)}
-              totalLabel="Total Candidates"
-            />
-            <div className="flex flex-wrap items-center justify-center gap-6 mt-6">
-              {aiMatchData.map((item, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-body-sm text-ink-600 dark:text-ink-400">
-                    {item.name}: {item.value}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card padding="lg">
-          <CardHeader>
-            <CardTitle>Time to Hire</CardTitle>
-            <CardDescription>Average days to fill positions by job</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {timeToHireChartData.length > 0 ? (
-              <>
-                <LineChartComponent
-                  data={timeToHireChartData}
-                  keys={['days', 'avg']}
-                  labels={{ days: 'Days to Hire', avg: 'Average' }}
-                  colors={['#F97316', '#78716C']}
-                  height={250}
-                  index="name"
-                  showDots
-                />
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-base-200 dark:border-base-700">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-accent-500" />
-                      <span className="text-body-sm text-ink-600 dark:text-ink-400">Average: {timeToHire?.average ?? 0} days</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-ink-400" />
-                      <span className="text-body-sm text-ink-600 dark:text-ink-400">Median: {timeToHire?.median ?? 0} days</span>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="h-64 flex flex-col items-center justify-center text-center text-ink-400 dark:text-ink-500">
-                <Clock className="w-12 h-12 mb-4 opacity-50" />
-                <p className="text-body-md">No hiring data available yet</p>
-                <p className="text-body-sm mt-1">Create jobs and hire candidates to see metrics</p>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <Card padding="md" className="xl:col-span-2">
+          <SectionHeader
+            title="Applications Overview"
+            subtitle={`${d.stats.totalCandidates.toLocaleString()} candidates in total`}
+            action={
+              <div className="flex items-center gap-4 text-body-xs text-ink-500">
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: CORAL }} />Applied</span>
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: VIOLET }} />Shortlisted</span>
               </div>
-            )}
-          </CardContent>
+            }
+          />
+          <div className="h-72" role="img" aria-label="Area chart of applications and shortlisted candidates over time">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={d.series} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gApplied" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={CORAL} stopOpacity={0.3} />
+                    <stop offset="100%" stopColor={CORAL} stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gShort" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={VIOLET} stopOpacity={0.3} />
+                    <stop offset="100%" stopColor={VIOLET} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke={grid} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" tick={{ fill: tick, fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fill: tick, fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Area type="monotone" dataKey="applied" name="Applied" stroke={CORAL} strokeWidth={2.5} fill="url(#gApplied)" />
+                <Area type="monotone" dataKey="shortlisted" name="Shortlisted" stroke={VIOLET} strokeWidth={2.5} fill="url(#gShort)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card padding="md">
+          <SectionHeader title="AI Match Quality" subtitle="Across all scored candidates" />
+          {d.scoredCount === 0 ? (
+            <EmptyNote icon={Sparkles} text="No candidates have been AI-scored yet" />
+          ) : (
+            <>
+              <div className="relative h-52" role="img" aria-label={`Average match ${d.avgMatch} percent, ${d.strongPct} percent strong matches`}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadialBarChart data={gaugeData} startAngle={200} endAngle={-20} innerRadius="55%" outerRadius="100%" barSize={14}>
+                    <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
+                    <RadialBar dataKey="value" background={{ fill: isDark ? '#282828' : '#F3F3F8' }} cornerRadius={10} isAnimationActive={false} />
+                  </RadialBarChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-display-sm font-extrabold text-ink-900 dark:text-ink-100">{d.avgMatch}%</span>
+                  <span className="text-body-xs text-ink-500">Average match</span>
+                </div>
+              </div>
+              <div className="mt-2 space-y-2 rounded-xl bg-base-50 p-3 dark:bg-surface-dark-elevated">
+                <div className="flex items-center justify-between text-body-sm">
+                  <span className="flex items-center gap-2 text-ink-600 dark:text-ink-300"><span className="h-2.5 w-2.5 rounded-full" style={{ background: VIOLET }} />Strong matches (70%+)</span>
+                  <span className="font-semibold text-ink-900 dark:text-ink-100">{d.strongPct}%</span>
+                </div>
+                <div className="flex items-center justify-between text-body-sm">
+                  <span className="flex items-center gap-2 text-ink-600 dark:text-ink-300"><span className="h-2.5 w-2.5 rounded-full" style={{ background: CORAL }} />Average score</span>
+                  <span className="font-semibold text-ink-900 dark:text-ink-100">{d.avgMatch}%</span>
+                </div>
+              </div>
+            </>
+          )}
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card padding="lg">
-          <CardHeader>
-            <CardTitle>Recruitment Funnel</CardTitle>
-            <CardDescription>Candidate progression through pipeline stages</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FunnelChart data={funnelData} height={350} />
-          </CardContent>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <Card padding="md">
+          <SectionHeader title="Recruitment Funnel" subtitle="Candidates who reached each stage" />
+          <ul className="space-y-3">
+            {d.funnel.map((f, i) => (
+              <li key={f.stage}>
+                <div className="mb-1 flex items-center justify-between text-body-xs">
+                  <span className="font-medium text-ink-700 dark:text-ink-300">{f.stage}</span>
+                  <span className="font-semibold text-ink-900 dark:text-ink-100">{f.count}</span>
+                </div>
+                <div className="h-2.5 overflow-hidden rounded-full bg-base-100 dark:bg-surface-dark-elevated">
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{ width: `${(f.count / maxFunnel) * 100}%`, background: i % 2 === 0 ? CORAL : VIOLET }}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
         </Card>
 
-        <Card padding="lg">
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common tasks to get started</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Link to="/jobs/create" className="block">
-              <Button variant="ghost" className="w-full justify-start gap-3" size="lg">
-                <div className="w-10 h-10 rounded-xl bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center">
-                  <Briefcase className="w-5 h-5 text-accent-600 dark:text-accent-400" />
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="text-body-md font-medium text-ink-900 dark:text-ink-100">Create New Job</p>
-                  <p className="text-body-sm text-ink-500 dark:text-ink-400">Post a new position</p>
-                </div>
-              </Button>
-            </Link>
-            <Link to="/candidates" className="block">
-              <Button variant="ghost" className="w-full justify-start gap-3" size="lg">
-                <div className="w-10 h-10 rounded-xl bg-info-100 dark:bg-info-900/30 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-info-600 dark:text-info-400" />
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="text-body-md font-medium text-ink-900 dark:text-ink-100">View Candidates</p>
-                  <p className="text-body-sm text-ink-500 dark:text-ink-400">Browse all applicants</p>
-                </div>
-              </Button>
-            </Link>
-            <Link to="/pipeline" className="block">
-              <Button variant="ghost" className="w-full justify-start gap-3" size="lg">
-                <div className="w-10 h-10 rounded-xl bg-success-100 dark:bg-success-900/30 flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-success-600 dark:text-success-400" />
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="text-body-md font-medium text-ink-900 dark:text-ink-100">Pipeline View</p>
-                  <p className="text-body-sm text-ink-500 dark:text-ink-400">Manage candidate stages</p>
-                </div>
-              </Button>
-            </Link>
-            <Link to="/interviews" className="block">
-              <Button variant="ghost" className="w-full justify-start gap-3" size="lg">
-                <div className="w-10 h-10 rounded-xl bg-warning-100 dark:bg-warning-900/30 flex items-center justify-center">
-                  <Target className="w-5 h-5 text-warning-600 dark:text-warning-400" />
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="text-body-md font-medium text-ink-900 dark:text-ink-100">Schedule Interview</p>
-                  <p className="text-body-sm text-ink-500 dark:text-ink-400">Set up interview slots</p>
-                </div>
-              </Button>
-            </Link>
-          </CardContent>
+        <Card padding="md">
+          <SectionHeader
+            title="Upcoming Interviews"
+            action={<Link to="/interviews" className="text-body-xs font-semibold text-brand-600 hover:underline dark:text-brand-300">View all</Link>}
+          />
+          {d.upcoming.length === 0 ? (
+            <EmptyNote icon={Video} text="No interviews scheduled" />
+          ) : (
+            <ul className="space-y-3">
+              {d.upcoming.map((i) => (
+                <li key={i.id} className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] p-3">
+                  <Avatar name={i.candidateName} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-body-sm font-semibold text-ink-900 dark:text-ink-100">{i.candidateName}</p>
+                    <p className="truncate text-body-xs text-ink-500">{i.jobTitle}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-body-xs font-semibold text-ink-900 dark:text-ink-100">{formatDate(i.scheduledAt, { month: 'short', day: 'numeric' })}</p>
+                    <p className="text-body-xs text-ink-500">{new Date(i.scheduledAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card padding="md">
+          <SectionHeader
+            title="Top Candidates"
+            subtitle="Highest AI match scores"
+            action={<Link to="/candidates" className="text-body-xs font-semibold text-brand-600 hover:underline dark:text-brand-300">View all</Link>}
+          />
+          {d.topCandidates.length === 0 ? (
+            <EmptyNote icon={Sparkles} text="Score candidates to see top matches" />
+          ) : (
+            <ul className="space-y-1">
+              {d.topCandidates.map((c) => (
+                <li key={c.id}>
+                  <Link to={`/candidates/${c.id}`} className="flex cursor-pointer items-center gap-3 rounded-xl p-2 no-underline transition-colors hover:bg-base-50 dark:hover:bg-surface-dark-elevated">
+                    <Avatar name={c.candidateName} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-body-sm font-semibold text-ink-900 dark:text-ink-100">{c.candidateName}</p>
+                      <p className="truncate text-body-xs text-ink-500">{c.jobTitle ?? 'Unassigned'}</p>
+                    </div>
+                    <span className="rounded-lg bg-brand-50 px-2 py-1 text-label-sm font-bold text-brand-700 dark:bg-brand-900/30 dark:text-brand-200">
+                      {Math.round(c.aiMatchScore ?? 0)}%
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       </div>
+
+      <Card padding="md">
+        <SectionHeader
+          title="Recent Applications"
+          action={hasRole(['ADMIN', 'RECRUITER']) ? (
+            <Link to="/candidates" className="inline-flex items-center gap-1 text-body-xs font-semibold text-brand-600 hover:underline dark:text-brand-300">
+              All candidates <ChevronRight className="h-3 w-3" aria-hidden="true" />
+            </Link>
+          ) : undefined}
+        />
+        {d.recent.length === 0 ? (
+          <EmptyNote icon={Users} text="No applications yet. Upload resumes to get started." />
+        ) : (
+          <ul className="divide-y divide-[var(--color-border)]">
+            {d.recent.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center gap-3 py-3">
+                <Avatar name={c.candidateName} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-body-sm font-semibold text-ink-900 dark:text-ink-100">{c.candidateName}</p>
+                  <p className="truncate text-body-xs text-ink-500">Applied for {c.jobTitle ?? 'a position'}</p>
+                </div>
+                {c.status && <StatusBadge status={c.status} />}
+                <span className="w-24 text-right text-body-xs text-ink-500">{formatRelativeTime(c.appliedAt ?? c.createdAt ?? '')}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   )
 }

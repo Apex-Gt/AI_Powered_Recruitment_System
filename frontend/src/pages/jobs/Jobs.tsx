@@ -1,242 +1,215 @@
-import { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { jobApi } from '@/utils/api'
 import { Card } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Input'
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, TableFooter } from '@/components/ui/Table'
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/Table'
 import { StatusBadge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { Plus, Search, ChevronLeft, ChevronRight, Briefcase, Eye, Edit, Trash2 } from 'lucide-react'
+import {
+  ActiveFilters,
+  ErrorBanner,
+  FilterSelect,
+  PageHeader,
+  Pagination,
+  SearchField,
+  StatusTabs,
+  TableSkeleton,
+} from '@/components/ui/ListPage'
+import { Briefcase, Building2, Edit, Eye, MapPin, Plus, Trash2, Users } from 'lucide-react'
 import { formatDate } from '@/utils/helpers'
 import toast from 'react-hot-toast'
 import type { Job } from '@/types'
 
-type JobStatus = 'ACTIVE' | 'DRAFT' | 'CLOSED'
+type JobStatus = Job['status']
 
-interface JobListParams {
-  page: number
-  pageSize: number
-  status?: JobStatus
-  search: string
-  department?: string
-}
+const PAGE_SIZE = 10
+
+const departmentOptions = [
+  'Engineering', 'Marketing', 'Sales', 'Human Resources', 'Finance', 'Operations',
+  'Product', 'Design', 'Customer Success', 'Legal', 'Other',
+].map((d) => ({ value: d, label: d }))
+
+const iconLink =
+  'flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-base-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-surface-dark-elevated dark:hover:text-ink-100'
 
 export function Jobs() {
   const { hasRole } = useAuth()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [jobs, setJobs] = useState<Job[]>([])
-  const [pagination, setPagination] = useState({
-    page: 1,
-    pageSize: 10,
-    total: 0,
-    totalPages: 0,
-  })
+  const [pagination, setPagination] = useState({ page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 0 })
+  const [counts, setCounts] = useState<Record<string, number>>({})
   const [isLoading, setIsLoading] = useState(true)
-  const [filters, setFilters] = useState<JobListParams>({
-    page: 1,
-    pageSize: 10,
-    status: undefined,
-    search: '',
-    department: '',
-  })
+  const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+
+  const isAdmin = hasRole(['ADMIN'])
+  const canEdit = hasRole(['ADMIN', 'RECRUITER'])
+
+  const page = parseInt(searchParams.get('page') || '1')
+  const status = (searchParams.get('status') || '') as JobStatus | ''
+  const department = searchParams.get('department') || ''
+  const urlSearch = searchParams.get('search') || ''
+  const [searchText, setSearchText] = useState(urlSearch)
+
+  const updateParams = useCallback(
+    (changes: Record<string, string | undefined>, resetPage = true) => {
+      const params = new URLSearchParams(searchParams)
+      Object.entries(changes).forEach(([k, v]) => (v ? params.set(k, v) : params.delete(k)))
+      if (resetPage) params.delete('page')
+      setSearchParams(params)
+    },
+    [searchParams, setSearchParams]
+  )
+
+  // Debounce typing into the URL so we don't fetch on every keystroke
+  useEffect(() => {
+    if (searchText === urlSearch) return
+    const t = setTimeout(() => updateParams({ search: searchText || undefined }), 300)
+    return () => clearTimeout(t)
+  }, [searchText, urlSearch, updateParams])
+
+  const fetchPage = useCallback(
+    (params: { page: number; pageSize: number; status?: JobStatus; search?: string; department?: string }) =>
+      isAdmin ? jobApi.getAllForAdminUnwrapped(params) : jobApi.getMyJobsUnwrapped(params),
+    [isAdmin]
+  )
 
   useEffect(() => {
-    const page = parseInt(searchParams.get('page') || '1')
-    const status = searchParams.get('status') as JobStatus | undefined
-    const search = searchParams.get('search') || ''
-    const department = searchParams.get('department') || ''
-
-    setFilters({ page, pageSize: 10, status, search, department })
-  }, [searchParams])
-
-  useEffect(() => {
-    const fetchJobs = async () => {
+    let cancelled = false
+    const load = async () => {
       setIsLoading(true)
+      setError(null)
       try {
-        // Use admin-specific endpoint for admins to see all company jobs
-        if (hasRole(['ADMIN'])) {
-          const response = await jobApi.getAllForAdminUnwrapped(filters)
-          setJobs(response?.data ?? [])
-          setPagination({
-            page: response?.page ?? 1,
-            pageSize: response?.pageSize ?? 10,
-            total: response?.total ?? 0,
-            totalPages: response?.totalPages ?? 0,
-          })
-        } else {
-          const response = await jobApi.getMyJobsUnwrapped(filters)
-          setJobs(response?.data ?? [])
-          setPagination({
-            page: response?.page ?? 1,
-            pageSize: response?.pageSize ?? 10,
-            total: response?.total ?? 0,
-            totalPages: response?.totalPages ?? 0,
-          })
-        }
-      } catch (error) {
-        console.error('Failed to fetch jobs:', error)
-        setJobs([])
+        const res = await fetchPage({
+          page,
+          pageSize: PAGE_SIZE,
+          status: status || undefined,
+          search: urlSearch || undefined,
+          department: department || undefined,
+        })
+        if (cancelled) return
+        setJobs(res?.data ?? [])
+        setPagination({
+          page: res?.page ?? 1,
+          pageSize: res?.pageSize ?? PAGE_SIZE,
+          total: res?.total ?? 0,
+          totalPages: res?.totalPages ?? 0,
+        })
+      } catch (e) {
+        const detail = e instanceof Error && e.message ? e.message : 'Check your connection and try again.'
+        if (!cancelled) setError(`Could not load jobs: ${detail}`)
       } finally {
-        setIsLoading(false)
+        if (!cancelled) setIsLoading(false)
       }
     }
-    fetchJobs()
-  }, [filters, hasRole])
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [page, status, urlSearch, department, fetchPage, reloadKey])
 
-  const handleFilterChange = (key: keyof JobListParams, value: string) => {
-    const newFilters = { ...filters, [key]: value || undefined, page: 1 }
-    setFilters(newFilters)
-    const params = new URLSearchParams()
-    if (newFilters.page > 1) params.set('page', String(newFilters.page))
-    if (newFilters.status) params.set('status', newFilters.status)
-    if (newFilters.search) params.set('search', newFilters.search)
-    if (newFilters.department) params.set('department', newFilters.department)
-    setSearchParams(params)
-  }
+  // Tab counts: one small request per status
+  useEffect(() => {
+    let cancelled = false
+    Promise.allSettled(
+      (['ACTIVE', 'DRAFT', 'CLOSED'] as JobStatus[]).map((s) => fetchPage({ page: 1, pageSize: 1, status: s }))
+    ).then((results) => {
+      if (cancelled) return
+      const next: Record<string, number> = {}
+      ;(['ACTIVE', 'DRAFT', 'CLOSED'] as const).forEach((s, i) => {
+        const r = results[i]
+        if (r.status === 'fulfilled') next[s] = r.value?.total ?? 0
+      })
+      next.ALL = Object.values(next).reduce((a, b) => a + b, 0)
+      setCounts(next)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [fetchPage, reloadKey])
 
-  const handlePageChange = (page: number) => {
-    const params = new URLSearchParams(searchParams)
-    params.set('page', String(page))
-    setSearchParams(params)
-  }
-
-  const handleDeleteJob = async (jobId: string) => {
-    if (!window.confirm('Are you sure you want to delete this job?')) return
+  const handleDeleteJob = async (job: Job) => {
+    if (!window.confirm(`Delete "${job.title}"? This can't be undone.`)) return
     try {
-      if (hasRole(['ADMIN'])) {
-        await jobApi.deleteForAdmin(jobId)
-      } else {
-        await jobApi.deleteForRecruiter(jobId)
-      }
-      setJobs((prev) => prev.filter((j) => j.id !== jobId))
+      if (isAdmin) await jobApi.deleteForAdmin(job.id)
+      else await jobApi.deleteForRecruiter(job.id)
       toast.success('Job deleted')
-    } catch (error) {
+      setReloadKey((k) => k + 1)
+    } catch {
       toast.error('Failed to delete job')
     }
   }
 
-  const statusOptions = [
-    { value: '', label: 'All Status' },
-    { value: 'ACTIVE', label: 'Active' },
-    { value: 'DRAFT', label: 'Draft' },
-    { value: 'CLOSED', label: 'Closed' },
+  const tabs = [
+    { value: '', label: 'All', count: counts.ALL },
+    { value: 'ACTIVE', label: 'Active', count: counts.ACTIVE },
+    { value: 'DRAFT', label: 'Draft', count: counts.DRAFT },
+    { value: 'CLOSED', label: 'Closed', count: counts.CLOSED },
   ]
 
-  const departmentOptions = [
-    { value: '', label: 'All Departments' },
-    { value: 'Engineering', label: 'Engineering' },
-    { value: 'Marketing', label: 'Marketing' },
-    { value: 'Sales', label: 'Sales' },
-    { value: 'Human Resources', label: 'Human Resources' },
-    { value: 'Finance', label: 'Finance' },
-    { value: 'Operations', label: 'Operations' },
-    { value: 'Product', label: 'Product' },
-    { value: 'Design', label: 'Design' },
-    { value: 'Customer Success', label: 'Customer Success' },
-    { value: 'Legal', label: 'Legal' },
-    { value: 'Other', label: 'Other' },
-  ]
-
-  const columns = [
-    { key: 'title', header: 'Job Title', width: '30%' },
-    { key: 'department', header: 'Department', width: '15%' },
-    { key: 'location', header: 'Location', width: '15%' },
-    { key: 'status', header: 'Status', width: '12%' },
-    { key: 'candidates', header: 'Candidates', width: '12%' },
-    { key: 'createdAt', header: 'Posted', width: '16%' },
-  ]
+  const filtered = Boolean(urlSearch || status || department)
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">Jobs</h1>
-          <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Manage your job postings</p>
-        </div>
-        {hasRole(['ADMIN', 'RECRUITER']) && (
-          <Link to="/jobs/create">
-            <Button size="lg">
-              <Plus className="w-5 h-5" />
-              Create Job
-            </Button>
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        title="Jobs"
+        subtitle="Create openings and track who has applied."
+        action={
+          canEdit && (
+            <Link to="/jobs/create" className="btn-primary h-10 px-4 py-0 text-body-sm">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Create job
+            </Link>
+          )
+        }
+      />
 
-      <Card padding="md" className="space-y-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-400" />
-            <Input
-              placeholder="Search jobs..."
-              value={filters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-              className="pl-10"
+      {error && <ErrorBanner message={error} onRetry={() => setReloadKey((k) => k + 1)} />}
+
+      <Card variant="flat" padding="none" className="list-card overflow-hidden shadow-soft">
+        <div className="flex flex-col gap-3 border-b border-[var(--color-border)] p-3 lg:flex-row lg:items-center lg:justify-between">
+          <StatusTabs tabs={tabs} value={status} onChange={(v) => updateParams({ status: v || undefined })} label="Filter jobs by status" />
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <SearchField value={searchText} onChange={setSearchText} placeholder="Search by title" label="Search jobs" />
+            <FilterSelect
+              label="Filter by department"
+              icon={Building2}
+              value={department}
+              onChange={(v) => updateParams({ department: v || undefined })}
+              options={[{ value: '', label: 'All departments' }, ...departmentOptions]}
             />
           </div>
-          <Select
-            label="Status"
-            value={filters.status || ''}
-            onChange={(e) => handleFilterChange('status', e.target.value)}
-            options={statusOptions}
-            placeholder="All Status"
-            className="w-full sm:w-48"
-          />
-          <Select
-            label="Department"
-            value={filters.department || ''}
-            onChange={(e) => handleFilterChange('department', e.target.value)}
-            options={departmentOptions}
-            placeholder="All Departments"
-            className="w-full sm:w-48"
-          />
         </div>
-      </Card>
 
-      <Card variant="flat" padding="none">
+        {(filtered || !isLoading) && (
+          <ActiveFilters
+            total={pagination.total}
+            noun="jobs"
+            chips={[
+              ...(urlSearch ? [{ key: 'search', label: `"${urlSearch}"`, onRemove: () => { setSearchText(''); updateParams({ search: undefined }) } }] : []),
+              ...(department ? [{ key: 'department', label: department, onRemove: () => updateParams({ department: undefined }) }] : []),
+              ...(status ? [{ key: 'status', label: status.charAt(0) + status.slice(1).toLowerCase(), onRemove: () => updateParams({ status: undefined }) }] : []),
+            ]}
+            onClearAll={() => { setSearchText(''); setSearchParams({}) }}
+          />
+        )}
+
         {isLoading ? (
-          <div className="p-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead style={{ width: '30%' }}><div className="skeleton-text h-4 w-3/4" /></TableHead>
-                  <TableHead style={{ width: '15%' }}><div className="skeleton-text h-4 w-3/4" /></TableHead>
-                  <TableHead style={{ width: '15%' }}><div className="skeleton-text h-4 w-3/4" /></TableHead>
-                  <TableHead style={{ width: '12%' }}><div className="skeleton-text h-4 w-3/4" /></TableHead>
-                  <TableHead style={{ width: '12%' }}><div className="skeleton-text h-4 w-3/4" /></TableHead>
-                  <TableHead style={{ width: '16%' }}><div className="skeleton-text h-4 w-3/4" /></TableHead>
-                  <TableHead className="w-24 text-right"><div className="skeleton-text h-4 w-3/4" /></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <TableRow key={i}>
-                    <TableCell><div className="skeleton-text h-5 w-full" /></TableCell>
-                    <TableCell><div className="skeleton-text h-5 w-full" /></TableCell>
-                    <TableCell><div className="skeleton-text h-5 w-full" /></TableCell>
-                    <TableCell><div className="skeleton-text h-5 w-full" /></TableCell>
-                    <TableCell><div className="skeleton-text h-5 w-full" /></TableCell>
-                    <TableCell><div className="skeleton-text h-5 w-full" /></TableCell>
-                    <TableCell><div className="skeleton-text h-5 w-full" /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        ) : jobs.length === 0 ? (
+          <TableSkeleton columns={6} />
+        ) : error ? null : jobs.length === 0 ? (
           <EmptyState
-            icon={<Briefcase className="w-16 h-16" />}
-            title="No jobs found"
-            description={filters.search || filters.status || filters.department
-              ? 'Try adjusting your filters to find jobs'
-              : 'Get started by creating your first job posting'}
-            action={hasRole(['ADMIN', 'RECRUITER']) ? {
-              label: 'Create Job',
-              onClick: () => handleFilterChange('search', ''),
-            } : undefined}
+            icon={<Briefcase className="h-16 w-16" />}
+            title={filtered ? 'No jobs match these filters' : 'No jobs yet'}
+            description={filtered ? 'Clear a filter or change your search to see more jobs.' : 'Create your first job to start receiving candidates.'}
+            action={
+              filtered
+                ? { label: 'Clear filters', variant: 'secondary', onClick: () => { setSearchText(''); setSearchParams({}) } }
+                : canEdit
+                  ? { label: 'Create job', onClick: () => navigate('/jobs/create') }
+                  : undefined
+            }
           />
         ) : (
           <>
@@ -244,47 +217,69 @@ export function Jobs() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {columns.map((col) => (
-                      <TableHead key={col.key} style={{ width: col.width }}>
-                        {col.header}
-                      </TableHead>
-                    ))}
-                    <TableHead className="w-24 text-right">Actions</TableHead>
+                    <TableHead>Job</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Candidates</TableHead>
+                    <TableHead>Posted</TableHead>
+                    <TableHead className="text-right">
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {jobs.map((job) => (
                     <TableRow key={job.id}>
                       <TableCell>
-                        <div>
-                          <p className="font-medium text-ink-900 dark:text-ink-100">{job.title}</p>
-                          <p className="text-body-xs text-ink-500 dark:text-ink-400">{job.workMode} • {job.employmentType.replace('_', ' ')}</p>
-                        </div>
+                        <Link to={`/jobs/${job.id}`} className="block no-underline">
+                          <p className="font-semibold text-ink-900 hover:text-brand-600 dark:text-ink-100 dark:hover:text-brand-300">{job.title}</p>
+                          <p className="mt-0.5 text-body-xs capitalize text-ink-500 dark:text-ink-400">
+                            {job.workMode.toLowerCase()} · {job.employmentType.replace('_', ' ').toLowerCase()}
+                          </p>
+                        </Link>
                       </TableCell>
-                      <TableCell><span className="text-body-sm text-ink-600 dark:text-ink-400">{job.department}</span></TableCell>
-                      <TableCell><span className="text-body-sm text-ink-600 dark:text-ink-400">{job.location}</span></TableCell>
+                      <TableCell>
+                        <span className="text-body-sm text-ink-600 dark:text-ink-300">{job.department}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center gap-1.5 text-body-sm text-ink-600 dark:text-ink-300">
+                          <MapPin className="h-3.5 w-3.5 text-ink-400" aria-hidden="true" />
+                          {job.location}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         <StatusBadge status={job.status} />
                       </TableCell>
                       <TableCell>
-                        <span className="text-body-sm text-ink-600 dark:text-ink-400">
+                        <span className="inline-flex items-center gap-1.5 text-body-sm text-ink-600 dark:text-ink-300">
+                          <Users className="h-3.5 w-3.5 text-ink-400" aria-hidden="true" />
                           {job._count?.candidates ?? 0}
+                          {(job._count?.shortlisted ?? 0) > 0 && (
+                            <span className="text-body-xs text-brand-600 dark:text-brand-300">({job._count?.shortlisted} shortlisted)</span>
+                          )}
                         </span>
                       </TableCell>
-                      <TableCell><span className="text-body-sm text-ink-500 dark:text-ink-400">{formatDate(job.createdAt)}</span></TableCell>
+                      <TableCell>
+                        <span className="text-body-sm text-ink-500 dark:text-ink-400">{formatDate(job.createdAt)}</span>
+                      </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Link to={`/jobs/${job.id}`} className="p-2 text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 rounded-lg hover:bg-base-200 dark:hover:bg-base-800" title="View">
-                            <Eye className="w-4 h-4" />
+                        <div className="flex items-center justify-end gap-0.5">
+                          <Link to={`/jobs/${job.id}`} className={iconLink} aria-label={`View ${job.title}`}>
+                            <Eye className="h-4 w-4" />
                           </Link>
-                          {hasRole(['ADMIN', 'RECRUITER']) && (
+                          {canEdit && (
                             <>
-                              <Link to={`/jobs/${job.id}/edit`} className="p-2 text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 rounded-lg hover:bg-base-200 dark:hover:bg-base-800" title="Edit">
-                                <Edit className="w-4 h-4" />
+                              <Link to={`/jobs/${job.id}/edit`} className={iconLink} aria-label={`Edit ${job.title}`}>
+                                <Edit className="h-4 w-4" />
                               </Link>
-                              <Button variant="ghost" size="sm" className="p-2 text-error-500 hover:text-error-600 rounded-md hover:bg-error-50 dark:hover:bg-error-900/20" title="Delete" onClick={() => handleDeleteJob(job.id)}>
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                              <button
+                                className={`${iconLink} hover:!bg-error-50 hover:!text-error-600 dark:hover:!bg-error-900/20`}
+                                aria-label={`Delete ${job.title}`}
+                                onClick={() => handleDeleteJob(job)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                             </>
                           )}
                         </div>
@@ -294,36 +289,7 @@ export function Jobs() {
                 </TableBody>
               </Table>
             </div>
-            {pagination.totalPages > 1 && (
-              <TableFooter>
-                <div className="flex items-center justify-between">
-                  <p className="text-body-sm text-ink-500 dark:text-ink-400">
-                    Showing {((pagination.page - 1) * pagination.pageSize) + 1} to {Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total} jobs
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={pagination.page === 1}
-                      onClick={() => handlePageChange(pagination.page - 1)}
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <span className="text-body-sm text-ink-600 dark:text-ink-400 px-3">
-                      Page {pagination.page} of {pagination.totalPages}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={pagination.page === pagination.totalPages}
-                      onClick={() => handlePageChange(pagination.page + 1)}
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </TableFooter>
-            )}
+            <Pagination {...pagination} noun="jobs" onChange={(p) => updateParams({ page: String(p) }, false)} />
           </>
         )}
       </Card>

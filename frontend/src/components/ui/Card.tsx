@@ -14,7 +14,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
       elevated: 'card',
       hover: 'card-hover',
       interactive: 'card-interactive',
-      flat: 'surface rounded-2xl',
+      flat: 'surface rounded-xl',
     }
     const paddingClasses = {
       none: 'p-0',

@@ -136,13 +136,13 @@ export function Company() {
     return (
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
-          <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">Company Settings</h1>
+          <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Company Settings</h1>
           <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Manage your company profile and settings</p>
         </div>
         <Card padding="lg" className="animate-pulse">
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-xl bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center">
                 <Building2 className="w-8 h-8 text-accent-600 dark:text-accent-400" />
               </div>
               <div>
@@ -172,14 +172,14 @@ export function Company() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
-        <h1 className="text-display-md font-bold text-ink-900 dark:text-ink-100">Company Settings</h1>
+        <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Company Settings</h1>
         <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Manage your company profile and settings</p>
       </div>
 
       <Card padding="lg">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center">
+            <div className="w-16 h-16 rounded-xl bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center">
               <Building2 className="w-8 h-8 text-accent-600 dark:text-accent-400" />
             </div>
             <div>
