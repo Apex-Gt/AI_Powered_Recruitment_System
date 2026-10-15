@@ -2,6 +2,7 @@ package com.project.ai_resumerag_be.config;
 
 import com.project.ai_resumerag_be.service.security.CustomUserDetailsService;
 import com.project.ai_resumerag_be.service.security.JwtService;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -34,7 +36,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String path = request.getServletPath();
 
-        if (path.startsWith("/auth")) {
+        // Only the public credential endpoints bypass JWT processing. /auth/me, /auth/logout etc.
+        // must go through the filter so the cookie is validated and the user is authenticated.
+        if (path.equals("/auth/login")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -43,28 +47,34 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String jwt = getJwtFromCookies(request);
 
         if (jwt != null) {
+            try {
+                String email = jwtService.extractUsername(jwt);
 
-            String email = jwtService.extractUsername(jwt);
+                if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);
 
-                UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);
+                    if (jwtService.isTokenValid(jwt, userDetails)) {
 
-                if (jwtService.isTokenValid(jwt, userDetails)) {
+                        UsernamePasswordAuthenticationToken authentication =
+                                new UsernamePasswordAuthenticationToken(
+                                        userDetails,
+                                        null,
+                                        userDetails.getAuthorities()
+                                );
 
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(
-                                    userDetails,
-                                    null,
-                                    userDetails.getAuthorities()
-                            );
+                        authentication.setDetails(
+                                new WebAuthenticationDetailsSource().buildDetails(request)
+                        );
 
-                    authentication.setDetails(
-                            new WebAuthenticationDetailsSource().buildDetails(request)
-                    );
-
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    }
                 }
+            } catch (JwtException | IllegalArgumentException | UsernameNotFoundException ex) {
+                // Expired, malformed, tampered or orphaned token: leave the request unauthenticated
+                // so the entry point answers 401.
+                SecurityContextHolder.clearContext();
+                logger.debug("Rejected JWT cookie: " + ex.getMessage());
             }
         }
 

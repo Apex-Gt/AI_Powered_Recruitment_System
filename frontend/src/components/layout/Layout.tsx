@@ -6,13 +6,24 @@ import { cn } from '@/utils/helpers'
 
 export function Layout() {
   const location = useLocation()
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, connectionError, retryAuth } = useAuth()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)]">
         <div className="spinner spinner-lg" />
+      </div>
+    )
+  }
+
+  if (!isAuthenticated && connectionError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[var(--color-bg)] text-center px-6">
+        <p className="text-body-md text-ink-700 dark:text-ink-300">
+          Can't reach the server right now. Your session hasn't been ended.
+        </p>
+        <button className="btn-primary" onClick={() => retryAuth()}>Retry</button>
       </div>
     )
   }

@@ -1,15 +1,18 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { authApi } from '@/utils/api'
+import { authApi, ApiError, AUTH_EXPIRED_EVENT } from '@/utils/api'
 import type { User, Role } from '@/types'
 
 interface AuthContextType {
   user: User | null
   isLoading: boolean
+  /** true when the session could not be verified because the server was unreachable (not an expired session) */
+  connectionError: boolean
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   hasRole: (roles: Role[]) => boolean
   refreshUser: () => Promise<void>
+  retryAuth: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -17,9 +20,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [connectionError, setConnectionError] = useState(false)
 
   const fetchUser = async () => {
     try {
+      setConnectionError(false)
       const response = await authApi.getMe()
       const userData = response.data
       setUser({
@@ -36,7 +41,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updatedAt: userData.updatedAt,
       })
     } catch (error) {
-      setUser(null)
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        // Missing, invalid or expired token: the session is over
+        setUser(null)
+      } else if (error instanceof ApiError) {
+        // Server answered with another error: don't treat as proof the session expired
+        setConnectionError(true)
+      } else {
+        // fetch() rejected: network error / server down. Keep current user state.
+        setConnectionError(true)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -44,6 +58,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchUser()
+  }, [])
+
+  // Any protected request rejected with 401 ends the session
+  useEffect(() => {
+    const onExpired = () => setUser(null)
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired)
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired)
   }, [])
 
   const login = async (email: string, password: string) => {
@@ -65,8 +86,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
-    await authApi.logout()
-    setUser(null)
+    try {
+      await authApi.logout()
+    } finally {
+      setUser(null)
+    }
   }
 
   const hasRole = (roles: Role[]) => {
@@ -82,11 +106,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isLoading,
+        connectionError,
         isAuthenticated: !!user,
         login,
         logout,
         hasRole,
         refreshUser,
+        retryAuth: async () => {
+          setIsLoading(true)
+          await fetchUser()
+        },
       }}
     >
       {children}

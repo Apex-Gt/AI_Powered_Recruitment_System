@@ -1,5 +1,17 @@
 const API_BASE = '/api'
 
+export class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
+// Fired when a protected request is rejected with 401 (expired/invalid session)
+export const AUTH_EXPIRED_EVENT = 'auth:expired'
+
 // In-flight request cache to prevent duplicate simultaneous requests
 const inFlightRequests = new Map<string, Promise<any>>()
 
@@ -49,7 +61,12 @@ class ApiClient {
     }).then(async (response) => {
       if (!response.ok) {
         const error = await response.json().catch(() => ({ message: 'An error occurred' }))
-        throw new Error(error.message || `HTTP error! status: ${response.status}`)
+        // 401 on anything except login/me means the session is no longer valid.
+        // (/auth/me is handled by AuthContext, which also distinguishes network errors.)
+        if (response.status === 401 && endpoint !== '/auth/login' && endpoint !== '/auth/me') {
+          window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT))
+        }
+        throw new ApiError(error.message || `HTTP error! status: ${response.status}`, response.status)
       }
 
       if (response.status === 204) {

@@ -5,14 +5,14 @@ import com.project.ai_resumerag_be.dto.response.LoginResponse;
 import com.project.ai_resumerag_be.dto.request.LoginRequest;
 import com.project.ai_resumerag_be.dto.request.UpdateProfileRequest;
 import com.project.ai_resumerag_be.service.AuthService;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -22,6 +22,13 @@ public class AuthController {
 
     private final AuthService authService;
 
+    // Set app.cookie.secure=true behind HTTPS in production
+    @Value("${app.cookie.secure:false}")
+    private boolean cookieSecure;
+
+    @Value("${app.cookie.same-site:Lax}")
+    private String cookieSameSite;
+
     @PostMapping("/login")
     public ResponseEntity<CommonResponse> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
         CommonResponse commonResponse = authService.login(request);
@@ -29,16 +36,20 @@ public class AuthController {
         LoginResponse loginResponse = (LoginResponse) commonResponse.getData();
         String jwt = loginResponse.getAccessToken();
 
-        Cookie cookie = new Cookie("jwt", jwt);
-
-        cookie.setHttpOnly(true);
-        cookie.setSecure(false); // true in prod for https
-        cookie.setPath("/api"); // Match Spring Boot context-path
-        cookie.setMaxAge(60 * 60); // 1hr
-
-        response.addCookie(cookie);
+        // HttpOnly JWT cookie; Max-Age matches the JWT lifetime (jwt.expiration, 24h)
+        response.addHeader(HttpHeaders.SET_COOKIE, buildJwtCookie(jwt, loginResponse.getExpiresIn()).toString());
 
         return ResponseEntity.status(commonResponse.getCode()).body(commonResponse);
+    }
+
+    private ResponseCookie buildJwtCookie(String value, long maxAgeSeconds) {
+        return ResponseCookie.from("jwt", value)
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite(cookieSameSite)
+                .path("/api") // Match Spring Boot context-path
+                .maxAge(maxAgeSeconds)
+                .build();
     }
 
     @GetMapping("/me")
@@ -52,12 +63,7 @@ public class AuthController {
         authService.logout();
 
         // Clear the JWT cookie
-        Cookie cookie = new Cookie("jwt", null);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(false);
-        cookie.setPath("/api"); // Match Spring Boot context-path
-        cookie.setMaxAge(0);
-        response.addCookie(cookie);
+        response.addHeader(HttpHeaders.SET_COOKIE, buildJwtCookie("", 0).toString());
 
         return ResponseEntity.ok(CommonResponse.builder()
                 .status(com.project.ai_resumerag_be.enumerators.CommonResponseStatus.SUCCESS)

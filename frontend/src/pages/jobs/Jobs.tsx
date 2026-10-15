@@ -282,7 +282,7 @@ export function Jobs() {
                               <Link to={`/jobs/${job.id}/edit`} className="p-2 text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 rounded-lg hover:bg-base-200 dark:hover:bg-base-800" title="Edit">
                                 <Edit className="w-4 h-4" />
                               </Link>
-                              <Button variant="ghost" size="sm" className="p-2 text-error-500 hover:text-error-600 rounded-field hover:bg-error-50 dark:hover:bg-error-900/20" title="Delete" onClick={() => handleDeleteJob(job.id)}>
+                              <Button variant="ghost" size="sm" className="p-2 text-error-500 hover:text-error-600 rounded-md hover:bg-error-50 dark:hover:bg-error-900/20" title="Delete" onClick={() => handleDeleteJob(job.id)}>
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </>
