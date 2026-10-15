@@ -1,46 +1,47 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+
+import httpx
+import inngest
+import inngest.fast_api
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import structlog
 
 from app.core.config import settings
-from app.core.logging import setup_logging, get_logger
-from app.core.exceptions import AIServiceError
+from app.core.logging import get_logger, setup_logging
 from app.models.schemas import (
+    CandidateProfile,
     HealthCheckResponse,
     IngestResumeEvent,
-    ScoreJobEvent,
-    RAGSummaryEvent,
-    RankCandidatesEvent,
-    CandidateProfile,
-    JobDescription,
     MatchScore,
     RAGSummary,
+    RAGSummaryEvent,
+    RankCandidatesEvent,
     RankingResult,
+    ScoreJobEvent,
 )
-from app.workflows.ingest_resume import inngest_client
+from app.services.registry import get_embedding_service, get_qdrant_service, get_reranker_service
+from app.workflows.ingest_resume import ALL_FUNCTIONS, inngest_client
 
+setup_logging(settings.log_level)
 logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    setup_logging(settings.log_level)
     logger.info("ai_service_starting", version="0.1.0", environment=settings.environment)
 
+    # Warm shared services. A dependency being down at boot degrades /health instead of
+    # killing the process; Qdrant also initialises lazily on first use.
     try:
-        from app.services.embedding import create_embedding_service
-        from app.services.qdrant import QdrantService
-
-        embedding_service = create_embedding_service()
-        qdrant_service = QdrantService(embedding_service)
-        await qdrant_service.initialize_collection()
-        await embedding_service.health_check()
-        logger.info("startup_validation_passed")
+        await get_qdrant_service().initialize_collection()
     except Exception as e:
-        logger.error("startup_validation_failed", error=str(e))
-        raise
+        logger.error("startup_qdrant_unavailable", error=str(e))
+    try:
+        if not await get_embedding_service().health_check():
+            logger.error("startup_embedding_unhealthy")
+    except Exception as e:
+        logger.error("startup_embedding_failed", error=str(e))
+    logger.info("startup_complete")
 
     yield
 
@@ -54,41 +55,44 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Origins are configured with CORS_ORIGINS (comma separated); default is closed-by-omission
+# because this service is called server-to-server by the Spring backend.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Registers GET/PUT/POST /api/inngest so the Inngest server can discover and invoke the workflows.
+inngest.fast_api.serve(app, inngest_client, ALL_FUNCTIONS)
+
 
 @app.get("/health", response_model=HealthCheckResponse)
 async def health_check():
-    from app.services.embedding import create_embedding_service
-    from app.services.qdrant import QdrantService
-    from app.services.reranker import create_reranker_service
+    qdrant_service = get_qdrant_service()
+    embedding_service = get_embedding_service()
+    reranker_service = get_reranker_service()
 
-    embedding_service = create_embedding_service()
-    qdrant_service = QdrantService(embedding_service)
-    reranker_service = create_reranker_service()
-
-    deps = {}
-    deps["qdrant"] = "healthy" if await qdrant_service.health_check() else "unhealthy"
-    deps["embedding"] = "healthy" if await embedding_service.health_check() else "unhealthy"
-    deps["reranker"] = "healthy" if await reranker_service.health_check() else "unhealthy"
-    deps["inngest"] = "configured" if settings.inngest.signing_key else "not_configured"
+    deps = {
+        "qdrant": "healthy" if await qdrant_service.health_check() else "unhealthy",
+        "embedding": "healthy" if await embedding_service.health_check() else "unhealthy",
+        "reranker": "healthy" if await reranker_service.health_check() else "unhealthy",
+        "inngest": "configured" if settings.inngest.signing_key or settings.inngest.dev_mode else "not_configured",
+    }
 
     model_config = {
         "foundation_model": settings.model.foundation_model,
-        "embedding_model": settings.model.embedding_model,
-        "embedding_dimensions": settings.model.embedding_dimensions,
-        "llm_model": settings.model.llm_model,
+        "embedding_model": settings.embedding.model_name,
+        "embedding_dimensions": settings.embedding.dimensions,
+        "llm_model": f"{settings.llm.model} ({settings.llm.base_url})",
+        "llm_configured": str(settings.llm.is_configured).lower(),
         "embedding_provider": settings.embedding.provider,
         "reranker_provider": settings.reranker.provider,
     }
 
-    overall_status = "healthy" if all(v == "healthy" for v in deps.values() if v != "not_configured") else "degraded"
+    overall_status = "healthy" if all(v in ("healthy", "configured") for v in deps.values()) else "degraded"
 
     return HealthCheckResponse(
         status=overall_status,
@@ -99,150 +103,94 @@ async def health_check():
     )
 
 
-class IngestResumeRequest(BaseModel):
-    candidate_id: str
-    resume_id: str
-    job_id: str | None = None
-    pdf_path: str
-    source_pdf: str
+async def _send_event(name: str, data: dict) -> None:
+    try:
+        await inngest_client.send(inngest.Event(name=name, data=data))
+    except Exception as e:
+        logger.error("inngest_send_failed", event_name=name, error=str(e))
+        raise HTTPException(status_code=502, detail=f"Could not queue workflow '{name}': {e}") from e
 
 
 @app.post("/api/v1/resumes/ingest")
-async def ingest_resume(request: IngestResumeRequest, background_tasks: BackgroundTasks):
-    try:
-        event = IngestResumeEvent(**request.model_dump())
-        await inngest_client.send(
-            inngest.Event(
-                name="candidate/ingest-resume",
-                data=event.model_dump(),
-            )
-        )
-        return {"status": "accepted", "message": "Resume ingestion started", "candidate_id": request.candidate_id}
-    except Exception as e:
-        logger.error("ingest_resume_request_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-class ScoreJobRequest(BaseModel):
-    candidate_id: str
-    job_id: str
-    job_description: JobDescription
+async def ingest_resume(request: IngestResumeEvent):
+    await _send_event("candidate/ingest-resume", request.model_dump(mode="json"))
+    return {
+        "status": "accepted",
+        "message": "Resume ingestion started",
+        "candidate_id": request.candidate_id,
+    }
 
 
 @app.post("/api/v1/candidates/score-job")
-async def score_job(request: ScoreJobRequest):
-    try:
-        event = ScoreJobEvent(**request.model_dump())
-        await inngest_client.send(
-            inngest.Event(
-                name="candidate/score-job",
-                data=event.model_dump(),
-            )
-        )
-        return {"status": "accepted", "message": "Candidate scoring started", "candidate_id": request.candidate_id, "job_id": request.job_id}
-    except Exception as e:
-        logger.error("score_job_request_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-class RAGSummaryRequest(BaseModel):
-    candidate_id: str
-    job_id: str
-    query: str = ""
-    top_k: int = 10
+async def score_job(request: ScoreJobEvent):
+    await _send_event("candidate/score-job", request.model_dump(mode="json"))
+    return {
+        "status": "accepted",
+        "message": "Candidate scoring started",
+        "candidate_id": request.candidate_id,
+        "job_id": request.job_id,
+    }
 
 
 @app.post("/api/v1/candidates/rag-summary")
-async def rag_summary(request: RAGSummaryRequest):
-    try:
-        event = RAGSummaryEvent(**request.model_dump())
-        await inngest_client.send(
-            inngest.Event(
-                name="candidate/rag-summary",
-                data=event.model_dump(),
-            )
-        )
-        return {"status": "accepted", "message": "RAG summary generation started", "candidate_id": request.candidate_id, "job_id": request.job_id}
-    except Exception as e:
-        logger.error("rag_summary_request_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-class RankCandidatesRequest(BaseModel):
-    job_id: str
-    candidate_ids: list[str]
+async def rag_summary(request: RAGSummaryEvent):
+    await _send_event("candidate/rag-summary", request.model_dump(mode="json", exclude_none=True))
+    return {
+        "status": "accepted",
+        "message": "RAG summary generation started",
+        "candidate_id": request.candidate_id,
+        "job_id": request.job_id,
+    }
 
 
 @app.post("/api/v1/jobs/rank-candidates")
-async def rank_candidates(request: RankCandidatesRequest):
+async def rank_candidates(request: RankCandidatesEvent):
+    await _send_event("job/rank-candidates", request.model_dump(mode="json"))
+    return {
+        "status": "accepted",
+        "message": "Candidate ranking started",
+        "job_id": request.job_id,
+        "candidate_count": len(request.candidate_ids),
+    }
+
+
+async def _proxy_spring_get(path: str, not_found: str):
     try:
-        event = RankCandidatesEvent(**request.model_dump())
-        await inngest_client.send(
-            inngest.Event(
-                name="job/rank-candidates",
-                data=event.model_dump(),
-            )
-        )
-        return {"status": "accepted", "message": "Candidate ranking started", "job_id": request.job_id, "candidate_count": len(request.candidate_ids)}
-    except Exception as e:
-        logger.error("rank_candidates_request_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        async with httpx.AsyncClient(
+            base_url=settings.spring_boot.base_url,
+            timeout=settings.spring_boot.timeout,
+            headers={"X-API-Key": settings.spring_boot.api_key} if settings.spring_boot.api_key else None,
+        ) as client:
+            response = await client.get(path)
+    except httpx.HTTPError as e:
+        logger.error("spring_request_failed", path=path, error=str(e))
+        raise HTTPException(status_code=502, detail=f"Backend unreachable: {e}") from e
+
+    if response.status_code == 404:
+        raise HTTPException(status_code=404, detail=not_found)
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=f"Backend returned {response.status_code}")
+    return response.json()
 
 
 @app.get("/api/v1/candidates/{candidate_id}/match-score/{job_id}")
 async def get_match_score(candidate_id: str, job_id: str):
-    import httpx
-    try:
-        async with httpx.AsyncClient(timeout=settings.spring_boot.timeout) as client:
-            response = await client.get(f"{settings.spring_boot.base_url}/api/ai/match-scores/{candidate_id}/{job_id}")
-            if response.status_code == 404:
-                raise HTTPException(status_code=404, detail="Match score not found")
-            response.raise_for_status()
-            return response.json()
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=e.response.status_code, detail=str(e))
-    except Exception as e:
-        logger.error("get_match_score_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+    return await _proxy_spring_get(f"/api/ai/match-scores/{candidate_id}/{job_id}", "Match score not found")
 
 
 @app.get("/api/v1/candidates/{candidate_id}/rag-summary/{job_id}")
 async def get_rag_summary(candidate_id: str, job_id: str):
-    import httpx
-    try:
-        async with httpx.AsyncClient(timeout=settings.spring_boot.timeout) as client:
-            response = await client.get(f"{settings.spring_boot.base_url}/api/ai/rag-summaries/{candidate_id}/{job_id}")
-            if response.status_code == 404:
-                raise HTTPException(status_code=404, detail="RAG summary not found")
-            response.raise_for_status()
-            return response.json()
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=e.response.status_code, detail=str(e))
-    except Exception as e:
-        logger.error("get_rag_summary_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+    return await _proxy_spring_get(f"/api/ai/rag-summaries/{candidate_id}/{job_id}", "RAG summary not found")
 
 
 @app.get("/api/v1/jobs/{job_id}/ranking")
 async def get_ranking(job_id: str):
-    import httpx
-    try:
-        async with httpx.AsyncClient(timeout=settings.spring_boot.timeout) as client:
-            response = await client.get(f"{settings.spring_boot.base_url}/api/ai/rankings/{job_id}")
-            if response.status_code == 404:
-                raise HTTPException(status_code=404, detail="Ranking not found")
-            response.raise_for_status()
-            return response.json()
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=e.response.status_code, detail=str(e))
-    except Exception as e:
-        logger.error("get_ranking_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+    return await _proxy_spring_get(f"/api/ai/rankings/{job_id}", "Ranking not found")
 
 
 @app.post("/api/v1/internal/candidate-profile")
 async def receive_candidate_profile(profile: CandidateProfile):
-    return {"status": "received", "candidate_id": profile.name}
+    return {"status": "received", "candidate_name": profile.name}
 
 
 @app.post("/api/v1/internal/match-score")

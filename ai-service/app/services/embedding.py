@@ -1,11 +1,10 @@
-from abc import ABC, abstractmethod
+import asyncio
+from abc import abstractmethod
 from typing import Protocol
-import numpy as np
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-import structlog
 
 from app.core.config import settings
-from app.core.exceptions import EmbeddingError, ModelUnavailableError
+from app.core.exceptions import ConfigurationError, EmbeddingError, ModelUnavailableError, ValidationError
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -71,15 +70,17 @@ class BaseEmbeddingService:
     )
     async def embed_text(self, text: str) -> list[float]:
         if not text or not text.strip():
-            raise EmbeddingError("Cannot embed empty text")
+            raise ValidationError("Cannot embed empty text")
         try:
             embedding = await self._embed_single(text.strip())
             if len(embedding) != self.dimensions:
-                raise EmbeddingError(
+                raise ConfigurationError(
                     f"Embedding dimension mismatch: expected {self.dimensions}, got {len(embedding)}",
                     details={"expected": self.dimensions, "actual": len(embedding)},
                 )
             return embedding
+        except (ModelUnavailableError, ConfigurationError):
+            raise
         except Exception as e:
             logger.error("embedding_failed", error=str(e), model=self.model_name)
             raise EmbeddingError(f"Failed to embed text: {e}") from e
@@ -100,11 +101,13 @@ class BaseEmbeddingService:
             embeddings = await self._embed_batch_impl(valid_texts)
             for i, emb in enumerate(embeddings):
                 if len(emb) != self.dimensions:
-                    raise EmbeddingError(
+                    raise ConfigurationError(
                         f"Batch embedding dimension mismatch at index {i}: expected {self.dimensions}, got {len(emb)}",
                         details={"index": i, "expected": self.dimensions, "actual": len(emb)},
                     )
             return embeddings
+        except (ModelUnavailableError, ConfigurationError):
+            raise
         except Exception as e:
             logger.error("batch_embedding_failed", error=str(e), model=self.model_name, count=len(valid_texts))
             raise EmbeddingError(f"Failed to embed batch: {e}") from e
@@ -115,10 +118,6 @@ class BaseEmbeddingService:
             return len(test_embedding) == self.dimensions
         except Exception:
             return False
-
-
-class ConfigurationError(EmbeddingError):
-    pass
 
 
 class LocalBGEEmbeddingService(BaseEmbeddingService):
@@ -135,7 +134,9 @@ class LocalBGEEmbeddingService(BaseEmbeddingService):
 
                 self._device = "cuda" if torch.cuda.is_available() else "cpu"
                 logger.info("loading_bge_model", model=self.model_name, device=self._device)
-                self._model = BGEM3FlagModel(self.model_name, device=self._device, use_fp16=self._device == "cuda")
+                self._model = await asyncio.to_thread(
+                    BGEM3FlagModel, self.model_name, device=self._device, use_fp16=self._device == "cuda"
+                )
             except ImportError:
                 raise ModelUnavailableError(
                     "FlagEmbedding not installed. Install with: pip install FlagEmbedding",
@@ -147,7 +148,8 @@ class LocalBGEEmbeddingService(BaseEmbeddingService):
     async def _embed_single(self, text: str) -> list[float]:
         await self._initialize()
         try:
-            result = self._model.encode(
+            result = await asyncio.to_thread(
+                self._model.encode,
                 [text],
                 batch_size=1,
                 max_length=8192,
@@ -165,7 +167,8 @@ class LocalBGEEmbeddingService(BaseEmbeddingService):
             results = []
             for i in range(0, len(texts), self.batch_size):
                 batch = texts[i : i + self.batch_size]
-                result = self._model.encode(
+                result = await asyncio.to_thread(
+                    self._model.encode,
                     batch,
                     batch_size=len(batch),
                     max_length=8192,

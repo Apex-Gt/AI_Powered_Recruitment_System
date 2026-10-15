@@ -1,14 +1,20 @@
-from abc import ABC, abstractmethod
+import asyncio
+from abc import abstractmethod
 from typing import Protocol
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-import structlog
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 from app.core.config import settings
-from app.core.exceptions import AIServiceError, ModelUnavailableError
+from app.core.exceptions import AIServiceError, ModelUnavailableError, ValidationError
 from app.core.logging import get_logger
 from app.models.schemas import ResumeChunk, EvidenceChunk
 
 logger = get_logger(__name__)
+
+
+def _is_transient(exc: BaseException) -> bool:
+    if isinstance(exc, (ModelUnavailableError, ValidationError)):
+        return False
+    return isinstance(exc, (AIServiceError, ConnectionError, TimeoutError))
 
 
 class RerankerService(Protocol):
@@ -42,17 +48,19 @@ class BaseRerankerService:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((AIServiceError, ConnectionError, TimeoutError)),
+        retry=retry_if_exception(_is_transient),
         reraise=True,
     )
     async def rerank(self, query: str, chunks: list[ResumeChunk], top_k: int | None = None) -> list[EvidenceChunk]:
         if not chunks:
             return []
         if not query or not query.strip():
-            raise AIServiceError("Cannot rerank with empty query")
+            raise ValidationError("Cannot rerank with empty query")
         k = top_k or self.top_k
         try:
             return await self._rerank_impl(query.strip(), chunks, k)
+        except ModelUnavailableError:
+            raise
         except Exception as e:
             logger.error("reranking_failed", error=str(e), model=self.model_name, query=query[:100])
             raise AIServiceError(f"Failed to rerank: {e}") from e
@@ -89,7 +97,9 @@ class LocalBGERerankerService(BaseRerankerService):
 
                 self._device = "cuda" if torch.cuda.is_available() else "cpu"
                 logger.info("loading_bge_reranker", model=self.model_name, device=self._device)
-                self._model = FlagReranker(self.model_name, device=self._device, use_fp16=self._device == "cuda")
+                self._model = await asyncio.to_thread(
+                    FlagReranker, self.model_name, device=self._device, use_fp16=self._device == "cuda"
+                )
             except ImportError:
                 raise ModelUnavailableError(
                     "FlagEmbedding not installed. Install with: pip install FlagEmbedding",
@@ -102,7 +112,9 @@ class LocalBGERerankerService(BaseRerankerService):
         await self._initialize()
         try:
             pairs = [[query, chunk.text] for chunk in chunks]
-            scores = self._model.compute_score(pairs, normalize=True)
+            scores = await asyncio.to_thread(self._model.compute_score, pairs, normalize=True)
+            if isinstance(scores, (int, float)):
+                scores = [scores]
             scored_chunks = list(zip(chunks, scores, strict=False))
             scored_chunks.sort(key=lambda x: x[1], reverse=True)
             top_chunks = scored_chunks[:top_k]

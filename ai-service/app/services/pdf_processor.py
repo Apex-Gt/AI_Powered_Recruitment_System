@@ -3,12 +3,13 @@ from typing import Optional
 from llama_index.readers.file import PDFReader
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.schema import Document
-import structlog
+from pydantic import EmailStr, TypeAdapter
 
 from app.core.config import settings
 from app.core.exceptions import PDFProcessingError
 from app.core.logging import get_logger
-from app.models.schemas import ResumeChunk, CandidateProfile
+from app.models.schemas import CandidateProfile, EducationLevel, ResumeChunk
+from app.services.llm import LLMService, get_llm_service
 
 logger = get_logger(__name__)
 
@@ -93,45 +94,98 @@ class PDFProcessingService:
             return "general"
 
 
-class CandidateExtractionService:
-    def __init__(self):
-        self._client = None
+_SKILL_LEVELS = {"beginner", "intermediate", "advanced", "expert"}
+_email_adapter = TypeAdapter(EmailStr)
 
-    async def _get_client(self):
-        if self._client is None:
-            from openai import AsyncOpenAI
-            self._client = AsyncOpenAI(
-                api_key=settings.openai.api_key,
-                base_url=settings.openai.base_url,
-                timeout=settings.openai.timeout if hasattr(settings.openai, "timeout") else 60.0,
-            )
-        return self._client
+
+def _clamp(value, low: float, high: float, default=None):
+    try:
+        return max(low, min(high, float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
+def sanitize_profile_data(data: dict) -> dict:
+    """Coerce LLM output into something CandidateProfile will accept instead of failing the whole ingest."""
+    data = {k: v for k, v in (data or {}).items() if v not in (None, "")}
+    data["name"] = str(data.get("name") or "Unknown").strip()[:200] or "Unknown"
+
+    if "email" in data:
+        try:
+            data["email"] = str(_email_adapter.validate_python(str(data["email"]).strip()))
+        except Exception:
+            data.pop("email")
+    for key, limit in (("phone", 50), ("location", 200)):
+        if key in data:
+            data[key] = str(data[key])[:limit]
+
+    data["total_experience_years"] = _clamp(data.get("total_experience_years"), 0, 50, 0.0)
+
+    skills = []
+    for raw in data.get("skills") or []:
+        item = {"name": raw} if isinstance(raw, str) else dict(raw or {})
+        name = str(item.get("name") or "").strip()[:100]
+        if not name:
+            continue
+        level = str(item.get("level") or "").lower()
+        skills.append(
+            {
+                "name": name,
+                "level": level if level in _SKILL_LEVELS else None,
+                "years_experience": _clamp(item.get("years_experience"), 0, 50),
+                "category": item.get("category"),
+            }
+        )
+    data["skills"] = skills
+
+    education = []
+    for raw in data.get("education") or []:
+        item = dict(raw or {})
+        institution = str(item.get("institution") or "").strip()
+        degree = str(item.get("degree") or "").strip()
+        if not institution or not degree:
+            continue
+        gpa = _clamp(item.get("gpa"), -1e9, 1e9)
+        level = None
+        if item.get("level"):
+            try:
+                level = EducationLevel(str(item["level"]).lower()).value
+            except ValueError:
+                level = None
+        item.update(
+            institution=institution[:200],
+            degree=degree[:200],
+            level=level,
+            gpa=gpa if gpa is not None and 0 <= gpa <= 4.0 else None,
+        )
+        education.append(item)
+    data["education"] = education
+
+    for key in ("certifications", "projects"):
+        data[key] = [dict(item) for item in data.get(key) or [] if isinstance(item, dict) and item.get("name")]
+    for project in data["projects"]:
+        project["technologies"] = [str(t) for t in project.get("technologies") or []]
+    return data
+
+
+class CandidateExtractionService:
+    def __init__(self, llm: Optional[LLMService] = None):
+        self._llm = llm
+
+    @property
+    def llm(self) -> LLMService:
+        return self._llm or get_llm_service()
 
     async def extract_candidate_profile(self, text: str) -> CandidateProfile:
         if not text or not text.strip():
             raise PDFProcessingError("Cannot extract profile from empty text")
 
-        client = await self._get_client()
         try:
-            prompt = self._build_extraction_prompt(text)
-            response = await client.chat.completions.create(
-                model=settings.model.llm_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an expert HR assistant that extracts structured candidate information from resumes. Return only valid JSON matching the specified schema.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=settings.model.llm_temperature,
-                max_tokens=settings.model.llm_max_tokens,
-                response_format={"type": "json_object"},
+            data = await self.llm.chat_json(
+                system="You are an expert HR assistant that extracts structured candidate information from resumes. Return only valid JSON matching the specified schema.",
+                user=self._build_extraction_prompt(text),
             )
-
-            import json
-            content = response.choices[0].message.content
-            data = json.loads(content)
-            profile = CandidateProfile(**data)
+            profile = CandidateProfile(**sanitize_profile_data(data))
             logger.info("candidate_profile_extracted", name=profile.name, skills=len(profile.skills))
             return profile
         except Exception as e:
