@@ -14,6 +14,8 @@ public interface CandidateRepository extends JpaRepository<Candidate, UUID> {
 
     java.util.Optional<Candidate> findByResumeId(UUID resumeId);
 
+    List<Candidate> findByJobIdIn(java.util.Collection<UUID> jobIds);
+
     List<Candidate> findByJobCompanyId(UUID companyId);
 
     List<Candidate> findByJobIdAndJobCompanyId(UUID jobId, UUID companyId);

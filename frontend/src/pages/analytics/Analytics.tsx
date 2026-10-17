@@ -3,119 +3,89 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { DonutChart, LineChartComponent, FunnelChart } from '@/components/charts'
 import { Users, Clock, Target, Briefcase, Loader2 } from 'lucide-react'
 import { cn } from '@/utils/helpers'
+import { analyticsApi } from '@/utils/api'
 
-// MVP: Use mock data since analytics backend is not implemented
-const MOCK_OVERVIEW = {
-  activeJobs: 3,
-  totalCandidates: 47,
-  shortlisted: 8,
-  interviews: 5,
-  offers: 2,
+const EMPTY_OVERVIEW: AnalyticsOverview = { activeJobs: 0, totalCandidates: 0, shortlisted: 0, interviews: 0, offers: 0 }
+const EMPTY_TIME_TO_HIRE: TimeToHireData = { average: 0, median: 0, byJob: [] }
+const EMPTY_AI_MATCH_DIST: AiMatchDistribution = { ranges: [] }
+const EMPTY_JOBS_METRICS: JobsMetrics = {
+  total: 0, active: 0, draft: 0, closed: 0, avgApplicants: 0, avgTimeToFill: 0, offersExtended: 0, hired: 0, byDepartment: {},
 }
-
-const MOCK_FUNNEL: FunnelData[] = [
-  { stage: 'Applied', count: 47, conversionRate: 100 },
-  { stage: 'Screening', count: 23, conversionRate: 49 },
-  { stage: 'Shortlisted', count: 8, conversionRate: 35 },
-  { stage: 'Assessment', count: 5, conversionRate: 63 },
-  { stage: 'Interview', count: 4, conversionRate: 80 },
-  { stage: 'Offer', count: 2, conversionRate: 50 },
-  { stage: 'Hired', count: 1, conversionRate: 50 },
-]
-
-const MOCK_TIME_TO_HIRE: TimeToHireData = {
-  average: 28,
-  median: 24,
-  byJob: [
-    { jobTitle: 'Senior Python Developer', days: 32 },
-    { jobTitle: 'Frontend Engineer', days: 26 },
-    { jobTitle: 'DevOps Engineer', days: 28 },
-    { jobTitle: 'Data Scientist', days: 22 },
-  ],
-}
-
-const MOCK_AI_MATCH_DIST: AiMatchDistribution = {
-  ranges: [
-    { range: '80-100%', count: 5 },
-    { range: '60-79%', count: 12 },
-    { range: '40-59%', count: 18 },
-    { range: '0-39%', count: 12 },
-  ],
-}
-
-const MOCK_JOBS_METRICS: JobsMetrics = {
-  total: 12,
-  active: 3,
-  draft: 4,
-  closed: 5,
-  avgApplicants: 4.2,
-  avgTimeToFill: 28,
-  offersExtended: 2,
-  hired: 1,
-  byDepartment: {
-    Engineering: 6,
-    Marketing: 2,
-    Sales: 1,
-    'Human Resources': 1,
-    Finance: 1,
-    Other: 1,
-  },
-}
+const DEPARTMENT_COLORS = ['#F95F62', '#22C55E', '#F59E0B', '#3B82F6', '#14B8A6', '#7C4DFF', '#78716C']
 
 export function Analytics() {
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [overview, setOverview] = useState(EMPTY_OVERVIEW)
+  const [funnelData, setFunnelData] = useState<FunnelData[]>([])
+  const [timeToHire, setTimeToHire] = useState(EMPTY_TIME_TO_HIRE)
+  const [aiMatchDist, setAiMatchDist] = useState(EMPTY_AI_MATCH_DIST)
+  const [jobsMetrics, setJobsMetrics] = useState(EMPTY_JOBS_METRICS)
 
   useEffect(() => {
-    // Simulate brief loading for UX
-    const timer = setTimeout(() => setIsLoading(false), 500)
-    return () => clearTimeout(timer)
+    let cancelled = false
+    Promise.all([
+      analyticsApi.getOverview(),
+      analyticsApi.getFunnel(),
+      analyticsApi.getTimeToHire(),
+      analyticsApi.getAiMatchDistribution(),
+      analyticsApi.getJobsMetrics(),
+    ])
+      .then(([o, f, t, d, j]) => {
+        if (cancelled) return
+        setOverview(o.data)
+        setFunnelData(f.data)
+        setTimeToHire(t.data)
+        setAiMatchDist(d.data)
+        setJobsMetrics(j.data)
+      })
+      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : 'Failed to load analytics'))
+      .finally(() => !cancelled && setIsLoading(false))
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  const aiMatchData = MOCK_AI_MATCH_DIST.ranges.map((r) => ({
+  const aiMatchData = aiMatchDist.ranges.map((r) => ({
     name: r.range,
     value: r.count,
     color: r.range.includes('80') ? '#22C55E' : r.range.includes('60') ? '#F59E0B' : r.range.includes('40') ? '#3B82F6' : '#EF4444',
   }))
 
-  const funnelData = MOCK_FUNNEL
-
-  const timeToHireChartData = MOCK_TIME_TO_HIRE.byJob.map((j) => ({
+  const timeToHireChartData = timeToHire.byJob.map((j) => ({
     name: j.jobTitle.length > 20 ? j.jobTitle.slice(0, 20) + '...' : j.jobTitle,
     days: j.days,
-    avg: MOCK_TIME_TO_HIRE.average,
+    avg: timeToHire.average,
   }))
 
-  const departmentData = [
-    { name: 'Engineering', value: MOCK_JOBS_METRICS.byDepartment?.Engineering || 0, color: '#F95F62' },
-    { name: 'Marketing', value: MOCK_JOBS_METRICS.byDepartment?.Marketing || 0, color: '#22C55E' },
-    { name: 'Sales', value: MOCK_JOBS_METRICS.byDepartment?.Sales || 0, color: '#F59E0B' },
-    { name: 'HR', value: MOCK_JOBS_METRICS.byDepartment?.['Human Resources'] || 0, color: '#3B82F6' },
-    { name: 'Finance', value: MOCK_JOBS_METRICS.byDepartment?.Finance || 0, color: '#14B8A6' },
-    { name: 'Other', value: MOCK_JOBS_METRICS.byDepartment?.Other || 0, color: '#78716C' },
-  ]
+  const departmentData = Object.entries(jobsMetrics.byDepartment ?? {}).map(([name, value], i) => ({
+    name,
+    value,
+    color: DEPARTMENT_COLORS[i % DEPARTMENT_COLORS.length],
+  }))
 
   const metricCards = [
     {
       title: 'Active Jobs',
-      value: MOCK_OVERVIEW.activeJobs,
+      value: overview.activeJobs,
       icon: Briefcase,
       color: 'bg-accent-100 dark:bg-accent-900/30 text-accent-600 dark:text-accent-400',
     },
     {
       title: 'Total Candidates',
-      value: MOCK_OVERVIEW.totalCandidates,
+      value: overview.totalCandidates,
       icon: Users,
       color: 'bg-info-100 dark:bg-info-900/30 text-info-600 dark:text-info-400',
     },
     {
       title: 'Avg Time to Hire',
-      value: `${MOCK_TIME_TO_HIRE.average} days`,
+      value: `${timeToHire.average} days`,
       icon: Clock,
       color: 'bg-success-100 dark:bg-success-900/30 text-success-600 dark:text-success-400',
     },
     {
-      title: 'Offer Acceptance',
-      value: MOCK_JOBS_METRICS.offersExtended > 0 ? `${Math.round((MOCK_JOBS_METRICS.hired / MOCK_JOBS_METRICS.offersExtended) * 100)}%` : '0%',
+      title: 'Shortlist Rate',
+      value: overview.totalCandidates > 0 ? `${Math.round((overview.shortlisted / overview.totalCandidates) * 100)}%` : '0%',
       icon: Target,
       color: 'bg-warning-100 dark:bg-warning-900/30 text-warning-600 dark:text-warning-400',
     },
@@ -207,6 +177,12 @@ export function Analytics() {
         <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Recruitment metrics and insights</p>
       </div>
 
+      {error && (
+        <div role="alert" className="rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-body-sm text-error-700 dark:border-error-900 dark:bg-error-900/20 dark:text-error-300">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {metricCards.map((card, index) => (
           <Card key={index} hover variant="elevated" padding="md">
@@ -272,11 +248,11 @@ export function Analytics() {
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-accent-500" />
-                      <span className="text-body-sm text-ink-600 dark:text-ink-400">Average: {MOCK_TIME_TO_HIRE.average} days</span>
+                      <span className="text-body-sm text-ink-600 dark:text-ink-400">Average: {timeToHire.average} days</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-ink-400" />
-                      <span className="text-body-sm text-ink-600 dark:text-ink-400">Median: {MOCK_TIME_TO_HIRE.median} days</span>
+                      <span className="text-body-sm text-ink-600 dark:text-ink-400">Median: {timeToHire.median} days</span>
                     </div>
                   </div>
                 </div>
@@ -348,4 +324,12 @@ interface JobsMetrics {
   offersExtended: number
   hired: number
   byDepartment?: Record<string, number>
+}
+
+interface AnalyticsOverview {
+  activeJobs: number
+  totalCandidates: number
+  shortlisted: number
+  interviews: number
+  offers: number
 }

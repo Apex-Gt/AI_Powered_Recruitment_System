@@ -344,11 +344,11 @@ export const interviewApi = {
 }
 
 export const analyticsApi = {
-  getOverview: () => api.get<AnalyticsOverview>('/analytics/overview'),
-  getFunnel: () => api.get<FunnelData[]>('/analytics/funnel'),
-  getTimeToHire: () => api.get<TimeToHireData>('/analytics/time-to-hire'),
-  getAiMatchDistribution: () => api.get<AiMatchDistribution>('/analytics/ai-match-distribution'),
-  getJobsMetrics: () => api.get<JobsMetrics>('/analytics/jobs'),
+  getOverview: () => api.get<CommonResponse<AnalyticsOverview>>('/analytics/overview'),
+  getFunnel: () => api.get<CommonResponse<FunnelData[]>>('/analytics/funnel'),
+  getTimeToHire: () => api.get<CommonResponse<TimeToHireData>>('/analytics/time-to-hire'),
+  getAiMatchDistribution: () => api.get<CommonResponse<AiMatchDistribution>>('/analytics/ai-match-distribution'),
+  getJobsMetrics: () => api.get<CommonResponse<JobsMetrics>>('/analytics/jobs'),
 }
 
 export const userApi = {

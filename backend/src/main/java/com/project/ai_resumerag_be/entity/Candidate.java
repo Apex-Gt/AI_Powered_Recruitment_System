@@ -38,6 +38,9 @@ public class Candidate {
     @Column(nullable = false, updatable = false)
     private LocalDateTime appliedAt;
 
+    /** When {@link #status} last changed; used for time-to-hire analytics. */
+    private LocalDateTime statusChangedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "job_id", nullable = false)
     private Job job;
@@ -49,9 +52,17 @@ public class Candidate {
     @PrePersist
     protected void onCreate() {
         appliedAt = LocalDateTime.now();
+        statusChangedAt = appliedAt;
 
         if (status == null) {
             status = ApplicationStatus.APPLIED;
         }
+    }
+
+    public void setStatus(ApplicationStatus status) {
+        if (this.status != status) {
+            this.statusChangedAt = LocalDateTime.now();
+        }
+        this.status = status;
     }
 }
