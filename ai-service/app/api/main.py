@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.core.logging import get_logger, setup_logging
 from app.models.schemas import (
     CandidateProfile,
+    GradeAnswerRequest,
     HealthCheckResponse,
     IngestResumeEvent,
     MatchScore,
@@ -19,6 +20,8 @@ from app.models.schemas import (
     RankingResult,
     ScoreJobEvent,
 )
+from app.core.exceptions import LLMError
+from app.services.answer_grader import AnswerGrader
 from app.services.registry import get_embedding_service, get_qdrant_service, get_reranker_service
 from app.workflows.ingest_resume import ALL_FUNCTIONS, inngest_client
 
@@ -217,3 +220,14 @@ async def receive_rag_summary(summary: RAGSummary):
 @app.post("/api/v1/internal/ranking")
 async def receive_ranking(ranking: RankingResult):
     return {"status": "received", "job_id": ranking.job_id, "candidates": ranking.total_candidates}
+
+
+@app.post("/api/v1/assessments/grade")
+async def grade_assessment_answer(request: GradeAnswerRequest):
+    """Synchronously grade one code/essay answer; the Spring backend calls this when a candidate submits."""
+    try:
+        result = await AnswerGrader().grade(request)
+    except LLMError as e:
+        logger.error("answer_grading_failed", error=str(e))
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return {"status": "success", "message": "Answer graded", "data": result.to_wire()}

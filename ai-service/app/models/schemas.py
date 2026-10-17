@@ -256,3 +256,17 @@ class HealthCheckResponse(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     model_config = {"populate_by_name": True}
+
+
+class GradeAnswerRequest(CamelModel):
+    question: str = Field(min_length=1, max_length=8000)
+    answer: str = Field(max_length=50000)
+    question_type: Literal["CODE", "ESSAY"] = "CODE"
+    language: str | None = None
+    rubric: str | None = Field(default=None, max_length=4000)
+
+
+class GradeAnswerResult(CamelModel):
+    score: float = Field(ge=0, le=100)
+    feedback: str
+
