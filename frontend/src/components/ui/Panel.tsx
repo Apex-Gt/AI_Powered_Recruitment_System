@@ -32,7 +32,7 @@ export function Panel({
 
 export function PanelLink({ to, children }: { to: string; children: ReactNode }) {
   return (
-    <Link to={to} className="text-body-xs font-semibold text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">
+    <Link to={to} className="text-body-xs font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-300">
       {children}
     </Link>
   )
@@ -68,7 +68,7 @@ export function BarRows({
           <div className="relative h-6 rounded-sm bg-base-100 dark:bg-surface-dark-elevated">
             <div
               className="h-full rounded-sm transition-[width] duration-300"
-              style={{ width: `${(r.value / max) * 100}%`, minWidth: r.value ? 4 : 0, background: r.color ?? '#606c38' }}
+              style={{ width: `${(r.value / max) * 100}%`, minWidth: r.value ? 4 : 0, background: r.color ?? '#ff6000' }}
             />
             {marker && (
               <span

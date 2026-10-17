@@ -246,7 +246,7 @@ export function Candidates() {
                             {getInitials(c.candidateName)}
                           </span>
                           <span className="min-w-0">
-                            <span className="block truncate font-semibold text-ink-900 hover:text-brand-600 dark:text-ink-100 dark:hover:text-brand-300">{c.candidateName}</span>
+                            <span className="block truncate font-semibold text-ink-900 hover:text-brand-700 dark:text-ink-100 dark:hover:text-brand-300">{c.candidateName}</span>
                             <span className="block truncate text-body-xs text-ink-500 dark:text-ink-400">{c.candidateEmail}</span>
                           </span>
                         </Link>

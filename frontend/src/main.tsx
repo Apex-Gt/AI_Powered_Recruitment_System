@@ -24,13 +24,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               },
               success: {
                 iconTheme: {
-                  primary: '#10B981',
+                  primary: '#1f9d4a',
                   secondary: '#fff',
                 },
               },
               error: {
                 iconTheme: {
-                  primary: '#F43F5E',
+                  primary: '#d1203f',
                   secondary: '#fff',
                 },
               },

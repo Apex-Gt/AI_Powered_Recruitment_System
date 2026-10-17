@@ -26,9 +26,9 @@ import type { Candidate, CandidateStatus, Job } from '@/types'
 /** Left to right is the order candidates move through; Rejected sits apart at the end. */
 const COLUMNS: { status: CandidateStatus; label: string; hint: string; rule: string }[] = [
   { status: 'APPLIED', label: 'Applied', hint: 'New resumes', rule: 'bg-ink-300 dark:bg-ink-600' },
-  { status: 'SCREENING', label: 'Screening', hint: 'Being reviewed', rule: 'bg-clay-300' },
-  { status: 'SHORTLISTED', label: 'Shortlisted', hint: 'Worth a conversation', rule: 'bg-brand-400' },
-  { status: 'INTERVIEW', label: 'Interview', hint: 'Meeting the team', rule: 'bg-accent-500' },
+  { status: 'SCREENING', label: 'Screening', hint: 'Being reviewed', rule: 'bg-warning-400' },
+  { status: 'SHORTLISTED', label: 'Shortlisted', hint: 'Worth a conversation', rule: 'bg-brand-500' },
+  { status: 'INTERVIEW', label: 'Interview', hint: 'Meeting the team', rule: 'bg-info-500' },
   { status: 'SELECTED', label: 'Selected', hint: 'Offer stage', rule: 'bg-success-500' },
   { status: 'REJECTED', label: 'Rejected', hint: 'Not moving forward', rule: 'bg-error-400' },
 ]
@@ -219,7 +219,7 @@ export function Pipeline() {
 
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDraggingId(null)}>
         <div className="overflow-x-auto pb-3" aria-busy={isLoading}>
-          <div className="grid min-w-[1120px] grid-cols-6 gap-3">
+          <div className="grid min-w-[960px] grid-cols-6 gap-3">
             {COLUMNS.map((col) => (
               <Column key={col.status} column={col} candidates={byStatus[col.status]} />
             ))}

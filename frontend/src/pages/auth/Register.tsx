@@ -119,7 +119,7 @@ export function Register() {
           <li key={step.number} className="flex flex-1 items-center gap-3" aria-current={index === currentStep ? 'step' : undefined}>
             <span className={cn(
               'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-body-sm font-semibold transition-colors',
-              index <= currentStep ? 'bg-gradient-to-br from-accent-600 to-brand-500 text-white' : 'bg-base-100 text-ink-500 dark:bg-base-700'
+              index <= currentStep ? 'bg-brand-500 text-[#1c1917]' : 'bg-base-100 text-ink-500 dark:bg-base-700'
             )}>
               {index < currentStep ? <Check className="h-4 w-4" aria-hidden="true" /> : step.number}
             </span>

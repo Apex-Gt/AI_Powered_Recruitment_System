@@ -18,7 +18,7 @@ export function FormSection({
     <section className="card !p-0 overflow-hidden" aria-labelledby={`sec-${title.replace(/\s+/g, '-').toLowerCase()}`}>
       <header className="flex items-start justify-between gap-3 border-b border-[var(--color-border)] px-6 py-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-300">
+          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">
             <Icon className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>

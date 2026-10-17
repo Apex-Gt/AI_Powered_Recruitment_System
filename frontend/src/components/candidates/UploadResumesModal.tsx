@@ -186,7 +186,7 @@ export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs
             dragging ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20' : 'border-[var(--color-border-hover)] bg-base-50 dark:bg-surface-dark-elevated'
           )}
         >
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-100 text-brand-600 dark:bg-brand-900/40 dark:text-brand-200">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200">
             <UploadCloud className="h-5 w-5" aria-hidden="true" />
           </span>
           <p className="text-body-sm font-semibold text-ink-900 dark:text-ink-100">Drag and drop resumes here</p>
@@ -229,7 +229,7 @@ export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs
                       <FileText className="h-4 w-4 flex-shrink-0 text-ink-400" aria-hidden="true" />
                       <span className="min-w-0 flex-1 truncate text-body-xs font-medium text-ink-600 dark:text-ink-300">{r.file.name}</span>
                       <span className="text-body-xs text-ink-400">{(r.file.size / 1024 / 1024).toFixed(1)} MB</span>
-                      {r.status === 'uploading' && <Loader2 className="h-4 w-4 animate-spin text-brand-600" aria-label="Uploading" />}
+                      {r.status === 'uploading' && <Loader2 className="h-4 w-4 animate-spin text-brand-700" aria-label="Uploading" />}
                       {r.status === 'done' && <CheckCircle2 className="h-4 w-4 text-success-600" aria-label="Uploaded" />}
                       {r.status !== 'uploading' && r.status !== 'done' && (
                         <button

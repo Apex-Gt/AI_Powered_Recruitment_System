@@ -455,7 +455,7 @@ export function CreateJob() {
                     max={100}
                     value={draftWeight}
                     onChange={(e) => setDraftWeight(parseInt(e.target.value) || 1)}
-                    className="h-2 flex-1 cursor-pointer accent-[#7C4DFF]"
+                    className="h-2 flex-1 cursor-pointer accent-[#ff6000]"
                   />
                   <span className="w-10 text-right text-body-sm font-bold text-ink-900 dark:text-ink-100">{draftWeight}%</span>
                 </div>

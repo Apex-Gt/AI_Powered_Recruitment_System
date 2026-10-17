@@ -44,7 +44,8 @@ export function Dashboard() {
   const [range, setRange] = useState<RangeDays>(30)
   const d = useDashboardData(range)
   const { grid, tick, tooltipStyle, series } = useChartTheme()
-  const [olive, clay] = series
+  const [olive] = series
+  const selectedColor = '#1f9d4a'
 
   const firstName = user?.userName?.split(' ')[0] || 'there'
   const maxFunnel = Math.max(1, ...d.funnel.map((f) => f.count))
@@ -116,7 +117,7 @@ export function Dashboard() {
                   <div className="h-7 overflow-hidden rounded-sm bg-base-100 dark:bg-surface-dark-elevated">
                     <div
                       className="h-full rounded-sm transition-[width] duration-300"
-                      style={{ width: `${(f.count / maxFunnel) * 100}%`, minWidth: f.count ? 6 : 0, background: last ? clay : olive }}
+                      style={{ width: `${(f.count / maxFunnel) * 100}%`, minWidth: f.count ? 6 : 0, background: last ? selectedColor : olive }}
                     />
                   </div>
                   <span className="text-right text-body-sm tabular">
@@ -201,7 +202,7 @@ export function Dashboard() {
           action={
             <div className="flex items-center gap-4 text-body-xs text-ink-700 dark:text-ink-300">
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: olive }} />Applied</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: clay }} />Shortlisted</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: series[1] }} />Shortlisted</span>
             </div>
           }
         >
@@ -219,7 +220,7 @@ export function Dashboard() {
                 <YAxis allowDecimals={false} tick={{ fill: tick, fontSize: 12 }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Area type="monotone" dataKey="applied" name="Applied" stroke={olive} strokeWidth={2.5} fill="url(#gApplied)" />
-                <Area type="monotone" dataKey="shortlisted" name="Shortlisted" stroke={clay} strokeWidth={2.5} fill="none" />
+                <Area type="monotone" dataKey="shortlisted" name="Shortlisted" stroke={series[1]} strokeWidth={2.5} fill="none" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

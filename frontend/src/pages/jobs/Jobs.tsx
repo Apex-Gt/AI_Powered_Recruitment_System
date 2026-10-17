@@ -266,7 +266,7 @@ export function Jobs() {
                     <TableRow key={job.id}>
                       <TableCell>
                         <Link to={`/jobs/${job.id}`} className="block no-underline">
-                          <p className="font-semibold text-ink-900 hover:text-brand-600 dark:text-ink-100 dark:hover:text-brand-300">{job.title}</p>
+                          <p className="font-semibold text-ink-900 hover:text-brand-700 dark:text-ink-100 dark:hover:text-brand-300">{job.title}</p>
                           <p className="mt-0.5 text-body-xs capitalize text-ink-500 dark:text-ink-400">
                             {job.workMode.toLowerCase()} · {job.employmentType.replace('_', ' ').toLowerCase()}
                           </p>
@@ -289,7 +289,7 @@ export function Jobs() {
                           <Users className="h-3.5 w-3.5 text-ink-400" aria-hidden="true" />
                           {job._count?.candidates ?? 0}
                           {(job._count?.shortlisted ?? 0) > 0 && (
-                            <span className="text-body-xs text-brand-600 dark:text-brand-300">({job._count?.shortlisted} shortlisted)</span>
+                            <span className="text-body-xs text-brand-700 dark:text-brand-300">({job._count?.shortlisted} shortlisted)</span>
                           )}
                         </span>
                       </TableCell>

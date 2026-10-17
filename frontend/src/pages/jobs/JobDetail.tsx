@@ -228,8 +228,8 @@ export function JobDetail() {
                     <p className="mt-0.5 text-body-xs text-ink-600 dark:text-ink-400">A higher weight counts for more in a candidate's match score.</p>
                   </div>
                   {job.skills.length === 0 && <p className="text-body-sm text-ink-600 dark:text-ink-400">No skills were added to this job.</p>}
-                  <SkillGroup title="Required" skills={required} color="#606c38" />
-                  <SkillGroup title="Preferred" skills={preferred} color="#dda15e" />
+                  <SkillGroup title="Required" skills={required} color="#ff6000" />
+                  <SkillGroup title="Preferred" skills={preferred} color="#ffa468" />
                 </section>
               </div>
             )}
@@ -265,7 +265,7 @@ export function JobDetail() {
           </div>
         </div>
 
-        <aside className="space-y-6 lg:sticky lg:top-40 lg:self-start" aria-label="Role facts">
+        <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start" aria-label="Role facts">
           <Panel title="Role facts">
             <dl className="-my-2.5 divide-y divide-[var(--color-border)]">
               <Fact label="Experience">{job.experienceRequired}+ years</Fact>

@@ -60,7 +60,7 @@ function StageTrack({ status, canEdit, busy, onMove }: { status: CandidateStatus
                 className={cn(
                   'flex h-9 items-center rounded-lg px-3 text-body-sm font-semibold transition-colors disabled:cursor-default',
                   isCurrent
-                    ? 'bg-brand-500 text-[#fffef9]'
+                    ? 'bg-brand-500 text-[#1c1917]'
                     : reached
                       ? 'bg-brand-100 text-brand-700 hover:bg-brand-200 dark:bg-brand-900/60 dark:text-brand-200'
                       : 'border border-[var(--color-border-hover)] text-ink-600 hover:bg-base-100 dark:text-ink-400 dark:hover:bg-surface-dark-elevated',
@@ -495,7 +495,7 @@ export function CandidateProfile() {
           </div>
         </div>
 
-        <aside className="space-y-6 lg:sticky lg:top-40 lg:self-start" aria-label="Match summary">
+        <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start" aria-label="Match summary">
           <Panel title="Match with this job" note={score !== undefined ? 'Scored by the AI against the job description' : undefined}>
             {score === undefined ? (
               <div className="text-center">

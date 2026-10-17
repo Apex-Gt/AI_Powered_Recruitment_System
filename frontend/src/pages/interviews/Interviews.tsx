@@ -350,7 +350,7 @@ export function Interviews() {
                           </p>
                         )}
                         {interview.meetingLink && interview.status === 'SCHEDULED' && (
-                          <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-body-xs font-semibold text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">
+                          <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-body-xs font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-300">
                             Open meeting link
                           </a>
                         )}
