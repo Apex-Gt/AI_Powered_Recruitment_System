@@ -333,14 +333,15 @@ export const assessmentApi = {
 }
 
 export const interviewApi = {
-  getAll: (params?: InterviewListParams) => api.get<PaginatedResponse<Interview>>('/interviews', params as Record<string, unknown>),
-  getById: (id: string) => api.get<Interview>(`/interviews/${id}`),
-  schedule: (data: ScheduleInterviewRequest) => api.post<Interview>('/interviews', data),
-  update: (id: string, data: Partial<Interview>) => api.put<Interview>(`/interviews/${id}`, data),
-  delete: (id: string) => api.delete(`/interviews/${id}`),
-  submitFeedback: (id: string, feedback: InterviewFeedback) =>
-    api.post(`/interviews/${id}/feedback`, feedback),
-  cancel: (id: string) => api.post(`/interviews/${id}/cancel`, {}),
+  getAll: (params?: InterviewListParams) =>
+    api.get<CommonResponse<PaginatedResponse<Interview>>>('/interviews', params as Record<string, unknown>).then((res) => res.data),
+  getById: (id: string) => api.get<CommonResponse<Interview>>(`/interviews/${id}`).then((res) => res.data),
+  schedule: (data: ScheduleInterviewRequest) => api.post<CommonResponse<Interview>>('/interviews', data).then((res) => res.data),
+  update: (id: string, data: ScheduleInterviewRequest) => api.put<CommonResponse<Interview>>(`/interviews/${id}`, data).then((res) => res.data),
+  delete: (id: string) => api.delete<CommonResponse<void>>(`/interviews/${id}`),
+  submitFeedback: (id: string, feedback: SubmitInterviewFeedbackRequest) =>
+    api.post<CommonResponse<Interview>>(`/interviews/${id}/feedback`, feedback).then((res) => res.data),
+  cancel: (id: string) => api.post<CommonResponse<Interview>>(`/interviews/${id}/cancel`, {}).then((res) => res.data),
 }
 
 export const analyticsApi = {
@@ -494,6 +495,14 @@ interface CreateRecruiterRequest {
   email: string
   phoneNumber: string
   password: string
+}
+
+interface SubmitInterviewFeedbackRequest {
+  rating: number
+  strengths: string[]
+  weaknesses: string[]
+  recommendation: InterviewFeedback['recommendation']
+  notes: string
 }
 
 interface ScheduleInterviewRequest {

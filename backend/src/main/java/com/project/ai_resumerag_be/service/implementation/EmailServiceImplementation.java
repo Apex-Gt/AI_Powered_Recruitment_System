@@ -12,6 +12,10 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @Service
 @RequiredArgsConstructor
@@ -54,6 +58,69 @@ public class EmailServiceImplementation implements EmailService {
         } catch (MessagingException e) {
             log.error("Failed to build email for {}: {}", toEmail, e.getMessage(), e);
         }
+    }
+
+    @Async
+    @Override
+    public void sendInterviewNotice(String toEmail, String candidateName, String jobTitle, String companyName, String kind,
+                                    String interviewType, LocalDateTime scheduledAt, int durationMinutes, String meetingLink) {
+        if (!isMailConfigured()) {
+            log.warn("Email not configured. Skipping interview {} email to: {}", kind, toEmail);
+            return;
+        }
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(toEmail);
+            helper.setSubject("Interview " + kind + " - " + jobTitle + " at " + companyName);
+            helper.setText(buildInterviewEmail(candidateName, jobTitle, companyName, kind, interviewType, scheduledAt, durationMinutes, meetingLink), true);
+            mailSender.send(message);
+            log.info("Interview {} email sent to: {}", kind, toEmail);
+        } catch (MailAuthenticationException e) {
+            log.error("Email authentication failed. Check MAIL_USERNAME and MAIL_PASSWORD.", e);
+        } catch (MailSendException | MessagingException e) {
+            log.error("Failed to send interview email to {}: {}", toEmail, e.getMessage(), e);
+        }
+    }
+
+    private String buildInterviewEmail(String candidateName, String jobTitle, String companyName, String kind,
+                                       String interviewType, LocalDateTime scheduledAt, int durationMinutes, String meetingLink) {
+        String intro = switch (kind) {
+            case "cancelled" -> "Your interview for <strong>%s</strong> at <strong>%s</strong> has been cancelled. We will be in touch if it is rebooked.";
+            case "rescheduled" -> "Your interview for <strong>%s</strong> at <strong>%s</strong> has been rescheduled. The new details are below.";
+            default -> "You have been invited to an interview for <strong>%s</strong> at <strong>%s</strong>.";
+        };
+        String details = "cancelled".equals(kind) ? "" : """
+                <div style="background: #fff; border: 1px solid #dee2e6; border-radius: 6px; padding: 20px; margin: 20px 0;">
+                    <p style="margin: 4px 0;"><strong>When:</strong> %s</p>
+                    <p style="margin: 4px 0;"><strong>Duration:</strong> %d minutes</p>
+                    <p style="margin: 4px 0;"><strong>Type:</strong> %s</p>
+                    %s
+                </div>
+                """.formatted(
+                scheduledAt.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy 'at' HH:mm")),
+                durationMinutes,
+                HtmlUtils.htmlEscape(interviewType),
+                meetingLink == null || meetingLink.isBlank() ? ""
+                        : "<p style=\"margin: 4px 0;\"><strong>Link:</strong> " + HtmlUtils.htmlEscape(meetingLink) + "</p>");
+        return """
+                <!DOCTYPE html>
+                <html>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <div style="background: #f8f9fa; border-radius: 8px; padding: 30px;">
+                        <p>Hi <strong>%s</strong>,</p>
+                        <p>%s</p>
+                        %s
+                        <p style="color: #6c757d; font-size: 13px;">%s</p>
+                    </div>
+                </body>
+                </html>
+                """.formatted(
+                HtmlUtils.htmlEscape(candidateName),
+                intro.formatted(HtmlUtils.htmlEscape(jobTitle), HtmlUtils.htmlEscape(companyName)),
+                details,
+                HtmlUtils.htmlEscape(companyName));
     }
 
     private boolean isMailConfigured() {

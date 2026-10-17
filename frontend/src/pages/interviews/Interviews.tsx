@@ -3,15 +3,14 @@ import { useAuth } from '@/context/AuthContext'
 import { interviewApi, jobApi, candidateApi } from '@/utils/api'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Input'
+import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/Table'
 import { StatusBadge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
-import { Plus, Edit, Trash2, Calendar, Search, Video, Phone, MapPin, XCircle, Code2 } from 'lucide-react'
+import { Plus, Edit, Trash2, Calendar, Search, Video, Phone, MapPin, XCircle, Code2, MessageSquare } from 'lucide-react'
 import { formatDate, cn } from '@/utils/helpers'
-import type { Interview, Job, Candidate } from '@/types'
+import type { Interview, InterviewFeedback, Job, Candidate } from '@/types'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -39,6 +38,16 @@ const interviewTypes = [
 ]
 
 
+const EMPTY_FEEDBACK = {
+  rating: '3',
+  recommendation: 'MAYBE' as InterviewFeedback['recommendation'],
+  strengths: '',
+  weaknesses: '',
+  notes: '',
+}
+
+const splitLines = (value: string) => value.split('\n').map((v) => v.trim()).filter(Boolean)
+
 export function Interviews() {
   const { hasRole } = useAuth()
   const [interviews, setInterviews] = useState<Interview[]>([])
@@ -52,6 +61,9 @@ export function Interviews() {
   const [isEditing, setIsEditing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming')
+  const [feedbackFor, setFeedbackFor] = useState<Interview | null>(null)
+  const [feedbackForm, setFeedbackForm] = useState(EMPTY_FEEDBACK)
+  const [isSavingFeedback, setIsSavingFeedback] = useState(false)
 
   const {
     register,
@@ -144,6 +156,39 @@ export function Interviews() {
       toast.error(message)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const openFeedbackModal = (interview: Interview) => {
+    const existing = interview.feedback
+    setFeedbackFor(interview)
+    setFeedbackForm(existing ? {
+      rating: String(existing.rating),
+      recommendation: existing.recommendation,
+      strengths: existing.strengths.join('\n'),
+      weaknesses: existing.weaknesses.join('\n'),
+      notes: existing.notes ?? '',
+    } : EMPTY_FEEDBACK)
+  }
+
+  const submitFeedback = async () => {
+    if (!feedbackFor) return
+    setIsSavingFeedback(true)
+    try {
+      const updated = await interviewApi.submitFeedback(feedbackFor.id, {
+        rating: Number(feedbackForm.rating),
+        recommendation: feedbackForm.recommendation,
+        strengths: splitLines(feedbackForm.strengths),
+        weaknesses: splitLines(feedbackForm.weaknesses),
+        notes: feedbackForm.notes,
+      })
+      setInterviews((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
+      toast.success('Feedback saved')
+      setFeedbackFor(null)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save feedback')
+    } finally {
+      setIsSavingFeedback(false)
     }
   }
 
@@ -353,9 +398,16 @@ export function Interviews() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => openEditModal(interview)} title="Edit">
-                            <Edit className="w-4 h-4" />
-                          </Button>
+                          {interview.status === 'SCHEDULED' && (
+                            <Button variant="ghost" size="sm" onClick={() => openEditModal(interview)} title="Edit">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {interview.status !== 'CANCELLED' && (
+                            <Button variant="ghost" size="sm" onClick={() => openFeedbackModal(interview)} title={interview.feedback ? 'Edit feedback' : 'Add feedback'}>
+                              <MessageSquare className={cn('w-4 h-4', interview.feedback && 'text-success-500')} />
+                            </Button>
+                          )}
                           {interview.status === 'SCHEDULED' && (
                             <>
                               <Button variant="ghost" size="sm" onClick={() => handleCancel(interview.id)} title="Cancel" className="text-warning-500">
@@ -387,6 +439,7 @@ export function Interviews() {
             <CardContent className="space-y-5">
               <Select
                 label="Candidate *"
+                disabled={isEditing}
                 options={candidates.map((c) => ({ value: c.id, label: `${c.candidateName} (${c.jobTitle})` }))}
                 placeholder="Select candidate"
                 error={errors.candidateId?.message}
@@ -453,6 +506,50 @@ export function Interviews() {
             </Button>
           </CardFooter>
         </form>
+      </Modal>
+      <Modal isOpen={!!feedbackFor} onClose={() => setFeedbackFor(null)} title="Interview Feedback" size="lg">
+        <div className="space-y-5">
+          <p className="text-body-sm text-ink-500 dark:text-ink-400">
+            {feedbackFor?.candidateName} - {feedbackFor?.jobTitle}
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <Select
+              label="Rating *"
+              value={feedbackForm.rating}
+              onChange={(e) => setFeedbackForm((f) => ({ ...f, rating: e.target.value }))}
+              options={[1, 2, 3, 4, 5].map((n) => ({ value: String(n), label: `${n} / 5` }))}
+            />
+            <Select
+              label="Recommendation *"
+              value={feedbackForm.recommendation}
+              onChange={(e) => setFeedbackForm((f) => ({ ...f, recommendation: e.target.value as InterviewFeedback['recommendation'] }))}
+              options={[
+                { value: 'HIRE', label: 'Hire' },
+                { value: 'MAYBE', label: 'Maybe' },
+                { value: 'NO_HIRE', label: 'No hire' },
+              ]}
+            />
+          </div>
+          <Textarea
+            label="Strengths (one per line)"
+            value={feedbackForm.strengths}
+            onChange={(e) => setFeedbackForm((f) => ({ ...f, strengths: e.target.value }))}
+          />
+          <Textarea
+            label="Weaknesses (one per line)"
+            value={feedbackForm.weaknesses}
+            onChange={(e) => setFeedbackForm((f) => ({ ...f, weaknesses: e.target.value }))}
+          />
+          <Textarea
+            label="Notes"
+            value={feedbackForm.notes}
+            onChange={(e) => setFeedbackForm((f) => ({ ...f, notes: e.target.value }))}
+          />
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="ghost" onClick={() => setFeedbackFor(null)}>Cancel</Button>
+            <Button type="button" loading={isSavingFeedback} onClick={submitFeedback}>Save Feedback</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   )
