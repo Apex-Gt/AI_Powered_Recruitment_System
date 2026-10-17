@@ -2,3 +2,9 @@ backend/.env
 backend/target/
 backend/*.log
 frontend/node_modules/
+
+# Runtime artifacts
+backend/uploads/
+hs_err_pid*.log
+replay_pid*.log
+ai-service/.env
