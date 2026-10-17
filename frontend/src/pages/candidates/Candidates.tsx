@@ -17,12 +17,18 @@ import {
   StatusTabs,
   TableSkeleton,
 } from '@/components/ui/ListPage'
-import { Briefcase, ChevronRight, MapPin, Upload, Users } from 'lucide-react'
+import { Briefcase, ChevronRight, MapPin, Pencil, Trash2, Upload, Users } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { ConfirmModal } from '@/components/ui/Modal'
+import { EditCandidateModal } from '@/components/candidates/EditCandidateModal'
 import { UploadResumesModal } from '@/components/candidates/UploadResumesModal'
 import { formatDate, getInitials } from '@/utils/helpers'
 import type { Candidate, CandidateStatus, Job } from '@/types'
 
 const PAGE_SIZE = 10
+
+const iconBtn =
+  'flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-base-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-surface-dark-elevated dark:hover:text-ink-100'
 
 const STATUS_TABS: { value: string; label: string }[] = [
   { value: '', label: 'All' },
@@ -49,6 +55,9 @@ export function Candidates() {
   const isAdmin = hasRole(['ADMIN'])
   const canEdit = hasRole(['ADMIN', 'RECRUITER'])
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [editing, setEditing] = useState<Candidate | null>(null)
+  const [deleting, setDeleting] = useState<Candidate | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const page = parseInt(searchParams.get('page') || '1')
   const status = (searchParams.get('status') || '') as CandidateStatus | ''
@@ -113,6 +122,23 @@ export function Candidates() {
     }
   }, [page, status, jobId, urlSearch, reloadKey])
 
+  const confirmDelete = async () => {
+    if (!deleting) return
+    setIsDeleting(true)
+    try {
+      await candidateApi.delete(deleting.id)
+      toast.success(`${deleting.candidateName} deleted`)
+      setDeleting(null)
+      // Deleting the last row of a page would leave an empty page, so step back one
+      if (candidates.length === 1 && page > 1) updateParams({ page: String(page - 1) }, false)
+      else setReloadKey((k) => k + 1)
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Failed to delete candidate')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const filtered = Boolean(urlSearch || status || jobId)
 
   return (
@@ -136,6 +162,21 @@ export function Candidates() {
         onUploaded={() => setReloadKey((k) => k + 1)}
         jobs={jobs.filter((j) => j.status !== 'CLOSED').map((j) => ({ id: j.id, title: j.title }))}
       />
+
+      <EditCandidateModal candidate={editing} onClose={() => setEditing(null)} onSaved={() => setReloadKey((k) => k + 1)} />
+
+      <ConfirmModal
+        isOpen={deleting !== null}
+        onClose={() => setDeleting(null)}
+        onConfirm={confirmDelete}
+        title="Delete candidate?"
+        message={`Delete ${deleting?.candidateName ?? 'this candidate'}? This can't be undone.`}
+        confirmText="Delete"
+        variant="danger"
+        loading={isDeleting}
+      >
+        Their uploaded resume and AI analysis will be removed too.
+      </ConfirmModal>
 
       {error && <ErrorBanner message={error} onRetry={() => setReloadKey((k) => k + 1)} />}
 
@@ -194,7 +235,7 @@ export function Candidates() {
                     <TableHead>Status</TableHead>
                     <TableHead>Applied</TableHead>
                     <TableHead className="text-right">
-                      <span className="sr-only">Open profile</span>
+                      <span className="sr-only">Actions</span>
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -231,13 +272,26 @@ export function Candidates() {
                         <span className="text-body-sm text-ink-500 dark:text-ink-400">{formatDate(c.appliedAt ?? c.createdAt ?? '')}</span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Link
-                          to={`/candidates/${c.id}`}
-                          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-base-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-surface-dark-elevated dark:hover:text-ink-100"
-                          aria-label={`Open ${c.candidateName}'s profile`}
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Link>
+                        <div className="flex items-center justify-end gap-0.5">
+                          {canEdit && (
+                            <>
+                              <button type="button" className={iconBtn} aria-label={`Edit ${c.candidateName}`} onClick={() => setEditing(c)}>
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                className={`${iconBtn} hover:!bg-error-50 hover:!text-error-600 dark:hover:!bg-error-900/20`}
+                                aria-label={`Delete ${c.candidateName}`}
+                                onClick={() => setDeleting(c)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                          <Link to={`/candidates/${c.id}`} className={iconBtn} aria-label={`Open ${c.candidateName}'s profile`}>
+                            <ChevronRight className="h-4 w-4" />
+                          </Link>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

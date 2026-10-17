@@ -8,8 +8,10 @@ import { StatusBadge } from '@/components/ui/Badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/Table'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { Edit, ArrowLeft, Briefcase, MapPin, Calendar, DollarSign, Users, Target, ChevronRight, Plus } from 'lucide-react'
+import { Edit, Trash2, ArrowLeft, Briefcase, MapPin, Calendar, DollarSign, Users, Target, ChevronRight, Plus } from 'lucide-react'
 import { MatchScore } from '@/components/ui/ListPage'
+import { ConfirmModal } from '@/components/ui/Modal'
+import toast from 'react-hot-toast'
 import { UploadResumesModal } from '@/components/candidates/UploadResumesModal'
 import { formatDate, formatCurrency, getInitials } from '@/utils/helpers'
 import type { Job, Candidate } from '@/types'
@@ -23,6 +25,23 @@ export function JobDetail() {
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'candidates'>('overview')
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (!job) return
+    setIsDeleting(true)
+    try {
+      if (hasRole(['ADMIN'])) await jobApi.deleteForAdmin(job.id)
+      else await jobApi.deleteForRecruiter(job.id)
+      toast.success('Job deleted')
+      navigate('/jobs')
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Failed to delete job')
+      setIsDeleting(false)
+      setConfirmDeleteOpen(false)
+    }
+  }
 
   const reloadCandidates = async () => {
     if (!id) return
@@ -103,13 +122,34 @@ export function JobDetail() {
           </div>
         </div>
         {hasRole(['ADMIN', 'RECRUITER']) && (
-          <Link to={`/jobs/${job.id}/edit`}>
-            <Button variant="secondary">
-              <Edit className="w-4 h-4 mr-2" />
-              Edit
+          <div className="flex gap-2">
+            <Link to={`/jobs/${job.id}/edit`}>
+              <Button variant="secondary">
+                <Edit className="w-4 h-4 mr-2" />
+                Edit
+              </Button>
+            </Link>
+            <Button variant="danger" onClick={() => setConfirmDeleteOpen(true)}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete
             </Button>
-          </Link>
+          </div>
         )}
+
+        <ConfirmModal
+          isOpen={confirmDeleteOpen}
+          onClose={() => setConfirmDeleteOpen(false)}
+          onConfirm={handleDelete}
+          title="Delete job?"
+          message={`Delete "${job.title}"? This can't be undone.`}
+          confirmText="Delete job"
+          variant="danger"
+          loading={isDeleting}
+        >
+          {candidates.length > 0
+            ? `The ${candidates.length} candidate${candidates.length === 1 ? '' : 's'} who applied, with their resumes, will be deleted too.`
+            : 'Any candidates who applied, with their resumes, will be deleted too.'}
+        </ConfirmModal>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

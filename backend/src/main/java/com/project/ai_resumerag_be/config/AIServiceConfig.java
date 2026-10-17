@@ -8,7 +8,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Configuration
 public class AIServiceConfig {
 
-    @Value("${ai-service.base-url:http://localhost:8001}")
+    @Value("${ai-service.base-url:http://localhost:8000}")
     private String aiServiceBaseUrl;
 
     @Value("${ai-service.timeout:300000}")

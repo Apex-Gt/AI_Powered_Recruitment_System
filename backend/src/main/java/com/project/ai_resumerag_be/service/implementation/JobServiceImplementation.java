@@ -17,6 +17,7 @@ import com.project.ai_resumerag_be.mapper.JobMapper;
 import com.project.ai_resumerag_be.mapper.JobSkillMapper;
 import com.project.ai_resumerag_be.repository.JobRepository;
 import com.project.ai_resumerag_be.repository.SkillRepository;
+import com.project.ai_resumerag_be.service.CandidateService;
 import com.project.ai_resumerag_be.service.JobService;
 import com.project.ai_resumerag_be.service.security.CustomUserDetails;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,7 @@ public class JobServiceImplementation implements JobService {
     private final SkillRepository skillRepository;
     private final JobSkillMapper jobSkillMapper;
     private final JobMapper jobMapper;
+    private final CandidateService candidateService;
 
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -246,6 +248,25 @@ public class JobServiceImplementation implements JobService {
         }
     }
 
+    /**
+     * Makes the job's skills match the request. Skills the job already has are updated in place (inserting
+     * a replacement row first would violate the unique (job, skill) constraint); the rest are added or removed.
+     */
+    private void replaceSkills(Job job, List<JobSkillRequest> skillRequests) {
+        List<JobSkill> wanted = buildJobSkills(job, skillRequests);
+        java.util.Map<UUID, JobSkill> wantedBySkill = new java.util.LinkedHashMap<>();
+        wanted.forEach(js -> wantedBySkill.put(js.getSkill().getId(), js));
+
+        job.getSkills().removeIf(existing -> !wantedBySkill.containsKey(existing.getSkill().getId()));
+
+        for (JobSkill existing : job.getSkills()) {
+            JobSkill update = wantedBySkill.remove(existing.getSkill().getId());
+            existing.setType(update.getType());
+            existing.setWeight(update.getWeight());
+        }
+        job.getSkills().addAll(wantedBySkill.values());
+    }
+
     private void updateJobFields(Job job, JobRequest request) {
         if (request.getTitle() != null) {
             job.setTitle(request.getTitle());
@@ -289,7 +310,10 @@ public class JobServiceImplementation implements JobService {
         if (request.getStatus() != null) {
             job.setStatus(request.getStatus());
         }
-        // Cannot change: companyId, createdBy, createdAt, skills (use updateJobSkills endpoint)
+        if (request.getSkills() != null && !request.getSkills().isEmpty()) {
+            replaceSkills(job, request.getSkills());
+        }
+        // Cannot change: companyId, createdBy, createdAt
     }
 
     @Transactional
@@ -309,7 +333,9 @@ public class JobServiceImplementation implements JobService {
                 .orElseThrow(() -> new ResourceNotFoundException("Job not found"));
 
         validateSalary(request.getMinimumSalary(), request.getMaximumSalary());
-        validateApplicationDeadline(request.getApplicationDeadline());
+        if (!java.util.Objects.equals(request.getApplicationDeadline(), job.getApplicationDeadline())) {
+            validateApplicationDeadline(request.getApplicationDeadline());
+        }
 
         updateJobFields(job, request);
 
@@ -347,7 +373,9 @@ public class JobServiceImplementation implements JobService {
         }
 
         validateSalary(request.getMinimumSalary(), request.getMaximumSalary());
-        validateApplicationDeadline(request.getApplicationDeadline());
+        if (!java.util.Objects.equals(request.getApplicationDeadline(), job.getApplicationDeadline())) {
+            validateApplicationDeadline(request.getApplicationDeadline());
+        }
 
         updateJobFields(job, request);
 
@@ -378,6 +406,7 @@ public class JobServiceImplementation implements JobService {
         Job job = jobRepository.findByIdAndCompany(jobId, user.getCompany())
                 .orElseThrow(() -> new ResourceNotFoundException("Job not found"));
 
+        candidateService.deleteCandidatesOfJob(job.getId());
         jobRepository.delete(job);
 
         return CommonResponse.builder()
@@ -411,6 +440,7 @@ public class JobServiceImplementation implements JobService {
                     .orElseThrow(() -> new ResourceNotFoundException("Job not found"));
         }
 
+        candidateService.deleteCandidatesOfJob(job.getId());
         jobRepository.delete(job);
 
         return CommonResponse.builder()
@@ -446,10 +476,7 @@ public class JobServiceImplementation implements JobService {
             throw new IllegalArgumentException("At least one skill is required");
         }
 
-        // Clear existing skills and add new ones
-        job.getSkills().clear();
-        List<JobSkill> skills = buildJobSkills(job, skillRequests);
-        job.getSkills().addAll(skills);
+        replaceSkills(job, skillRequests);
 
         job = jobRepository.save(job);
 

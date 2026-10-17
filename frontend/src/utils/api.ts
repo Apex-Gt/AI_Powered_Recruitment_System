@@ -258,6 +258,9 @@ export const candidateApi = {
     const response = await api.get<CommonResponse<CandidateResponse>>(`/recruiter/candidates/${id}`)
     return response.data
   },
+  update: (id: string, data: { candidateName: string; candidateEmail: string; phoneNumber?: string; location?: string }) =>
+    api.put<CommonResponse<CandidateResponse>>(`/recruiter/candidates/${id}`, data),
+  delete: (id: string) => api.delete<CommonResponse<void>>(`/recruiter/candidates/${id}`),
   scoreJob: (candidateId: string, jobId: string) =>
     api.post<CommonResponse<void>>(`/recruiter/candidates/${candidateId}/score-job/${jobId}`, {}),
   generateRAGSummary: (candidateId: string, jobId: string) =>

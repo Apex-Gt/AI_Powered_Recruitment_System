@@ -1,9 +1,11 @@
 package com.project.ai_resumerag_be.service;
 
 import com.project.ai_resumerag_be.dto.ai.AIServiceResponse;
+import com.project.ai_resumerag_be.dto.ai.JobDescription;
 import com.project.ai_resumerag_be.dto.ai.MatchScore;
 import com.project.ai_resumerag_be.dto.ai.RAGSummary;
 import com.project.ai_resumerag_be.dto.ai.RankingResult;
+import com.project.ai_resumerag_be.dto.request.CandidateUpdateRequest;
 import com.project.ai_resumerag_be.dto.request.CandidateUploadRequest;
 import com.project.ai_resumerag_be.dto.response.CandidateResponse;
 import com.project.ai_resumerag_be.entity.Candidate;
@@ -34,4 +36,13 @@ public interface CandidateService {
     Mono<AIServiceResponse<RankingResult>> getRanking(UUID jobId);
 
     Mono<AIServiceResponse<Void>> healthCheck();
+
+    JobDescription getJobDescription(UUID jobId);
+
+    CandidateResponse updateCandidate(UUID candidateId, CandidateUpdateRequest request);
+
+    void deleteCandidate(UUID candidateId);
+
+    /** Removes every candidate of a job, with their resumes, stored files and AI results. Used when the job is deleted. */
+    void deleteCandidatesOfJob(UUID jobId);
 }

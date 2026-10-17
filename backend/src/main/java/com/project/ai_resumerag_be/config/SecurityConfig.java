@@ -1,5 +1,6 @@
 package com.project.ai_resumerag_be.config;
 
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,6 +31,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -62,10 +64,19 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
+                        // Error dispatches (/error) carry no JWT; without this, any 5xx/4xx from a
+                        // controller is rewritten to 401 and the frontend logs the user out.
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/auth/**","/company/register/**"
                         ).permitAll()
+                        // Server-to-server endpoints used by the AI service (X-API-Key, see ApiKeyAuthenticationFilter)
+                        .requestMatchers("/ai/**", "/candidates/*/profile", "/jobs/*/description").hasRole("SERVICE")
                         .anyRequest().authenticated())
+                .addFilterBefore(
+                        apiKeyAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                )
                 .addFilterBefore(
                         jwtAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class

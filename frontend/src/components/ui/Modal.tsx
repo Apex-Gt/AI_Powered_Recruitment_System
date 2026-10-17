@@ -95,6 +95,8 @@ interface ConfirmModalProps {
   onConfirm: () => void
   title: string
   message: string
+  /** Extra content under the message, e.g. what else will be removed */
+  children?: ReactNode
   confirmText?: string
   cancelText?: string
   variant?: 'danger' | 'primary'
@@ -107,14 +109,24 @@ export function ConfirmModal({
   onConfirm,
   title,
   message,
+  children,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   variant = 'primary',
   loading = false,
 }: ConfirmModalProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
-      <p className="text-body-md text-ink-600 dark:text-ink-300 mb-6">{message}</p>
+    <Modal
+      isOpen={isOpen}
+      onClose={loading ? () => {} : onClose}
+      title={title}
+      size="sm"
+      showCloseButton={!loading}
+      closeOnOverlayClick={!loading}
+    >
+      <p className="text-body-md text-ink-600 dark:text-ink-300">{message}</p>
+      {children && <div className="mt-3 text-body-sm text-ink-500 dark:text-ink-400">{children}</div>}
+      <div className="mb-6" />
       <div className="flex justify-end gap-3">
         <Button variant="secondary" onClick={onClose} disabled={loading}>
           {cancelText}

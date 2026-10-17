@@ -21,5 +21,8 @@ public interface AIServiceClient {
 
     Mono<AIServiceResponse<RankingResult>> getRanking(UUID jobId);
 
+    /** Removes the candidate's resume vectors from the AI service's vector store. */
+    Mono<Void> deleteCandidate(UUID candidateId);
+
     Mono<AIServiceResponse<Void>> healthCheck();
 }

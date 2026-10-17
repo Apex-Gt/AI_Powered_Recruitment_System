@@ -17,6 +17,7 @@ import {
   TableSkeleton,
 } from '@/components/ui/ListPage'
 import { Briefcase, Building2, Edit, Eye, MapPin, Plus, Trash2, Users } from 'lucide-react'
+import { ConfirmModal } from '@/components/ui/Modal'
 import { formatDate } from '@/utils/helpers'
 import toast from 'react-hot-toast'
 import type { Job } from '@/types'
@@ -43,6 +44,8 @@ export function Jobs() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [deleting, setDeleting] = useState<Job | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const isAdmin = hasRole(['ADMIN'])
   const canEdit = hasRole(['ADMIN', 'RECRUITER'])
@@ -130,15 +133,21 @@ export function Jobs() {
     }
   }, [fetchPage, reloadKey])
 
-  const handleDeleteJob = async (job: Job) => {
-    if (!window.confirm(`Delete "${job.title}"? This can't be undone.`)) return
+  const confirmDeleteJob = async () => {
+    if (!deleting) return
+    setIsDeleting(true)
     try {
-      if (isAdmin) await jobApi.deleteForAdmin(job.id)
-      else await jobApi.deleteForRecruiter(job.id)
+      if (isAdmin) await jobApi.deleteForAdmin(deleting.id)
+      else await jobApi.deleteForRecruiter(deleting.id)
       toast.success('Job deleted')
-      setReloadKey((k) => k + 1)
-    } catch {
-      toast.error('Failed to delete job')
+      setDeleting(null)
+      // Deleting the last row of a page would leave an empty page, so step back one
+      if (jobs.length === 1 && page > 1) updateParams({ page: String(page - 1) }, false)
+      else setReloadKey((k) => k + 1)
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Failed to delete job')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -165,6 +174,21 @@ export function Jobs() {
           )
         }
       />
+
+      <ConfirmModal
+        isOpen={deleting !== null}
+        onClose={() => setDeleting(null)}
+        onConfirm={confirmDeleteJob}
+        title="Delete job?"
+        message={`Delete "${deleting?.title ?? 'this job'}"? This can't be undone.`}
+        confirmText="Delete job"
+        variant="danger"
+        loading={isDeleting}
+      >
+        {(deleting?._count?.candidates ?? 0) > 0
+          ? `All ${deleting?._count?.candidates} candidate${deleting?._count?.candidates === 1 ? '' : 's'} who applied, with their resumes, will be deleted too.`
+          : 'Any candidates who applied, with their resumes, will be deleted too.'}
+      </ConfirmModal>
 
       {error && <ErrorBanner message={error} onRetry={() => setReloadKey((k) => k + 1)} />}
 
@@ -276,7 +300,7 @@ export function Jobs() {
                               <button
                                 className={`${iconLink} hover:!bg-error-50 hover:!text-error-600 dark:hover:!bg-error-900/20`}
                                 aria-label={`Delete ${job.title}`}
-                                onClick={() => handleDeleteJob(job)}
+                                onClick={() => setDeleting(job)}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>

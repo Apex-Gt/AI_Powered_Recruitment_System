@@ -20,6 +20,10 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+
+import java.util.concurrent.TimeoutException;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -261,6 +265,30 @@ public class GlobalExceptionHandler {
         return buildResponse(
                 HttpStatus.UNAUTHORIZED,
                 "Credentials have expired. Please reset your password.",
+                null
+        );
+    }
+
+    @ExceptionHandler({WebClientRequestException.class, TimeoutException.class})
+    public ResponseEntity<CommonResponse> handleAiServiceUnavailable(Exception ex) {
+
+        return buildResponse(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "AI service is unavailable. Please try again later.",
+                null
+        );
+    }
+
+    @ExceptionHandler(WebClientResponseException.class)
+    public ResponseEntity<CommonResponse> handleAiServiceError(WebClientResponseException ex) {
+
+        if (ex.getStatusCode().value() == 404) {
+            return buildResponse(HttpStatus.NOT_FOUND, "Not available yet: AI processing may still be running.", null);
+        }
+
+        return buildResponse(
+                HttpStatus.BAD_GATEWAY,
+                "AI service returned an error: " + ex.getStatusCode().value(),
                 null
         );
     }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { candidateApi, resumeApi } from '@/utils/api'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
@@ -9,20 +9,27 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import { Timeline } from '@/components/ui/Timeline'
 import { ScoreIndicator } from '@/components/ui/ScoreIndicator'
 import { AIAnalysisCard } from '@/components/ui/AIAnalysisCard'
-import { ArrowLeft, CheckCircle2, XCircle, TrendingUp, AlertCircle, FileText, Download, Eye } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, CheckCircle2, XCircle, TrendingUp, AlertCircle, FileText, Download, Eye } from 'lucide-react'
 import { formatDate, getInitials } from '@/utils/helpers'
 import toast from 'react-hot-toast'
+import { ConfirmModal } from '@/components/ui/Modal'
+import { EditCandidateModal } from '@/components/candidates/EditCandidateModal'
 import type { Candidate, AIAnalysis, Resume, CandidateStatus } from '@/types'
 
 export function CandidateProfile() {
   const { id } = useParams<{ id: string }>()
   const { hasRole } = useAuth()
+  const navigate = useNavigate()
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null)
   const [resume, setResume] = useState<Resume | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'profile' | 'ai-analysis' | 'timeline'>('profile')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!id) return
@@ -44,7 +51,21 @@ export function CandidateProfile() {
       }
     }
     fetchData()
-  }, [id])
+  }, [id, reloadKey])
+
+  const handleDelete = async () => {
+    if (!candidate) return
+    setIsDeleting(true)
+    try {
+      await candidateApi.delete(candidate.id)
+      toast.success(`${candidate.candidateName} deleted`)
+      navigate('/candidates')
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Failed to delete candidate')
+      setIsDeleting(false)
+      setConfirmDeleteOpen(false)
+    }
+  }
 
   const handleShortlist = async () => {
     if (!candidate || !id) return
@@ -143,9 +164,32 @@ export function CandidateProfile() {
               <XCircle className="w-4 h-4 mr-2" />
               Reject
             </Button>
+            <Button variant="secondary" onClick={() => setEditOpen(true)}>
+              <Pencil className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+            <Button variant="ghost" className="text-error-600 hover:!bg-error-50 dark:text-error-400 dark:hover:!bg-error-900/20" onClick={() => setConfirmDeleteOpen(true)}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete
+            </Button>
           </div>
         )}
       </div>
+
+      <EditCandidateModal candidate={editOpen ? candidate : null} onClose={() => setEditOpen(false)} onSaved={() => setReloadKey((k) => k + 1)} />
+
+      <ConfirmModal
+        isOpen={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleDelete}
+        title="Delete candidate?"
+        message={`Delete ${candidate.candidateName}? This can't be undone.`}
+        confirmText="Delete"
+        variant="danger"
+        loading={isDeleting}
+      >
+        Their uploaded resume and AI analysis will be removed too.
+      </ConfirmModal>
 
       <Tabs value={activeTab} onValueChange={setActiveTab as (value: string) => void} className="space-y-6">
         <TabsList>

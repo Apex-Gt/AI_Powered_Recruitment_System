@@ -1,18 +1,31 @@
 package com.project.ai_resumerag_be.service.implementation;
 
 import com.project.ai_resumerag_be.dto.ai.*;
+import com.project.ai_resumerag_be.dto.request.CandidateUpdateRequest;
 import com.project.ai_resumerag_be.dto.request.CandidateUploadRequest;
 import com.project.ai_resumerag_be.dto.response.CandidateResponse;
 import com.project.ai_resumerag_be.entity.Candidate;
 import com.project.ai_resumerag_be.entity.Job;
+import com.project.ai_resumerag_be.entity.JobSkill;
+import com.project.ai_resumerag_be.enumerators.SkillType;
+import com.project.ai_resumerag_be.entity.User;
+import com.project.ai_resumerag_be.enumerators.Role;
+import com.project.ai_resumerag_be.exception.ConflictException;
+import com.project.ai_resumerag_be.exception.ResourceNotFoundException;
 import com.project.ai_resumerag_be.entity.Resume;
 import com.project.ai_resumerag_be.mapper.CandidateMapper;
+import com.project.ai_resumerag_be.repository.AiResultRepository;
 import com.project.ai_resumerag_be.repository.CandidateRepository;
 import com.project.ai_resumerag_be.repository.JobRepository;
 import com.project.ai_resumerag_be.repository.ResumeRepository;
 import com.project.ai_resumerag_be.service.AIServiceClient;
 import com.project.ai_resumerag_be.service.CandidateService;
+import com.project.ai_resumerag_be.service.AiResultStore;
 import com.project.ai_resumerag_be.service.FileStorageService;
+import com.project.ai_resumerag_be.service.security.CustomUserDetails;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,6 +53,8 @@ public class CandidateServiceImplementation implements CandidateService {
     private final AIServiceClient aiServiceClient;
     private final FileStorageService fileStorageService;
     private final CandidateMapper candidateMapper;
+    private final AiResultRepository aiResultRepository;
+    private final AiResultStore aiResultStore;
 
     @Override
     @Transactional
@@ -205,20 +220,132 @@ public class CandidateServiceImplementation implements CandidateService {
         return aiServiceClient.healthCheck();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public JobDescription getJobDescription(UUID jobId) {
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new ResourceNotFoundException("Job not found: " + jobId));
+        return buildJobDescription(job);
+    }
+
+    @Override
+    @Transactional
+    public CandidateResponse updateCandidate(UUID candidateId, CandidateUpdateRequest request) {
+        Candidate candidate = findOwnedCandidate(candidateId);
+
+        String email = request.getCandidateEmail().trim();
+        boolean duplicate = candidateRepository.findByJobIdAndCandidateEmail(candidate.getJob().getId(), email).stream()
+                .anyMatch(other -> !other.getId().equals(candidateId));
+        if (duplicate) {
+            throw new ConflictException("Another candidate with this email already applied for this job");
+        }
+
+        candidate.setCandidateName(request.getCandidateName().trim());
+        candidate.setCandidateEmail(email);
+        candidate.setPhoneNumber(blankToNull(request.getPhoneNumber()));
+        candidate.setLocation(blankToNull(request.getLocation()));
+        candidate = candidateRepository.save(candidate);
+
+        CandidateResponse response = candidateMapper.toCandidateResponse(candidate);
+        aiResultStore.enrich(response);
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public void deleteCandidate(UUID candidateId) {
+        removeCandidates(List.of(findOwnedCandidate(candidateId)));
+    }
+
+    @Override
+    @Transactional
+    public void deleteCandidatesOfJob(UUID jobId) {
+        removeCandidates(candidateRepository.findByJobId(jobId));
+        aiResultRepository.deleteByJobId(jobId);
+    }
+
+    private void removeCandidates(List<Candidate> candidates) {
+        if (candidates.isEmpty()) {
+            return;
+        }
+        List<Resume> resumes = candidates.stream().map(Candidate::getResume).collect(Collectors.toList());
+        List<UUID> candidateIds = candidates.stream().map(Candidate::getId).collect(Collectors.toList());
+
+        // The candidate row holds the FK to its resume, so it has to go first.
+        candidateRepository.deleteAll(candidates);
+        candidateRepository.flush();
+        resumeRepository.deleteAll(resumes);
+        aiResultRepository.deleteByCandidateIdIn(candidateIds);
+
+        for (Resume resume : resumes) {
+            try {
+                fileStorageService.deleteFile(resume.getFileUrl());
+            } catch (IOException e) {
+                log.warn("Could not delete resume file {}: {}", resume.getFileUrl(), e.getMessage());
+            }
+        }
+        removeVectorsAfterCommit(candidateIds);
+        log.info("Deleted {} candidate(s)", candidates.size());
+    }
+
+    /** Best effort: the vectors are only dropped once the DB delete has committed, and a failure is just logged. */
+    private void removeVectorsAfterCommit(List<UUID> candidateIds) {
+        Runnable removeVectors = () -> candidateIds.forEach(id -> aiServiceClient.deleteCandidate(id)
+                .subscribe(
+                        ok -> log.info("Removed AI vectors for candidate {}", id),
+                        err -> log.warn("Could not remove AI vectors for candidate {}: {}", id, err.getMessage())));
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    removeVectors.run();
+                }
+            });
+        } else {
+            removeVectors.run();
+        }
+    }
+
+    /** Loads a candidate, making sure it belongs to a job of the caller's company. */
+    private Candidate findOwnedCandidate(UUID candidateId) {
+        Candidate candidate = candidateRepository.findById(candidateId)
+                .orElseThrow(() -> new ResourceNotFoundException("Candidate not found with id: " + candidateId));
+
+        User user = ((CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getUser();
+        boolean allowed = (user.getRole() == Role.ADMIN || user.getRole() == Role.RECRUITER)
+                && user.getCompany() != null
+                && user.getCompany().getId().equals(candidate.getJob().getCompany().getId());
+        if (!allowed) {
+            throw new ResourceNotFoundException("Candidate not found with id: " + candidateId);
+        }
+        return candidate;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     private JobDescription buildJobDescription(Job job) {
-        List<JobRequirement> requirements = job.getSkills() != null ? job.getSkills().stream()
+        List<JobSkill> jobSkills = job.getSkills() != null ? job.getSkills() : List.of();
+
+        List<JobRequirement> requirements = jobSkills.stream()
                 .map(js -> JobRequirement.builder()
                         .skill(js.getSkill().getName())
-                        .required(true)
-                        .weight(1.0)
+                        .required(js.getType() != SkillType.PREFERRED)
+                        .weight(js.getWeight() != null ? Math.min(10.0, Math.max(0.0, js.getWeight().doubleValue() / 10.0)) : 1.0)
                         .build())
-                .collect(Collectors.toList()) : List.of();
+                .collect(Collectors.toList());
 
-        List<String> requiredSkills = job.getSkills() != null ? job.getSkills().stream()
+        List<String> requiredSkills = jobSkills.stream()
+                .filter(js -> js.getType() != SkillType.PREFERRED)
                 .map(js -> js.getSkill().getName())
-                .collect(Collectors.toList()) : List.of();
+                .collect(Collectors.toList());
 
-        String educationLevel = job.getEducationRequired();
+        List<String> preferredSkills = jobSkills.stream()
+                .filter(js -> js.getType() == SkillType.PREFERRED)
+                .map(js -> js.getSkill().getName())
+                .collect(Collectors.toList());
 
         return JobDescription.builder()
                 .jobId(job.getId().toString())
@@ -227,11 +354,27 @@ public class CandidateServiceImplementation implements CandidateService {
                 .description(job.getDescription())
                 .requirements(requirements)
                 .requiredSkills(requiredSkills)
-                .preferredSkills(List.of())
+                .preferredSkills(preferredSkills)
                 .minExperienceYears(job.getExperienceRequired() != null ? job.getExperienceRequired().doubleValue() : 0.0)
-                .educationLevel(educationLevel)
+                .educationLevel(toEducationLevel(job.getEducationRequired()))
                 .location(job.getLocation())
                 .employmentType(job.getEmploymentType() != null ? job.getEmploymentType().name() : null)
                 .build();
+    }
+
+    /** Maps the free-text education requirement onto the AI service's enum (null when it is not recognised). */
+    private static String toEducationLevel(String text) {
+        if (text == null) {
+            return null;
+        }
+        String t = text.toLowerCase();
+        if (t.contains("phd") || t.contains("ph.d") || t.contains("doctor")) return "PHD";
+        if (t.contains("master") || t.contains("msc") || t.contains("m.sc") || t.contains("mba") || t.contains("m.tech")
+                || t.contains("postgrad")) return "MASTER";
+        if (t.contains("bachelor") || t.contains("b.sc") || t.contains("bsc") || t.contains("b.tech") || t.contains("b.e")
+                || t.contains("degree") || t.contains("undergrad")) return "BACHELOR";
+        if (t.contains("associate") || t.contains("diploma")) return "ASSOCIATE";
+        if (t.contains("high school") || t.contains("secondary")) return "HIGH_SCHOOL";
+        return null;
     }
 }

@@ -114,6 +114,17 @@ public class AIServiceClientImplementation implements AIServiceClient {
     }
 
     @Override
+    public Mono<Void> deleteCandidate(UUID candidateId) {
+        log.info("Deleting AI data for candidate: {}", candidateId);
+        return aiServiceWebClient.delete()
+                .uri("/api/v1/candidates/{id}", candidateId)
+                .retrieve()
+                .toBodilessEntity()
+                .timeout(Duration.ofSeconds(30))
+                .then();
+    }
+
+    @Override
     public Mono<AIServiceResponse<Void>> healthCheck() {
         log.info("Checking AI service health");
         return aiServiceWebClient.get()

@@ -1,10 +1,12 @@
-import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import toast from 'react-hot-toast'
 import { jobApi } from '@/utils/api'
+import { useAuth } from '@/context/AuthContext'
+import { ConfirmModal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea, Select } from '@/components/ui/Input'
 import { CharCounter, FormSection, SegmentedRadio, SummaryRow } from '@/components/ui/FormParts'
@@ -73,6 +75,13 @@ const skillTypes = [
 
 export function CreateJob() {
   const navigate = useNavigate()
+  const { id: editId } = useParams<{ id: string }>()
+  const isEdit = Boolean(editId)
+  const { hasRole } = useAuth()
+  const isAdmin = hasRole(['ADMIN'])
+  const [isLoadingJob, setIsLoadingJob] = useState(isEdit)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [pendingSave, setPendingSave] = useState<CreateJobForm | null>(null)
   const [skills, setSkills] = useState<SkillForm[]>([])
   const [skillDraft, setSkillDraft] = useState('')
   const [draftType, setDraftType] = useState<SkillForm['type']>('REQUIRED')
@@ -86,6 +95,7 @@ export function CreateJob() {
     handleSubmit,
     setValue,
     watch,
+    reset,
     formState: { errors },
   } = useForm<CreateJobForm>({
     resolver: zodResolver(createJobSchema),
@@ -100,6 +110,50 @@ export function CreateJob() {
       skills: [],
     },
   })
+
+  // Edit mode: load the job and fill the form
+  useEffect(() => {
+    if (!editId) return
+    let cancelled = false
+    setIsLoadingJob(true)
+    setLoadError(null)
+    const req = isAdmin ? jobApi.getByIdForAdmin(editId) : jobApi.getByIdForRecruiter(editId)
+    req
+      .then((res) => {
+        if (cancelled) return
+        const job = res.data
+        const loadedSkills: SkillForm[] = (job.skills ?? []).map((sk) => ({
+          skillName: sk.skillName,
+          type: sk.type,
+          weight: Number(sk.weight) || 1,
+        }))
+        setSkills(loadedSkills)
+        reset({
+          title: job.title,
+          department: job.department,
+          employmentType: job.employmentType,
+          workMode: job.workMode,
+          location: job.location,
+          experienceRequired: job.experienceRequired ?? 0,
+          educationRequired: job.educationRequired ?? '',
+          minimumSalary: Number(job.minimumSalary) || 0,
+          maximumSalary: Number(job.maximumSalary) || 0,
+          description: job.description ?? '',
+          applicationDeadline: job.applicationDeadline ? String(job.applicationDeadline).slice(0, 10) : '',
+          vacancies: job.vacancies ?? 1,
+          skills: loadedSkills,
+        })
+      })
+      .catch((e) => {
+        if (!cancelled) setLoadError(e instanceof Error && e.message ? e.message : 'Could not load this job')
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingJob(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [editId, isAdmin, reset])
 
   const watched = watch()
   const totalWeight = skills.reduce((sum, sk) => sum + (Number(sk.weight) || 0), 0)
@@ -139,22 +193,33 @@ export function CreateJob() {
     setTimeout(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), 300)
   }
 
-  const onSubmit = async (data: CreateJobForm) => {
+  const save = async (data: CreateJobForm) => {
     setIsSubmitting(true)
     setFormError(null)
     try {
-      await jobApi.create(data)
-      toast.success('Job created')
-      navigate('/jobs')
+      if (editId) {
+        if (isAdmin) await jobApi.updateForAdmin(editId, data)
+        else await jobApi.updateForRecruiter(editId, data)
+        toast.success('Job updated')
+        navigate(`/jobs/${editId}`)
+      } else {
+        await jobApi.create(data)
+        toast.success('Job created')
+        navigate('/jobs')
+      }
     } catch (error) {
-      const message = error instanceof Error && error.message ? error.message : 'Failed to create job'
-      setFormError(`The job was not created: ${message}`)
+      const message = error instanceof Error && error.message ? error.message : `Failed to ${isEdit ? 'update' : 'create'} job`
+      setFormError(`The job was not ${isEdit ? 'updated' : 'created'}: ${message}`)
       window.scrollTo({ top: 0, behavior: 'smooth' })
       toast.error(message)
     } finally {
+      setPendingSave(null)
       setIsSubmitting(false)
     }
   }
+
+  // Editing asks for confirmation first; creating saves straight away
+  const onSubmit = (data: CreateJobForm) => (isEdit ? setPendingSave(data) : save(data))
 
   const salaryText =
     watched.minimumSalary || watched.maximumSalary
@@ -162,18 +227,47 @@ export function CreateJob() {
       : 'Not set'
   const labelOf = (list: { value: string; label: string }[], v?: string) => list.find((o) => o.value === v)?.label
 
+  if (isEdit && (isLoadingJob || loadError)) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-4">
+        {loadError ? (
+          <div role="alert" className="flex items-start gap-2 rounded-lg border border-error-200 bg-error-50 p-3 text-body-sm text-error-600 dark:border-error-800/70 dark:bg-error-900/30 dark:text-error-400">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+            {loadError}
+          </div>
+        ) : (
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 w-1/4 rounded bg-base-200 dark:bg-base-700" />
+            <div className="h-64 rounded bg-base-200 dark:bg-base-700" />
+          </div>
+        )}
+        {loadError && <Link to="/jobs" className="btn-ghost inline-flex">Back to jobs</Link>}
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
+      <ConfirmModal
+        isOpen={pendingSave !== null}
+        onClose={() => setPendingSave(null)}
+        onConfirm={() => pendingSave && save(pendingSave)}
+        title="Save changes?"
+        message={`Update "${pendingSave?.title ?? 'this job'}" with the changes you made?`}
+        confirmText="Save changes"
+        loading={isSubmitting}
+      />
+
       <div className="flex items-center gap-3">
         <Link
-          to="/jobs"
+          to={isEdit ? `/jobs/${editId}` : '/jobs'}
           className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-ink-600 transition-colors hover:text-ink-900 dark:text-ink-300"
-          aria-label="Back to jobs"
+          aria-label={isEdit ? 'Back to job' : 'Back to jobs'}
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
-          <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Create job</h1>
+          <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">{isEdit ? 'Edit job' : 'Create job'}</h1>
           <p className="text-body-sm text-ink-500 dark:text-ink-400">Fields marked * are required.</p>
         </div>
       </div>
@@ -253,7 +347,7 @@ export function CreateJob() {
                 label="Apply by"
                 required
                 type="date"
-                min={today}
+                min={isEdit ? undefined : today}
                 error={errors.applicationDeadline?.message}
                 {...register('applicationDeadline')}
               />
@@ -392,9 +486,9 @@ export function CreateJob() {
             </dl>
             <div className="flex flex-col gap-2 border-t border-[var(--color-border)] p-5">
               <Button type="submit" size="lg" loading={isSubmitting} className="w-full">
-                Create job
+                {isEdit ? 'Save changes' : 'Create job'}
               </Button>
-              <Link to="/jobs" className="btn-ghost w-full justify-center">
+              <Link to={isEdit ? `/jobs/${editId}` : '/jobs'} className="btn-ghost w-full justify-center">
                 Cancel
               </Link>
             </div>

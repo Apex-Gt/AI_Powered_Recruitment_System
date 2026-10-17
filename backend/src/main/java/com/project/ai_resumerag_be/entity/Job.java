@@ -36,10 +36,10 @@ public class Job {
     private UUID id;
 
     @OneToMany(
+            mappedBy = "job",
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
-    @JoinColumn(name = "job_id")
     @Builder.Default
     private List<JobSkill> skills = new ArrayList<>();
 

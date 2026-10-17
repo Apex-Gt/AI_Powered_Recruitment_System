@@ -1,5 +1,6 @@
 package com.project.ai_resumerag_be.controller;
 
+import com.project.ai_resumerag_be.dto.request.CandidateUpdateRequest;
 import com.project.ai_resumerag_be.dto.request.CandidateUploadRequest;
 import com.project.ai_resumerag_be.dto.response.CandidateResponse;
 import com.project.ai_resumerag_be.dto.response.CommonResponse;
@@ -8,8 +9,11 @@ import com.project.ai_resumerag_be.enumerators.ApplicationStatus;
 import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
 import com.project.ai_resumerag_be.mapper.CandidateMapper;
 import com.project.ai_resumerag_be.repository.CandidateRepository;
+import com.project.ai_resumerag_be.enumerators.AiResultType;
+import com.project.ai_resumerag_be.service.AiResultStore;
 import com.project.ai_resumerag_be.service.CandidateService;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +34,7 @@ public class CandidateController {
     private final CandidateService candidateService;
     private final CandidateRepository candidateRepository;
     private final CandidateMapper candidateMapper;
+    private final AiResultStore aiResultStore;
 
     // ── Recruiter/Admin: list candidates ──────────────────────────────────────
 
@@ -75,6 +80,7 @@ public class CandidateController {
 
         List<CandidateResponse> data = paged.stream()
                 .map(candidateMapper::toCandidateResponse)
+                .peek(aiResultStore::enrich)
                 .collect(Collectors.toList());
 
         Map<String, Object> responseData = new LinkedHashMap<>();
@@ -103,11 +109,59 @@ public class CandidateController {
                 .orElseThrow(() -> new RuntimeException("Candidate not found with id: " + candidateId));
 
         CandidateResponse response = candidateMapper.toCandidateResponse(candidate);
+        aiResultStore.enrich(response);
         return ResponseEntity.ok(CommonResponse.builder()
                 .code(200)
                 .status(CommonResponseStatus.SUCCESS)
                 .data(response)
                 .message("Candidate retrieved successfully")
+                .timestamp(LocalDateTime.now())
+                .build());
+    }
+
+    // ── Recruiter/Admin: AI analysis (match score + RAG summary produced after ingestion) ─────
+
+    @PreAuthorize("hasAnyRole('RECRUITER','ADMIN')")
+    @Transactional
+    @GetMapping("/{candidateId}/ai-analysis")
+    public ResponseEntity<CommonResponse> getAiAnalysis(@PathVariable UUID candidateId) {
+        Candidate candidate = candidateRepository.findById(candidateId)
+                .orElseThrow(() -> new RuntimeException("Candidate not found with id: " + candidateId));
+        UUID jobId = candidate.getJob().getId();
+
+        Optional<Map<String, Object>> score = aiResultStore.find(AiResultType.MATCH_SCORE, candidateId, jobId);
+        if (score.isEmpty()) {
+            return ResponseEntity.status(404).body(CommonResponse.builder()
+                    .code(404)
+                    .status(CommonResponseStatus.FAILURE)
+                    .message("AI analysis is not ready yet")
+                    .timestamp(LocalDateTime.now())
+                    .build());
+        }
+        Map<String, Object> s = score.get();
+        Map<String, Object> rag = aiResultStore.find(AiResultType.RAG_SUMMARY, candidateId, jobId).orElse(Map.of());
+
+        Map<String, Object> breakdown = new LinkedHashMap<>();
+        breakdown.put("skills", s.getOrDefault("skillMatchScore", 0));
+        breakdown.put("experience", s.getOrDefault("experienceMatchScore", 0));
+        breakdown.put("education", s.getOrDefault("educationMatchScore", 0));
+        breakdown.put("jobRelevance", s.getOrDefault("semanticMatchScore", 0));
+
+        Object summary = rag.get("summaryText");
+        Map<String, Object> analysis = new LinkedHashMap<>();
+        analysis.put("overallScore", s.getOrDefault("overallScore", 0));
+        analysis.put("breakdown", breakdown);
+        analysis.put("matchingSkills", s.getOrDefault("matchedSkills", List.of()));
+        analysis.put("relevantExperience", rag.getOrDefault("relevantExperience", List.of()));
+        analysis.put("potentialGaps", s.getOrDefault("missingSkills", List.of()));
+        analysis.put("summary", summary != null ? summary : "Summary is still being generated.");
+        analysis.put("generatedAt", rag.getOrDefault("generatedAt", s.get("createdAt")));
+
+        return ResponseEntity.ok(CommonResponse.builder()
+                .code(200)
+                .status(CommonResponseStatus.SUCCESS)
+                .data(analysis)
+                .message("AI analysis retrieved successfully")
                 .timestamp(LocalDateTime.now())
                 .build());
     }
@@ -152,6 +206,37 @@ public class CandidateController {
                 .status(CommonResponseStatus.SUCCESS)
                 .data(null)
                 .message("Candidate status updated successfully")
+                .timestamp(LocalDateTime.now())
+                .build());
+    }
+
+    // ── Recruiter/Admin: edit candidate details ───────────────────────────────
+
+    @PreAuthorize("hasAnyRole('RECRUITER','ADMIN')")
+    @PutMapping("/{candidateId}")
+    public ResponseEntity<CommonResponse> updateCandidate(
+            @PathVariable UUID candidateId,
+            @Valid @RequestBody CandidateUpdateRequest request) {
+        CandidateResponse updated = candidateService.updateCandidate(candidateId, request);
+        return ResponseEntity.ok(CommonResponse.builder()
+                .code(200)
+                .status(CommonResponseStatus.SUCCESS)
+                .data(updated)
+                .message("Candidate updated successfully")
+                .timestamp(LocalDateTime.now())
+                .build());
+    }
+
+    // ── Recruiter/Admin: delete candidate (and their resume) ──────────────────
+
+    @PreAuthorize("hasAnyRole('RECRUITER','ADMIN')")
+    @DeleteMapping("/{candidateId}")
+    public ResponseEntity<CommonResponse> deleteCandidate(@PathVariable UUID candidateId) {
+        candidateService.deleteCandidate(candidateId);
+        return ResponseEntity.ok(CommonResponse.builder()
+                .code(200)
+                .status(CommonResponseStatus.SUCCESS)
+                .message("Candidate deleted successfully")
                 .timestamp(LocalDateTime.now())
                 .build());
     }

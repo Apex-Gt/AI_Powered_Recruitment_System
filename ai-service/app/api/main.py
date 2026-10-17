@@ -121,6 +121,17 @@ async def ingest_resume(request: IngestResumeEvent):
     }
 
 
+@app.delete("/api/v1/candidates/{candidate_id}")
+async def delete_candidate(candidate_id: str):
+    """Remove a candidate's resume chunks from the vector store."""
+    try:
+        deleted = await get_qdrant_service().delete_candidate_chunks(candidate_id)
+    except Exception as e:
+        logger.error("candidate_delete_failed", candidate_id=candidate_id, error=str(e))
+        raise HTTPException(status_code=502, detail=f"Could not delete candidate vectors: {e}") from e
+    return {"status": "deleted", "candidate_id": candidate_id, "chunks_deleted": deleted}
+
+
 @app.post("/api/v1/candidates/score-job")
 async def score_job(request: ScoreJobEvent):
     await _send_event("candidate/score-job", request.model_dump(mode="json"))
