@@ -44,8 +44,8 @@ export function Dashboard() {
   const [range, setRange] = useState<RangeDays>(30)
   const d = useDashboardData(range)
   const { grid, tick, tooltipStyle, series } = useChartTheme()
-  const [olive] = series
-  const selectedColor = '#1f9d4a'
+  const [primary] = series
+  const selectedColor = '#2f7fd0'
 
   const firstName = user?.userName?.split(' ')[0] || 'there'
   const maxFunnel = Math.max(1, ...d.funnel.map((f) => f.count))
@@ -117,7 +117,7 @@ export function Dashboard() {
                   <div className="h-7 overflow-hidden rounded-sm bg-base-100 dark:bg-surface-dark-elevated">
                     <div
                       className="h-full rounded-sm transition-[width] duration-300"
-                      style={{ width: `${(f.count / maxFunnel) * 100}%`, minWidth: f.count ? 6 : 0, background: last ? selectedColor : olive }}
+                      style={{ width: `${(f.count / maxFunnel) * 100}%`, minWidth: f.count ? 6 : 0, background: last ? selectedColor : primary }}
                     />
                   </div>
                   <span className="text-right text-body-sm tabular">
@@ -201,7 +201,7 @@ export function Dashboard() {
           className="xl:col-span-7"
           action={
             <div className="flex items-center gap-4 text-body-xs text-ink-700 dark:text-ink-300">
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: olive }} />Applied</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: primary }} />Applied</span>
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: series[1] }} />Shortlisted</span>
             </div>
           }
@@ -211,15 +211,15 @@ export function Dashboard() {
               <AreaChart data={d.series} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gApplied" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={olive} stopOpacity={0.28} />
-                    <stop offset="100%" stopColor={olive} stopOpacity={0} />
+                    <stop offset="0%" stopColor={primary} stopOpacity={0.28} />
+                    <stop offset="100%" stopColor={primary} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke={grid} strokeDasharray="2 4" vertical={false} />
                 <XAxis dataKey="name" tick={{ fill: tick, fontSize: 12 }} axisLine={false} tickLine={false} />
                 <YAxis allowDecimals={false} tick={{ fill: tick, fontSize: 12 }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={tooltipStyle} />
-                <Area type="monotone" dataKey="applied" name="Applied" stroke={olive} strokeWidth={2.5} fill="url(#gApplied)" />
+                <Area type="monotone" dataKey="applied" name="Applied" stroke={primary} strokeWidth={2.5} fill="url(#gApplied)" />
                 <Area type="monotone" dataKey="shortlisted" name="Shortlisted" stroke={series[1]} strokeWidth={2.5} fill="none" />
               </AreaChart>
             </ResponsiveContainer>

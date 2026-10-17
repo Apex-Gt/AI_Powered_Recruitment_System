@@ -169,6 +169,16 @@ export function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile }: Side
             <span className={cn(rail && 'lg:hidden')}>Collapse</span>
           </button>
 
+          <button
+            onClick={signOut}
+            className={cn('nav-item', rail && 'lg:justify-center lg:px-0')}
+            aria-label="Sign out"
+            title={rail ? 'Sign out' : undefined}
+          >
+            <LogOut className="nav-item-icon" aria-hidden="true" />
+            <span className={cn(rail && 'lg:hidden')}>Sign out</span>
+          </button>
+
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((o) => !o)}

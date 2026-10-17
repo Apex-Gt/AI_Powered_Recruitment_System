@@ -179,7 +179,7 @@
   .card-peach { @apply card; }
 
   /* ===== BUTTONS =====
-     Primary is a solid olive key with a pressed-in lower edge. */
+     Primary is a solid orange key with a pressed-in lower edge. */
 
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-lg font-semibold cursor-pointer

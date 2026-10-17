@@ -92,14 +92,14 @@ export default {
           'dark-input':     '#100e0c',
         },
 
-        // SEMANTIC: hues kept well away from orange so status never reads as a brand action.
+        // SEMANTIC: no greens anywhere. Positive outcomes are blue, informational states indigo.
         success: {
-          50:  '#effaf1',
-          100: '#d6f1dc',
-          400: '#4cc26a',
-          500: '#1f9d4a',
-          600: '#17803c',
-          900: '#0f3a1e',
+          50:  '#eff6ff',
+          100: '#dbeafe',
+          400: '#60a5fa',
+          500: '#2f7fd0',
+          600: '#1f64ab',
+          900: '#12325a',
         },
         warning: {
           50:  '#fefbea',
@@ -120,12 +120,12 @@ export default {
           900: '#4d0b19',
         },
         info: {
-          50:  '#eff6ff',
-          100: '#dbeafe',
-          400: '#60a5fa',
-          500: '#2f7fd0',
-          600: '#1f64ab',
-          900: '#12325a',
+          50:  '#f1f0ff',
+          100: '#e2e0ff',
+          400: '#8b86f0',
+          500: '#6558d6',
+          600: '#4f43b8',
+          900: '#272066',
         },
 
         // TEXT SCALE: charcoal on light, warm off-white on dark.
