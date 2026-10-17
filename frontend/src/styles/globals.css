@@ -327,7 +327,7 @@
   /* ===== TABLES: ledger rows ===== */
 
   .table-container {
-    @apply rounded-xl border border-[var(--color-border)] overflow-hidden;
+    @apply relative rounded-xl border border-[var(--color-border)] overflow-x-auto;
     background-color: var(--color-surface);
   }
 

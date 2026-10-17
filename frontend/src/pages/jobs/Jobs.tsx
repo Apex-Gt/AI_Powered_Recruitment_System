@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
-import { jobApi } from '@/utils/api'
+import { candidateApi, jobApi } from '@/utils/api'
 import { Card } from '@/components/ui/Card'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/Table'
 import { StatusBadge } from '@/components/ui/Badge'
@@ -92,8 +92,17 @@ export function Jobs() {
           search: urlSearch || undefined,
           department: department || undefined,
         })
+        // The backend does not send per-job counts, so derive them from the candidate list.
+        const cands = await candidateApi.getAllUnwrapped({ page: 1, pageSize: 500 }).catch(() => null)
         if (cancelled) return
-        setJobs(res?.data ?? [])
+        const counts = new Map<string, { candidates: number; shortlisted: number }>()
+        for (const c of cands?.data ?? []) {
+          const entry = counts.get(c.jobId) ?? { candidates: 0, shortlisted: 0 }
+          entry.candidates += 1
+          if (c.status === 'SHORTLISTED') entry.shortlisted += 1
+          counts.set(c.jobId, entry)
+        }
+        setJobs((res?.data ?? []).map((j) => ({ ...j, _count: counts.get(j.id) ?? { candidates: 0, shortlisted: 0 } })))
         setPagination({
           page: res?.page ?? 1,
           pageSize: res?.pageSize ?? PAGE_SIZE,

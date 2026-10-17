@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, GripVertical, Upload } from 'lucide-react'
+import { AlertCircle, Upload } from 'lucide-react'
 import {
   DndContext,
   DragEndEvent,
@@ -50,7 +50,6 @@ function CardBody({ candidate, dragging }: { candidate: Candidate; dragging?: bo
           </Link>
           <p className="truncate text-body-xs text-ink-600 dark:text-ink-400" title={candidate.jobTitle}>{candidate.jobTitle ?? 'No job'}</p>
         </div>
-        <GripVertical className="mt-0.5 h-4 w-4 flex-shrink-0 text-ink-400" aria-hidden="true" />
       </div>
       <MatchScore score={candidate.aiMatchScore} />
     </div>

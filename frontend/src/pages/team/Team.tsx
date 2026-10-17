@@ -4,12 +4,13 @@ import { userApi } from '@/utils/api'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Input'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/Table'
 import { StatusBadge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
-import { Trash2, Search, UserPlus, UserCheck, UserX, Shield, AlertCircle } from 'lucide-react'
+import { FigureStrip } from '@/components/ui/FigureStrip'
+import { FilterSelect, PageHeader, SearchField } from '@/components/ui/ListPage'
+import { Trash2, UserPlus, UserCheck, UserX, AlertCircle } from 'lucide-react'
 import { formatDate, cn } from '@/utils/helpers'
 import type { User, Role } from '@/types'
 import { useForm } from 'react-hook-form'
@@ -274,87 +275,32 @@ export function Team() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Team</h1>
-          <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Manage your recruitment team members</p>
-        </div>
-        {hasRole(['ADMIN']) && (
-          <Button onClick={openCreateModal} size="lg">
-            <UserPlus className="w-5 h-5" />
-            Invite Recruiter
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Team"
+        subtitle="The recruiters and admins who run hiring for your company."
+        action={
+          hasRole(['ADMIN']) && (
+            <Button onClick={openCreateModal} size="lg">
+              <UserPlus className="h-4 w-4" aria-hidden="true" />
+              Invite recruiter
+            </Button>
+          )
+        }
+      />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card hover variant="elevated" padding="md">
-          <CardContent className="flex items-start justify-between">
-            <div>
-              <p className="text-body-sm text-ink-500 dark:text-ink-400">Total Members</p>
-              <p className="text-display-sm font-bold text-ink-900 dark:text-ink-100 mt-1">{users.length}</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center">
-              <UserPlus className="w-6 h-6 text-accent-600 dark:text-accent-400" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card hover variant="elevated" padding="md">
-          <CardContent className="flex items-start justify-between">
-            <div>
-              <p className="text-body-sm text-ink-500 dark:text-ink-400">Admins</p>
-              <p className="text-display-sm font-bold text-ink-900 dark:text-ink-100 mt-1">{adminCount}</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
-              <Shield className="w-6 h-6 text-primary-600 dark:text-primary-400" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card hover variant="elevated" padding="md">
-          <CardContent className="flex items-start justify-between">
-            <div>
-              <p className="text-body-sm text-ink-500 dark:text-ink-400">Recruiters</p>
-              <p className="text-display-sm font-bold text-ink-900 dark:text-ink-100 mt-1">{recruiterCount}</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-info-100 dark:bg-info-900/30 flex items-center justify-center">
-              <UserCheck className="w-6 h-6 text-info-600 dark:text-info-400" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card hover variant="elevated" padding="md">
-          <CardContent className="flex items-start justify-between">
-            <div>
-              <p className="text-body-sm text-ink-500 dark:text-ink-400">Pending Invites</p>
-              <p className="text-display-sm font-bold text-ink-900 dark:text-ink-100 mt-1">0</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-warning-100 dark:bg-warning-900/30 flex items-center justify-center">
-              <UserX className="w-6 h-6 text-warning-600 dark:text-warning-400" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <FigureStrip
+        label="Team size"
+        figures={[
+          { label: 'Members', value: users.length },
+          { label: 'Admins', value: adminCount },
+          { label: 'Recruiters', value: recruiterCount },
+        ]}
+      />
 
-      <Card padding="md" className="space-y-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-400" />
-            <Input
-              placeholder="Search team members..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Select
-            label="Role"
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value as Role | '')}
-            options={roleOptions}
-            placeholder="All Roles"
-            className="w-full sm:w-48"
-          />
-        </div>
-      </Card>
+      <div className="flex flex-wrap gap-3">
+        <SearchField value={searchQuery} onChange={setSearchQuery} placeholder="Search by name or email" label="Search team" />
+        <FilterSelect label="Filter by role" value={roleFilter} onChange={(v) => setRoleFilter(v as Role | '')} options={roleOptions} />
+      </div>
 
       <Card variant="flat" padding="none">
         {filteredUsers.length === 0 ? (

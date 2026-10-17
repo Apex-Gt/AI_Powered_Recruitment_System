@@ -11,7 +11,8 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { StatusBadge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
-import { Plus, Edit, Trash2, CheckSquare, Search, Code2, Send, BarChart3 } from 'lucide-react'
+import { PageHeader, SearchField } from '@/components/ui/ListPage'
+import { Plus, Edit, Trash2, CheckSquare, Code2, Send, BarChart3 } from 'lucide-react'
 import { cn } from '@/utils/helpers'
 import type { Assessment } from '@/types'
 import { useForm } from 'react-hook-form'
@@ -227,30 +228,20 @@ export function Assessments() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Assessments</h1>
-          <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Create and manage candidate assessments</p>
-        </div>
-        {hasRole(['ADMIN', 'RECRUITER']) && (
-          <Button onClick={openCreateModal} size="lg">
-            <Plus className="w-5 h-5" />
-            Create Assessment
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Assessments"
+        subtitle="Build a test, send it to a candidate by email, and review how they did."
+        action={
+          hasRole(['ADMIN', 'RECRUITER']) && (
+            <Button onClick={openCreateModal} size="lg">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Create assessment
+            </Button>
+          )
+        }
+      />
 
-      <Card padding="md" className="space-y-4">
-        <div className="relative max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-400" />
-          <Input
-            placeholder="Search assessments..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </Card>
+      <SearchField value={searchQuery} onChange={setSearchQuery} placeholder="Search assessments" label="Search assessments" />
 
       <Card variant="flat" padding="none">
         {filteredAssessments.length === 0 ? (
