@@ -1,6 +1,6 @@
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { cn } from '@/utils/helpers'
-import { useTheme } from '@/context/ThemeContext'
+import { useChartTheme } from './theme'
 
 interface PieData {
   name: string
@@ -25,25 +25,7 @@ export function PieChartComponent({
   showLegend = true,
   showTooltip = true,
 }: PieChartProps) {
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === 'dark'
-  const tooltipStyle = {
-    backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
-    border: `1px solid ${isDark ? '#333333' : '#E7E5E4'}`,
-    borderRadius: '12px',
-    color: isDark ? '#FAFAF9' : '#1C1917',
-  }
-
-  const defaultColors = [
-    '#F95F62', // accent-500
-    '#22C55E', // success-500
-    '#F59E0B', // warning-500
-    '#3B82F6', // info-500
-    '#14B8A6', // teal-500
-    '#EF4444', // error-500
-    '#78716C', // warm-grey-500
-    '#06B6D4', // cyan-500
-  ]
+  const { tooltipStyle, series: defaultColors } = useChartTheme()
 
   return (
     <div className={cn('w-full', className)} style={{ height }}>
@@ -98,14 +80,7 @@ interface DonutChartProps {
 
 export function DonutChart({ data, height = 200, className, total, totalLabel = 'Total' }: DonutChartProps) {
   const totalValue = total ?? data.reduce((sum, d) => sum + d.value, 0)
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === 'dark'
-  const tooltipStyle = {
-    backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
-    border: `1px solid ${isDark ? '#333333' : '#E7E5E4'}`,
-    borderRadius: '12px',
-    color: isDark ? '#FAFAF9' : '#1C1917',
-  }
+  const { tooltipStyle, series: defaultColors } = useChartTheme()
 
   return (
     <div className={cn('relative w-full', className)} style={{ height }}>
@@ -133,14 +108,9 @@ export function DonutChart({ data, height = 200, className, total, totalLabel = 
         </PieChart>
       </ResponsiveContainer>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <span className="text-display-sm font-bold text-ink-900 dark:text-ink-100">{totalValue}</span>
-        <span className="text-body-sm text-ink-500 dark:text-ink-400">{totalLabel}</span>
+        <span className="font-display text-display-sm font-bold tabular text-ink-900 dark:text-ink-100">{totalValue}</span>
+        <span className="text-body-sm text-ink-600 dark:text-ink-400">{totalLabel}</span>
       </div>
     </div>
   )
 }
-
-const defaultColors = [
-  '#F95F62', '#7C4DFF', '#22C55E', '#F59E0B',
-  '#14B8A6', '#EF4444', '#78716C', '#06B6D4',
-]

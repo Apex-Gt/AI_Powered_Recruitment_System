@@ -85,10 +85,8 @@ export type CandidateStatus =
   | 'APPLIED'
   | 'SCREENING'
   | 'SHORTLISTED'
-  | 'ASSESSMENT'
   | 'INTERVIEW'
-  | 'OFFER'
-  | 'HIRED'
+  | 'SELECTED'
   | 'REJECTED'
 
 export interface Resume {

@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { interviewApi, jobApi, candidateApi } from '@/utils/api'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/Table'
+import { FilterSelect, PageHeader, SearchField, StatusTabs, TableSkeleton } from '@/components/ui/ListPage'
 import { StatusBadge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
-import { Plus, Edit, Trash2, Calendar, Search, Video, Phone, MapPin, XCircle, Code2, MessageSquare } from 'lucide-react'
-import { formatDate, cn } from '@/utils/helpers'
+import { Plus, Edit, Trash2, Calendar, Video, Phone, MapPin, XCircle, Code2, MessageSquare } from 'lucide-react'
+import { cn, relativeDayLabel } from '@/utils/helpers'
 import type { Interview, InterviewFeedback, Job, Candidate } from '@/types'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -62,6 +63,7 @@ export function Interviews() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming')
   const [feedbackFor, setFeedbackFor] = useState<Interview | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [feedbackForm, setFeedbackForm] = useState(EMPTY_FEEDBACK)
   const [isSavingFeedback, setIsSavingFeedback] = useState(false)
 
@@ -102,6 +104,19 @@ export function Interviews() {
     }
     fetchData()
   }, [])
+
+  // Arriving from a candidate's profile with ?schedule=<candidateId> opens the form for that person.
+  useEffect(() => {
+    const target = searchParams.get('schedule')
+    if (!target || isLoading) return
+    const candidate = candidates.find((c) => c.id === target)
+    if (candidate) {
+      setIsEditing(false)
+      reset({ type: 'VIDEO', duration: 60, interviewers: '', meetingLink: '', candidateId: candidate.id, jobId: candidate.jobId })
+      setIsModalOpen(true)
+    }
+    setSearchParams({}, { replace: true })
+  }, [searchParams, isLoading, candidates, reset, setSearchParams])
 
   const openCreateModal = () => {
     setIsEditing(false)
@@ -218,216 +233,171 @@ export function Interviews() {
     }
   }
 
-  const filteredInterviews = interviews
-    .filter((i) =>
-      i.candidateName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      i.jobTitle.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-    .filter((i) => !statusFilter || i.status === statusFilter)
-    .filter((i) => {
-      const now = new Date()
-      const scheduled = new Date(i.scheduledAt)
-      return activeTab === 'upcoming' ? scheduled >= now : scheduled < now
-    })
-    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+  const now = new Date()
+  const isUpcoming = (i: Interview) => new Date(i.scheduledAt) >= now && i.status !== 'CANCELLED'
+  const upcomingCount = interviews.filter(isUpcoming).length
+  const pastCount = interviews.length - upcomingCount
+  const query = searchQuery.trim().toLowerCase()
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Interviews</h1>
-            <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Schedule and manage interviews</p>
-          </div>
-          <Button variant="secondary" disabled>
-            <Plus className="w-4 h-4 mr-2" />
-            Schedule Interview
-          </Button>
-        </div>
-        <Card variant="flat" padding="lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead><div className="skeleton-text h-4 w-3/4" /></TableHead>
-                <TableHead><div className="skeleton-text h-4 w-1/2" /></TableHead>
-                <TableHead><div className="skeleton-text h-4 w-1/2" /></TableHead>
-                <TableHead><div className="skeleton-text h-4 w-1/4" /></TableHead>
-                <TableHead><div className="skeleton-text h-4 w-1/4" /></TableHead>
-                <TableHead className="w-24 text-right"><div className="skeleton-text h-4 w-3/4" /></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <TableRow key={i}>
-                  <TableCell><div className="skeleton-text h-5 w-full" /></TableCell>
-                  <TableCell><div className="skeleton-text h-5 w-full" /></TableCell>
-                  <TableCell><div className="skeleton-text h-5 w-full" /></TableCell>
-                  <TableCell><div className="skeleton-text h-5 w-full" /></TableCell>
-                  <TableCell><div className="skeleton-text h-5 w-full" /></TableCell>
-                  <TableCell><div className="skeleton-text h-5 w-full" /></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      </div>
-    )
+  const filteredInterviews = interviews
+    .filter((i) => !query || i.candidateName.toLowerCase().includes(query) || i.jobTitle.toLowerCase().includes(query))
+    .filter((i) => !statusFilter || i.status === statusFilter)
+    .filter((i) => (activeTab === 'upcoming' ? isUpcoming(i) : !isUpcoming(i)))
+    .sort((a, b) => (activeTab === 'upcoming' ? 1 : -1) * (new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()))
+
+  const days: { label: string; items: Interview[] }[] = []
+  for (const i of filteredInterviews) {
+    const label = relativeDayLabel(new Date(i.scheduledAt), now)
+    const last = days[days.length - 1]
+    if (last && last.label === label) last.items.push(i)
+    else days.push({ label, items: [i] })
   }
 
-  const upcomingCount = interviews.filter((i) => new Date(i.scheduledAt) >= new Date() && i.status !== 'CANCELLED').length
-  const pastCount = interviews.filter((i) => new Date(i.scheduledAt) < new Date() || i.status === 'CANCELLED').length
+  const canManage = hasRole(['ADMIN', 'RECRUITER'])
+  const filtering = !!query || !!statusFilter
+  const iconBtn =
+    'flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-ink-600 transition-colors hover:bg-base-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-surface-dark-elevated dark:hover:text-ink-100'
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Interviews</h1>
-          <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Schedule and manage interviews</p>
-        </div>
-        {hasRole(['ADMIN', 'RECRUITER']) && (
-          <Button onClick={openCreateModal} size="lg">
-            <Plus className="w-5 h-5" />
-            Schedule Interview
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Interviews"
+        subtitle="Everything you have scheduled, by day. Add feedback after each interview so the decision is on record."
+        action={
+          canManage && (
+            <Button onClick={openCreateModal} size="lg">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Schedule interview
+            </Button>
+          )
+        }
+      />
 
-      <Card padding="md">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-400" />
-            <Input
-              placeholder="Search interviews..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Select
-            label="Status"
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <StatusTabs
+          label="Interview timing"
+          value={activeTab}
+          onChange={(v) => setActiveTab(v as 'upcoming' | 'past')}
+          tabs={[
+            { value: 'upcoming', label: 'Upcoming', count: upcomingCount },
+            { value: 'past', label: 'Past and cancelled', count: pastCount },
+          ]}
+        />
+        <div className="flex flex-wrap gap-3">
+          <SearchField value={searchQuery} onChange={setSearchQuery} placeholder="Search candidate or job" label="Search interviews" />
+          <FilterSelect
+            label="Filter by status"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as Interview['status'] | '')}
+            onChange={(v) => setStatusFilter(v as Interview['status'] | '')}
             options={[
-              { value: '', label: 'All Status' },
+              { value: '', label: 'Any status' },
               { value: 'SCHEDULED', label: 'Scheduled' },
               { value: 'COMPLETED', label: 'Completed' },
               { value: 'CANCELLED', label: 'Cancelled' },
-              { value: 'NO_SHOW', label: 'No Show' },
+              { value: 'NO_SHOW', label: 'No show' },
             ]}
-            placeholder="All Status"
-            className="w-full sm:w-48"
           />
-          <div className="flex items-center gap-2 border-b border-base-200 dark:border-base-700">
-            <button
-              onClick={() => setActiveTab('upcoming')}
-              className={cn(
-                'px-3 py-2 text-body-sm font-medium border-b-2 transition-colors',
-                activeTab === 'upcoming'
-                  ? 'border-accent-500 text-accent-600 dark:text-accent-400'
-                  : 'border-transparent text-ink-400 dark:text-ink-500 hover:text-ink-600 dark:hover:text-ink-400'
-              )}
-            >
-              Upcoming ({upcomingCount})
-            </button>
-            <button
-              onClick={() => setActiveTab('past')}
-              className={cn(
-                'px-3 py-2 text-body-sm font-medium border-b-2 transition-colors',
-                activeTab === 'past'
-                  ? 'border-accent-500 text-accent-600 dark:text-accent-400'
-                  : 'border-transparent text-ink-400 dark:text-ink-500 hover:text-ink-600 dark:hover:text-ink-400'
-              )}
-            >
-              Past ({pastCount})
-            </button>
-          </div>
         </div>
-      </Card>
+      </div>
 
-      <Card variant="flat" padding="none">
-        {filteredInterviews.length === 0 ? (
+      {isLoading ? (
+        <div className="surface rounded-xl" aria-busy="true" aria-label="Loading interviews">
+          <TableSkeleton columns={4} rows={5} />
+        </div>
+      ) : days.length === 0 ? (
+        <div className="surface rounded-xl">
           <EmptyState
-            icon={<Calendar className="w-16 h-16" />}
-            title={searchQuery || statusFilter ? 'No interviews found' : 'No interviews scheduled'}
-            description={searchQuery || statusFilter ? 'Try adjusting your filters' : 'Schedule your first interview to get started'}
-            action={hasRole(['ADMIN', 'RECRUITER']) ? { label: 'Schedule Interview', onClick: openCreateModal } : undefined}
+            icon={<Calendar className="h-14 w-14" />}
+            title={filtering ? 'No interviews match' : activeTab === 'upcoming' ? 'No interviews coming up' : 'No past interviews'}
+            description={filtering ? 'Clear the search or status filter to see more.' : 'Schedule an interview to see it here.'}
+            action={canManage && !filtering && activeTab === 'upcoming' ? { label: 'Schedule interview', onClick: openCreateModal } : undefined}
           />
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead style={{ width: '30%' }}>Candidate</TableHead>
-                    <TableHead style={{ width: '20%' }}>Job</TableHead>
-                    <TableHead style={{ width: '15%' }}>Date & Time</TableHead>
-                    <TableHead style={{ width: '10%' }}>Type</TableHead>
-                    <TableHead style={{ width: '10%' }}>Status</TableHead>
-                    <TableHead className="w-24 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredInterviews.map((interview) => (
-                    <TableRow key={interview.id}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium text-ink-900 dark:text-ink-100">{interview.candidateName}</p>
-                          <p className="text-body-xs text-ink-500 dark:text-ink-400">{interview.interviewers.join(', ') || 'No interviewers'}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell><span className="text-body-sm text-ink-500 dark:text-ink-400">{interview.jobTitle}</span></TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-body-sm text-ink-600 dark:text-ink-400">
-                          <Calendar className="w-4 h-4" />
-                          <span>{formatDate(interview.scheduledAt)}</span>
-                        </div>
-                        <div className="text-body-xs text-ink-400 dark:text-ink-500">{interview.duration} min</div>
-                      </TableCell>
-                      <TableCell>
-                        <span className={cn('badge-default gap-1', interview.type === 'VIDEO' && 'bg-info-100 text-info-600 dark:bg-info-900/30 dark:text-info-400')}>
-                          {(() => {
-                            const typeInfo = interviewTypes.find((t) => t.value === interview.type)
-                            const Icon = typeInfo?.icon
-                            return Icon ? <Icon className="w-3 h-3" /> : null
-                          })()}
-                          {interviewTypes.find((t) => t.value === interview.type)?.label}
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {days.map((day) => (
+            <section key={day.label} aria-label={day.label}>
+              <h2 className="mb-2 flex items-baseline gap-2 font-display text-heading-sm font-semibold text-ink-900 dark:text-ink-100">
+                {day.label}
+                <span className="text-body-sm font-medium text-ink-600 dark:text-ink-400">
+                  {day.items.length} {day.items.length === 1 ? 'interview' : 'interviews'}
+                </span>
+              </h2>
+              <ul className="surface divide-y divide-[var(--color-border)] overflow-hidden rounded-xl">
+                {day.items.map((interview) => {
+                  const typeInfo = interviewTypes.find((t) => t.value === interview.type)
+                  const TypeIcon = typeInfo?.icon
+                  return (
+                    <li key={interview.id} className="grid grid-cols-1 gap-3 px-5 py-4 md:grid-cols-[6rem_minmax(0,1fr)_auto] md:items-center md:gap-5">
+                      <div>
+                        <p className="font-display text-heading-sm font-bold tabular text-ink-900 dark:text-ink-100">
+                          {new Date(interview.scheduledAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        </p>
+                        <p className="text-body-xs text-ink-600 dark:text-ink-400">{interview.duration} min</p>
+                      </div>
+
+                      <div className="min-w-0">
+                        <Link to={`/candidates/${interview.candidateId}`} className="text-body-md font-semibold text-ink-900 no-underline hover:underline dark:text-ink-100">
+                          {interview.candidateName}
+                        </Link>
+                        <p className="truncate text-body-sm text-ink-600 dark:text-ink-400">
+                          {interview.jobTitle}
+                          {interview.interviewers.length > 0 && ` with ${interview.interviewers.join(', ')}`}
+                        </p>
+                        {interview.feedback && (
+                          <p className="mt-1 text-body-xs font-semibold text-success-600 dark:text-success-400">
+                            Feedback in: {interview.feedback.rating} of 5, {interview.feedback.recommendation.replace('_', ' ').toLowerCase()}
+                          </p>
+                        )}
+                        {interview.meetingLink && interview.status === 'SCHEDULED' && (
+                          <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-body-xs font-semibold text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">
+                            Open meeting link
+                          </a>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                        <span className="badge-default gap-1">
+                          {TypeIcon && <TypeIcon className="h-3 w-3" aria-hidden="true" />}
+                          {typeInfo?.label}
                         </span>
-                      </TableCell>
-                      <TableCell>
                         <StatusBadge status={interview.status} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {interview.status === 'SCHEDULED' && (
-                            <Button variant="ghost" size="sm" onClick={() => openEditModal(interview)} title="Edit">
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                          )}
-                          {interview.status !== 'CANCELLED' && (
-                            <Button variant="ghost" size="sm" onClick={() => openFeedbackModal(interview)} title={interview.feedback ? 'Edit feedback' : 'Add feedback'}>
-                              <MessageSquare className={cn('w-4 h-4', interview.feedback && 'text-success-500')} />
-                            </Button>
-                          )}
-                          {interview.status === 'SCHEDULED' && (
-                            <>
-                              <Button variant="ghost" size="sm" onClick={() => handleCancel(interview.id)} title="Cancel" className="text-warning-500">
-                                <XCircle className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                          <Button variant="ghost" size="sm" className="text-error-500" onClick={() => handleDelete(interview.id)} title="Delete">
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </>
-        )}
-      </Card>
+                        {canManage && (
+                          <div className="flex items-center">
+                            {interview.status === 'SCHEDULED' && (
+                              <button className={iconBtn} onClick={() => openEditModal(interview)} title="Edit" aria-label={`Edit interview with ${interview.candidateName}`}>
+                                <Edit className="h-4 w-4" />
+                              </button>
+                            )}
+                            {interview.status !== 'CANCELLED' && (
+                              <button
+                                className={iconBtn}
+                                onClick={() => openFeedbackModal(interview)}
+                                title={interview.feedback ? 'Edit feedback' : 'Add feedback'}
+                                aria-label={`${interview.feedback ? 'Edit' : 'Add'} feedback for ${interview.candidateName}`}
+                              >
+                                <MessageSquare className={cn('h-4 w-4', interview.feedback && 'text-success-500')} />
+                              </button>
+                            )}
+                            {interview.status === 'SCHEDULED' && (
+                              <button className={cn(iconBtn, 'hover:text-warning-600')} onClick={() => handleCancel(interview.id)} title="Cancel interview" aria-label={`Cancel interview with ${interview.candidateName}`}>
+                                <XCircle className="h-4 w-4" />
+                              </button>
+                            )}
+                            <button className={cn(iconBtn, 'hover:text-error-600')} onClick={() => handleDelete(interview.id)} title="Delete" aria-label={`Delete interview with ${interview.candidateName}`}>
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
 
       <Modal isOpen={isModalOpen} onClose={closeModal} title={isEditing ? 'Edit Interview' : 'Schedule Interview'} size="lg">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

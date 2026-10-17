@@ -296,8 +296,10 @@ export const candidateApi = {
   shortlist: (id: string) => api.post<CommonResponse<void>>(`/recruiter/candidates/${id}/shortlist`, {}),
   reject: (id: string, reason?: string) =>
     api.post<CommonResponse<void>>(`/recruiter/candidates/${id}/reject`, { reason }),
+  getNotes: (id: string) =>
+    api.get<CommonResponse<CandidateNote[]>>(`/recruiter/candidates/${id}/notes`).then((res) => res.data),
   addNote: (id: string, note: string) =>
-    api.post<CommonResponse<void>>(`/recruiter/candidates/${id}/notes`, { note }),
+    api.post<CommonResponse<CandidateNote>>(`/recruiter/candidates/${id}/notes`, { note }).then((res) => res.data),
 }
 
 export const resumeApi = {
@@ -521,6 +523,13 @@ interface AssessmentInput {
     correctAnswer?: string
     weight: number
   }[]
+}
+
+interface CandidateNote {
+  id: string
+  note: string
+  authorName: string
+  createdAt: string
 }
 
 interface SubmitInterviewFeedbackRequest {

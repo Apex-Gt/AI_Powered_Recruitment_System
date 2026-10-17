@@ -371,15 +371,9 @@ export function JobDetail() {
                 </span>
               </div>
               <div className="flex items-center justify-between p-3 bg-base-50 dark:bg-base-800/50 rounded-xl">
-                <span className="text-body-sm text-ink-500 dark:text-ink-400">Offers Extended</span>
+                <span className="text-body-sm text-ink-500 dark:text-ink-400">Selected</span>
                 <span className="text-heading-md font-bold text-brand-600 dark:text-brand-300">
-                  {candidates.filter((c) => c.status === 'OFFER').length}
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-base-50 dark:bg-base-800/50 rounded-xl">
-                <span className="text-body-sm text-ink-500 dark:text-ink-400">Hired</span>
-                <span className="text-heading-md font-bold text-green-600 dark:text-green-400">
-                  {candidates.filter((c) => c.status === 'HIRED').length}
+                  {candidates.filter((c) => c.status === 'SELECTED').length}
                 </span>
               </div>
             </CardContent>

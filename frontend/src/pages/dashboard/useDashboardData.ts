@@ -5,7 +5,7 @@ import type { Candidate, CandidateStatus, Interview, Job } from '@/types'
 
 export type RangeDays = 7 | 30 | 90
 
-const STAGES: CandidateStatus[] = ['APPLIED', 'SCREENING', 'SHORTLISTED', 'ASSESSMENT', 'INTERVIEW', 'OFFER', 'HIRED']
+const STAGES: CandidateStatus[] = ['APPLIED', 'SCREENING', 'SHORTLISTED', 'INTERVIEW', 'SELECTED']
 const stageIndex = (s?: CandidateStatus) => (s ? STAGES.indexOf(s) : 0)
 const DAY = 86_400_000
 
@@ -81,7 +81,7 @@ export function useDashboardData(range: RangeDays) {
         name: new Date(from).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         applied: slice.length,
         shortlisted: reached(slice, 'SHORTLISTED').length,
-        offers: reached(slice, 'OFFER').length,
+        selected: reached(slice, 'SELECTED').length,
         jobs: jobs.filter((j) => {
           const t = new Date(j.createdAt).getTime()
           return t >= from && t < to
@@ -116,8 +116,8 @@ export function useDashboardData(range: RangeDays) {
         candidatesChange: pctChange(inRange.length, inPrev.length),
         shortlisted: reached(inRange, 'SHORTLISTED').length,
         shortlistedChange: pctChange(reached(inRange, 'SHORTLISTED').length, reached(inPrev, 'SHORTLISTED').length),
-        offers: reached(inRange, 'OFFER').length,
-        offersChange: pctChange(reached(inRange, 'OFFER').length, reached(inPrev, 'OFFER').length),
+        selected: reached(inRange, 'SELECTED').length,
+        selectedChange: pctChange(reached(inRange, 'SELECTED').length, reached(inPrev, 'SELECTED').length),
         totalCandidates: candidates.length,
       },
       series,

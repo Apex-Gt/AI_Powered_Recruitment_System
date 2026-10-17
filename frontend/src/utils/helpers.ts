@@ -56,10 +56,8 @@ export function getStatusColor(status: string): string {
     APPLIED: 'default',
     SCREENING: 'warning',
     SHORTLISTED: 'primary',
-    ASSESSMENT: 'primary',
     INTERVIEW: 'info',
-    OFFER: 'purple',
-    HIRED: 'success',
+    SELECTED: 'success',
     REJECTED: 'error',
     ACTIVE: 'success',
     DRAFT: 'default',
@@ -85,4 +83,14 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
 
 export function generateId(): string {
   return Math.random().toString(36).substring(2, 15)
+}
+
+/** "Today", "Tomorrow", or a weekday and date; used to group agenda items by day. */
+export function relativeDayLabel(date: Date, now: Date = new Date()): string {
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const diff = Math.round((startOf(date) - startOf(now)) / 86_400_000)
+  if (diff === 0) return 'Today'
+  if (diff === 1) return 'Tomorrow'
+  if (diff === -1) return 'Yesterday'
+  return date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' })
 }

@@ -35,10 +35,8 @@ const STATUS_TABS: { value: string; label: string }[] = [
   { value: 'APPLIED', label: 'Applied' },
   { value: 'SCREENING', label: 'Screening' },
   { value: 'SHORTLISTED', label: 'Shortlisted' },
-  { value: 'ASSESSMENT', label: 'Assessment' },
   { value: 'INTERVIEW', label: 'Interview' },
-  { value: 'OFFER', label: 'Offer' },
-  { value: 'HIRED', label: 'Hired' },
+  { value: 'SELECTED', label: 'Selected' },
   { value: 'REJECTED', label: 'Rejected' },
 ]
 

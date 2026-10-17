@@ -1,317 +1,240 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { candidateApi } from '@/utils/api'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { Plus, Search, GripVertical } from 'lucide-react'
-import { cn } from '@/utils/helpers'
-import type { Candidate, CandidateStatus } from '@/types'
+import { AlertCircle, GripVertical, Upload } from 'lucide-react'
 import {
   DndContext,
-  closestCenter,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
   KeyboardSensor,
   PointerSensor,
+  closestCorners,
+  useDroppable,
   useSensor,
   useSensors,
-  useDroppable,
-  DragEndEvent,
 } from '@dnd-kit/core'
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable'
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import toast from 'react-hot-toast'
+import { candidateApi, jobApi } from '@/utils/api'
+import { Button } from '@/components/ui/Button'
+import { FilterSelect, MatchScore, SearchField } from '@/components/ui/ListPage'
+import { UploadResumesModal } from '@/components/candidates/UploadResumesModal'
+import { cn, getInitials } from '@/utils/helpers'
+import type { Candidate, CandidateStatus, Job } from '@/types'
 
-const PIPELINE_STATUSES: CandidateStatus[] = [
-  'APPLIED',
-  'SCREENING',
-  'SHORTLISTED',
-  'ASSESSMENT',
-  'INTERVIEW',
-  'OFFER',
-  'HIRED',
-  'REJECTED',
+/** Left to right is the order candidates move through; Rejected sits apart at the end. */
+const COLUMNS: { status: CandidateStatus; label: string; hint: string; rule: string }[] = [
+  { status: 'APPLIED', label: 'Applied', hint: 'New resumes', rule: 'bg-ink-300 dark:bg-ink-600' },
+  { status: 'SCREENING', label: 'Screening', hint: 'Being reviewed', rule: 'bg-clay-300' },
+  { status: 'SHORTLISTED', label: 'Shortlisted', hint: 'Worth a conversation', rule: 'bg-brand-400' },
+  { status: 'INTERVIEW', label: 'Interview', hint: 'Meeting the team', rule: 'bg-accent-500' },
+  { status: 'SELECTED', label: 'Selected', hint: 'Offer stage', rule: 'bg-success-500' },
+  { status: 'REJECTED', label: 'Rejected', hint: 'Not moving forward', rule: 'bg-error-400' },
 ]
 
-const STATUS_LABELS: Record<CandidateStatus, string> = {
-  APPLIED: 'Applied',
-  SCREENING: 'Screening',
-  SHORTLISTED: 'Shortlisted',
-  ASSESSMENT: 'Assessment',
-  INTERVIEW: 'Interview',
-  OFFER: 'Offer',
-  HIRED: 'Hired',
-  REJECTED: 'Rejected',
-}
+const STATUSES = COLUMNS.map((c) => c.status)
 
-interface KanbanColumnProps {
-  status: CandidateStatus
-  candidates: Candidate[]
-}
-
-function KanbanColumn({ status, candidates }: KanbanColumnProps) {
-  const label = STATUS_LABELS[status]
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: status })
-
+function CardBody({ candidate, dragging }: { candidate: Candidate; dragging?: boolean }) {
   return (
-    <div ref={setDropRef} className={cn(isOver && 'ring-2 ring-brand-400 rounded-xl')}>
-      <Card className="kanban-column w-72 flex-shrink-0 flex flex-col" style={{minHeight: '600px'}}>
-        <CardHeader className="pb-3 kanban-column-header">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-body-lg">{label}</CardTitle>
-            <span className="text-body-sm text-ink-500 dark:text-ink-400">{candidates.length}</span>
-          </div>
-        </CardHeader>
-        <CardContent className="flex-1 min-h-[400px] kanban-column-content p-2">
-          <SortableContext items={candidates.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-            {candidates.map((candidate) => (
-              <CandidateCard key={candidate.id} candidate={candidate} />
-            ))}
-            {candidates.length === 0 && (
-              <div className="h-24 border-2 border-dashed border-base-300 dark:border-base-600 rounded-xl flex items-center justify-center">
-                <span className="text-body-sm text-ink-400 dark:text-ink-500">Drop candidates here</span>
-              </div>
-            )}
-          </SortableContext>
-        </CardContent>
-      </Card>
+    <div className={cn('kanban-card flex flex-col gap-2.5', dragging && 'kanban-card-dragging')}>
+      <div className="flex items-start gap-2.5">
+        <span className="avatar-sm flex-shrink-0">{getInitials(candidate.candidateName)}</span>
+        <div className="min-w-0 flex-1">
+          <Link
+            to={`/candidates/${candidate.id}`}
+            className="block truncate text-body-sm font-semibold text-ink-900 no-underline hover:underline dark:text-ink-100"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {candidate.candidateName}
+          </Link>
+          <p className="truncate text-body-xs text-ink-600 dark:text-ink-400" title={candidate.jobTitle}>{candidate.jobTitle ?? 'No job'}</p>
+        </div>
+        <GripVertical className="mt-0.5 h-4 w-4 flex-shrink-0 text-ink-400" aria-hidden="true" />
+      </div>
+      <MatchScore score={candidate.aiMatchScore} />
     </div>
   )
 }
 
-interface CandidateCardProps {
-  candidate: Candidate
-}
-
-function CandidateCard({ candidate }: CandidateCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: candidate.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
-
+function CandidateCard({ candidate }: { candidate: Candidate }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: candidate.id })
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.35 : 1 }}
+      className="cursor-grab touch-manipulation active:cursor-grabbing"
+      {...attributes}
+      {...listeners}
+      aria-label={`${candidate.candidateName}, drag to change stage`}
+    >
+      <CardBody candidate={candidate} />
+    </div>
+  )
+}
+
+function Column({ column, candidates }: { column: (typeof COLUMNS)[number]; candidates: Candidate[] }) {
+  const { setNodeRef, isOver } = useDroppable({ id: column.status })
+  return (
+    <section
+      ref={setNodeRef}
+      aria-label={`${column.label}, ${candidates.length} candidates`}
       className={cn(
-        'candidate-card relative p-4 bg-base-100 dark:bg-base-900 border border-base-200 dark:border-base-700 rounded-xl shadow-neo-1',
-        isDragging && 'shadow-lg ring-2 ring-accent-500'
+        'flex min-h-[420px] min-w-0 flex-col overflow-hidden rounded-xl border bg-base-50 transition-colors dark:bg-surface-dark-card',
+        isOver ? 'border-clay-400 bg-clay-50 dark:bg-clay-800/20' : 'border-[var(--color-border)]',
+        column.status === 'REJECTED' && 'opacity-90'
       )}
     >
-      <button
-        {...attributes}
-        {...listeners}
-        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
-        aria-label="Drag"
-      >
-        <GripVertical className="w-4 h-4 text-ink-400" />
-      </button>
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-brand-100 dark:bg-brand-900/40 flex items-center justify-center flex-shrink-0">
-          <span className="text-label-sm font-bold text-brand-700 dark:text-brand-200">
-            {candidate.candidateName.charAt(0)}
-          </span>
+      <span className={cn('block h-1', column.rule)} aria-hidden="true" />
+      <header className="flex items-baseline justify-between gap-2 px-3.5 pb-2 pt-3">
+        <div>
+          <h2 className="font-display text-body-md font-semibold text-ink-900 dark:text-ink-100">{column.label}</h2>
+          <p className="text-body-xs text-ink-600 dark:text-ink-400">{column.hint}</p>
         </div>
-        <div className="flex-1 min-w-0">
-          <Link to={`/candidates/${candidate.id}`} className="block hover:underline">
-            <p className="font-medium text-ink-900 dark:text-ink-100 truncate">{candidate.candidateName}</p>
-            <p className="text-body-xs text-ink-500 dark:text-ink-400 truncate">{candidate.candidateEmail}</p>
-          </Link>
-          <div className="flex items-center gap-2 mt-2">
-            <span className="text-body-xs text-ink-500 dark:text-ink-400">{candidate.jobTitle}</span>
-            {candidate.aiMatchScore !== undefined && (
-              <span className={cn(
-                'text-body-xs font-medium px-2 py-0.5 rounded-full',
-                candidate.aiMatchScore >= 80 ? 'bg-success-100 text-success-600 dark:bg-success-900/30 dark:text-success-400' :
-                candidate.aiMatchScore >= 60 ? 'bg-warning-100 text-warning-600 dark:bg-warning-900/30 dark:text-warning-400' :
-                candidate.aiMatchScore >= 40 ? 'bg-accent-100 text-accent-600 dark:bg-accent-900/30 dark:text-accent-400' :
-                'bg-error-100 text-error-600 dark:bg-error-900/30 dark:text-error-400'
-              )}>
-                {candidate.aiMatchScore}%
-              </span>
-            )}
-          </div>
+        <span className="font-display text-heading-sm font-bold tabular text-ink-900 dark:text-ink-100">{candidates.length}</span>
+      </header>
+      <SortableContext items={candidates.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+        <div className="flex flex-1 flex-col gap-2 p-2.5">
+          {candidates.map((c) => (
+            <CandidateCard key={c.id} candidate={c} />
+          ))}
+          {candidates.length === 0 && (
+            <p className="rounded-lg border border-dashed border-[var(--color-border-hover)] px-3 py-6 text-center text-body-xs text-ink-600 dark:text-ink-400">
+              Drag a candidate here
+            </p>
+          )}
         </div>
-      </div>
-    </div>
+      </SortableContext>
+    </section>
   )
 }
 
 export function Pipeline() {
   const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [jobs, setJobs] = useState<Job[]>([])
+  const [jobId, setJobId] = useState('')
+  const [search, setSearch] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [activeJobId] = useState<string | undefined>()
+  const [error, setError] = useState<string | null>(null)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
   useEffect(() => {
-    const fetchCandidates = async () => {
-      setIsLoading(true)
-      try {
-        const response = await candidateApi.getAllUnwrapped({
-          page: 1,
-          pageSize: 200,
-          jobId: activeJobId,
-          search: searchQuery,
-        })
-        setCandidates(response.data)
-      } catch (error) {
-        console.error('Failed to fetch candidates:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    fetchCandidates()
-  }, [activeJobId, searchQuery])
+    jobApi
+      .getMyJobsUnwrapped({ page: 1, pageSize: 100 })
+      .then((res) => setJobs(res.data))
+      .catch(() => setJobs([]))
+  }, [])
 
-  const onCandidateMove = async (candidateId: string, newStatus: CandidateStatus) => {
+  const load = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
     try {
-      await candidateApi.updateStatus(candidateId, newStatus)
-      setCandidates((prev) =>
-        prev.map((c) =>
-          c.id === candidateId ? { ...c, status: newStatus } : c
-        )
-      )
-    } catch (error) {
-      console.error('Failed to update candidate status:', error)
+      const res = await candidateApi.getAllUnwrapped({ page: 1, pageSize: 500, jobId: jobId || undefined, search: search || undefined })
+      setCandidates(res.data as Candidate[])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load candidates')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [jobId, search])
+
+  useEffect(() => {
+    const t = setTimeout(load, search ? 250 : 0)
+    return () => clearTimeout(t)
+  }, [load, reloadKey, search])
+
+  const byStatus = useMemo(() => {
+    const map = Object.fromEntries(STATUSES.map((s) => [s, [] as Candidate[]])) as Record<CandidateStatus, Candidate[]>
+    for (const c of candidates) map[(c.status ?? 'APPLIED') as CandidateStatus]?.push(c)
+    return map
+  }, [candidates])
+
+  const move = async (candidateId: string, status: CandidateStatus) => {
+    const before = candidates
+    setCandidates((prev) => prev.map((c) => (c.id === candidateId ? { ...c, status } : c)))
+    try {
+      await candidateApi.updateStatus(candidateId, status)
+      const label = COLUMNS.find((c) => c.status === status)?.label ?? status
+      toast.success(`Moved to ${label}`)
+    } catch (e) {
+      setCandidates(before)
+      toast.error(e instanceof Error ? e.message : 'Could not move the candidate')
     }
   }
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
+  const onDragStart = (e: DragStartEvent) => setDraggingId(String(e.active.id))
+
+  const onDragEnd = (e: DragEndEvent) => {
+    setDraggingId(null)
+    const { active, over } = e
     if (!over) return
-
-    const candidateId = active.id as string
-    const overId = over.id as string
-
-    let newStatus: CandidateStatus | undefined
-
-    if ((PIPELINE_STATUSES as string[]).includes(overId)) {
-      // Dropped directly on a column droppable
-      newStatus = overId as CandidateStatus
-    } else {
-      // Dropped on another candidate card — find that card's column
-      const targetCandidate = candidates.find((c) => c.id === overId)
-      if (targetCandidate) {
-        newStatus = targetCandidate.status as CandidateStatus
-      }
-    }
-
-    if (newStatus && candidateId !== overId) {
-      onCandidateMove(candidateId, newStatus)
-    }
+    const id = String(active.id)
+    const overId = String(over.id)
+    const target = (STATUSES as string[]).includes(overId)
+      ? (overId as CandidateStatus)
+      : (candidates.find((c) => c.id === overId)?.status as CandidateStatus | undefined)
+    const current = candidates.find((c) => c.id === id)?.status
+    if (target && target !== current) void move(id, target)
   }
 
-  const candidatesByStatus = PIPELINE_STATUSES.reduce(
-    (acc, status) => {
-      acc[status] = candidates.filter((c) => c.status === status)
-      return acc
-    },
-    {} as Record<CandidateStatus, Candidate[]>
-  )
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Pipeline</h1>
-            <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Visualize and manage your recruitment pipeline</p>
-          </div>
-          <Button variant="secondary" disabled>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Candidate
-          </Button>
-        </div>
-        <div className="overflow-x-auto pb-4">
-          <div className="flex gap-4 min-w-max" style={{ minWidth: '100%' }}>
-            {PIPELINE_STATUSES.map((status) => (
-              <Card key={status} className="kanban-column w-72 flex-shrink-0 flex flex-col" style={{ minHeight: '600px' }}>
-                <CardHeader className="pb-3 kanban-column-header">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-body-lg">{STATUS_LABELS[status]}</CardTitle>
-                    <span className="text-body-sm text-ink-500 dark:text-ink-400">0</span>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-1 min-h-[400px] kanban-column-content">
-                  <div className="animate-pulse space-y-3 p-2">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="h-24 bg-base-200 dark:bg-base-700 rounded-xl" />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const dragging = draggingId ? candidates.find((c) => c.id === draggingId) : undefined
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Pipeline</h1>
-            <p className="text-body-md text-ink-500 dark:text-ink-400 mt-1">Visualize and manage your recruitment pipeline</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="relative max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-400" />
-              <Input
-                placeholder="Search candidates..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Button variant="secondary">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Candidate
-            </Button>
-          </div>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-heading-xl font-bold text-ink-900 dark:text-ink-100">Pipeline</h1>
+          <p className="mt-1.5 max-w-xl text-body-md text-ink-600 dark:text-ink-400">
+            Drag a candidate to the next stage. Changes save as soon as you drop.
+          </p>
         </div>
+        <Button onClick={() => setUploadOpen(true)}>
+          <Upload className="h-4 w-4" aria-hidden="true" />
+          Add candidates
+        </Button>
+      </div>
 
-        <div className="overflow-x-auto pb-4">
-          <div className="flex gap-4 min-w-max" style={{ minWidth: '100%' }}>
-            {PIPELINE_STATUSES.map((status) => (
-              <KanbanColumn
-                key={status}
-                status={status}
-                candidates={candidatesByStatus[status]}
-              />
+      <div className="flex flex-wrap gap-3">
+        <SearchField value={search} onChange={setSearch} placeholder="Search by name or email" label="Search pipeline" />
+        <FilterSelect
+          label="Filter by job"
+          value={jobId}
+          onChange={setJobId}
+          options={[{ value: '', label: 'All jobs' }, ...jobs.map((j) => ({ value: j.id, label: j.title }))]}
+        />
+      </div>
+
+      {error && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-lg border border-error-200 bg-error-50 p-3 text-body-sm text-error-600 dark:border-error-800/70 dark:bg-error-900/30 dark:text-error-400">
+          <span className="flex items-center gap-2"><AlertCircle className="h-4 w-4" aria-hidden="true" />{error}</span>
+          <button onClick={() => setReloadKey((k) => k + 1)} className="cursor-pointer font-semibold underline">Try again</button>
+        </div>
+      )}
+
+      <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDraggingId(null)}>
+        <div className="overflow-x-auto pb-3" aria-busy={isLoading}>
+          <div className="grid min-w-[1120px] grid-cols-6 gap-3">
+            {COLUMNS.map((col) => (
+              <Column key={col.status} column={col} candidates={byStatus[col.status]} />
             ))}
           </div>
         </div>
-      </div>
-    </DndContext>
+        <DragOverlay>{dragging ? <CardBody candidate={dragging} dragging /> : null}</DragOverlay>
+      </DndContext>
+
+      <UploadResumesModal
+        isOpen={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onUploaded={() => setReloadKey((k) => k + 1)}
+        jobs={jobs.filter((j) => j.status !== 'CLOSED').map((j) => ({ id: j.id, title: j.title }))}
+      />
+    </div>
   )
 }

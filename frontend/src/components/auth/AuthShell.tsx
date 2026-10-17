@@ -1,70 +1,54 @@
 import { Link } from 'react-router-dom'
-import { Sparkles, Users, Briefcase, TrendingUp } from 'lucide-react'
+import { Wordmark } from '@/components/layout/AppBand'
 
-function PreviewPanel() {
-  const bars = [40, 68, 52, 86, 60, 74, 48]
+const SAMPLE = [
+  { name: 'Meera Iyer', evidence: '6 years of Java, led a payments migration', score: 94 },
+  { name: 'Aarav Mehta', evidence: 'Spring Boot and Kafka in production, no Kubernetes', score: 91 },
+  { name: 'Isha Kapoor', evidence: 'Strong system design, one year short on experience', score: 88 },
+]
+
+function ShowcasePanel() {
   return (
-    <div className="relative hidden lg:flex flex-1 items-center justify-center overflow-hidden rounded-[28px] bg-gradient-to-br from-accent-500 via-accent-400 to-brand-500 p-10 xl:p-14">
-      <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-white/15 blur-2xl" aria-hidden="true" />
-      <div className="absolute -bottom-28 -left-16 h-80 w-80 rounded-full bg-brand-700/40 blur-3xl" aria-hidden="true" />
+    <aside
+      className="relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-center lg:px-14 xl:px-20"
+      style={{ backgroundColor: 'var(--color-band)', color: '#fefae0' }}
+      aria-label="What NexHire does"
+    >
+      <svg viewBox="0 0 200 200" className="pointer-events-none absolute -bottom-16 -right-16 h-[26rem] w-[26rem]" aria-hidden="true">
+        <path d="M20 190C20 90 80 20 190 20c0 100-60 170-170 170Z" fill="#547133" opacity="0.28" />
+        <path d="M20 190 150 60" stroke="#fefae0" strokeOpacity="0.18" strokeWidth="2" strokeLinecap="round" fill="none" />
+      </svg>
 
-      <div className="relative w-full max-w-[460px]">
-        <h2 className="text-heading-xl xl:text-display-sm font-extrabold text-white leading-tight">
-          Hire smarter with AI-powered shortlisting
-        </h2>
-        <p className="mt-3 text-body-md text-white/90">
-          Screen, score and schedule candidates from one dashboard.
+      <div className="relative max-w-[34rem]">
+        <h2 className="font-display text-display-sm font-bold xl:text-display-md">Every resume read, every score explained.</h2>
+        <p className="mt-4 max-w-md text-body-lg" style={{ color: 'rgba(254,250,224,0.78)' }}>
+          NexHire reads each resume against the job, scores the match, and shows the evidence behind the number.
         </p>
 
-        <div className="mt-8 space-y-4" aria-hidden="true">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-xl bg-white p-4 shadow-soft">
-              <div className="flex items-center gap-2 text-body-xs text-ink-500">
-                <Briefcase className="h-4 w-4 text-accent-600" /> Active jobs
-              </div>
-              <p className="mt-1 text-heading-lg font-bold text-ink-900">24</p>
-              <span className="text-body-xs font-semibold text-success-600">▲ 12% vs last month</span>
-            </div>
-            <div className="rounded-xl bg-white p-4 shadow-soft">
-              <div className="flex items-center gap-2 text-body-xs text-ink-500">
-                <Users className="h-4 w-4 text-brand-600" /> Candidates
-              </div>
-              <p className="mt-1 text-heading-lg font-bold text-ink-900">1,284</p>
-              <span className="text-body-xs font-semibold text-success-600">▲ 8% vs last month</span>
-            </div>
+        <div className="mt-10 rounded-xl p-6" style={{ backgroundColor: '#fefae0', color: '#283618' }} role="img" aria-label="Example of a ranked shortlist">
+          <div className="flex items-baseline justify-between">
+            <p className="font-display text-body-lg font-bold">Senior Java Developer</p>
+            <p className="text-body-xs font-semibold" style={{ color: '#5b6347' }}>Example shortlist</p>
           </div>
-
-          <div className="rounded-xl bg-white p-4 shadow-soft">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-2 text-body-sm font-semibold text-ink-900">
-                <TrendingUp className="h-4 w-4 text-accent-600" /> Applications
-              </span>
-              <span className="text-body-xs text-ink-500">Last 7 days</span>
-            </div>
-            <div className="mt-4 flex h-24 items-end gap-2">
-              {bars.map((h, i) => (
-                <div
-                  key={i}
-                  className={i === 3 ? 'flex-1 rounded-md bg-brand-500' : 'flex-1 rounded-md bg-accent-300'}
-                  style={{ height: `${h}%` }}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 rounded-xl bg-white p-4 shadow-soft">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100">
-              <Sparkles className="h-5 w-5 text-brand-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-body-sm font-semibold text-ink-900">AI match score</p>
-              <p className="text-body-xs text-ink-500">Senior Python Developer</p>
-            </div>
-            <span className="text-heading-md font-bold text-brand-600">92%</span>
-          </div>
+          <ol className="mt-4 divide-y" style={{ borderColor: '#dedab9' }}>
+            {SAMPLE.map((c) => (
+              <li key={c.name} className="flex items-center gap-4 py-3" style={{ borderColor: '#dedab9' }}>
+                <div className="min-w-0 flex-1">
+                  <p className="text-body-sm font-semibold">{c.name}</p>
+                  <p className="text-body-xs" style={{ color: '#5b6347' }}>{c.evidence}</p>
+                </div>
+                <div className="flex w-24 items-center gap-2">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-sm" style={{ backgroundColor: '#e5e1bd' }}>
+                    <div className="h-full rounded-sm" style={{ width: `${c.score}%`, backgroundColor: '#bc6c25' }} />
+                  </div>
+                  <span className="font-display text-body-sm font-bold tabular" style={{ color: '#96561e' }}>{c.score}</span>
+                </div>
+              </li>
+            ))}
+          </ol>
         </div>
       </div>
-    </div>
+    </aside>
   )
 }
 
@@ -75,24 +59,19 @@ interface AuthShellProps {
 
 export function AuthShell({ children, footer }: AuthShellProps) {
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] p-3 sm:p-4 lg:p-5">
-      <div className="mx-auto flex min-h-[calc(100vh-1.5rem)] sm:min-h-[calc(100vh-2rem)] lg:min-h-[calc(100vh-2.5rem)] max-w-[1500px] gap-5 rounded-[32px] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-soft lg:p-4">
-        <div className="flex flex-1 flex-col px-4 py-6 sm:px-10 lg:px-12 xl:px-20">
-          <Link to="/" className="inline-flex w-fit items-center gap-2.5">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent-500 to-brand-500 shadow-accent">
-              <Sparkles className="h-5 w-5 text-white" aria-hidden="true" />
-            </span>
-            <span className="text-heading-md font-extrabold text-ink-900 dark:text-ink-100">NexHire</span>
-          </Link>
+    <div className="grid min-h-screen bg-[var(--color-bg)] lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+      <div className="flex flex-col px-6 py-8 sm:px-12 lg:px-14 xl:px-20">
+        <Link to="/" className="w-fit text-ink-900 dark:text-ink-100" aria-label="NexHire home">
+          <Wordmark />
+        </Link>
 
-          <div className="flex flex-1 items-center justify-center py-8">
-            <div className="w-full max-w-[440px]">{children}</div>
-          </div>
-
-          {footer && <div className="text-body-xs text-ink-500 dark:text-ink-400">{footer}</div>}
+        <div className="flex flex-1 items-center py-10">
+          <div className="w-full max-w-[420px]">{children}</div>
         </div>
-        <PreviewPanel />
+
+        {footer && <div className="text-body-xs text-ink-600 dark:text-ink-400">{footer}</div>}
       </div>
+      <ShowcasePanel />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { cn } from '@/utils/helpers'
-import { useTheme } from '@/context/ThemeContext'
+import { useChartTheme } from './theme'
 
 interface ChartData {
   name: string
@@ -28,16 +28,13 @@ export function BarChartComponent({
   index = 'name',
   stacked = false,
 }: BarChartProps) {
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === 'dark'
-  const gridStroke = isDark ? '#333333' : '#E7E5E4'
-  const tickFill = isDark ? '#A8A29E' : '#78716C'
+  const { grid: gridStroke, tick: tickFill, tooltipStyle } = useChartTheme()
 
   return (
     <div className={cn('w-full', className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} layout="vertical" margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+          <CartesianGrid strokeDasharray="2 4" stroke={gridStroke} vertical={false} />
           <XAxis type="number" tick={{ fill: tickFill, fontSize: 12 }} axisLine={false} tickLine={false} />
           <YAxis
             type="category"
@@ -48,12 +45,7 @@ export function BarChartComponent({
             width={120}
           />
           <Tooltip
-            contentStyle={{
-              backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
-              border: `1px solid ${gridStroke}`,
-              borderRadius: '12px',
-              color: isDark ? '#FAFAF9' : '#1C1917',
-            }}
+            contentStyle={tooltipStyle}
             labelStyle={{ color: tickFill, fontSize: '12px' }}
             formatter={(value: number, name: string) => [value, labels[name] || name]}
           />

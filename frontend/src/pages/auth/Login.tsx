@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { AuthShell } from '@/components/auth/AuthShell'
-import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff, Lock, Mail } from 'lucide-react'
 
 export function Login() {
   const navigate = useNavigate()
@@ -54,10 +54,10 @@ export function Login() {
 
   return (
     <AuthShell footer={<span>Demo credentials: admin@abctech.com / Admin@123</span>}>
-      <h1 className="text-display-sm font-extrabold tracking-tight text-ink-900 dark:text-ink-100">
+      <h1 className="text-display-sm font-bold text-ink-900 dark:text-ink-100">
         Welcome back
       </h1>
-      <p className="mt-2 text-body-md text-ink-500 dark:text-ink-400">
+      <p className="mt-2 text-body-md text-ink-600 dark:text-ink-400">
         Sign in to manage jobs, candidates and interviews.
       </p>
 
@@ -111,11 +111,10 @@ export function Login() {
 
         <Button type="submit" className="h-12 w-full" size="lg" loading={isLoading}>
           Sign in
-          <ArrowRight className="h-5 w-5" aria-hidden="true" />
         </Button>
       </form>
 
-      <p className="mt-8 text-center text-body-sm text-ink-500 dark:text-ink-400">
+      <p className="mt-8 text-center text-body-sm text-ink-600 dark:text-ink-400">
         New to NexHire?{' '}
         <Link to="/register" className="font-semibold text-accent-600 hover:underline dark:text-accent-400">
           Register your company

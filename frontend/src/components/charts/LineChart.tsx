@@ -1,6 +1,7 @@
+import { Fragment } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area } from 'recharts'
 import { cn } from '@/utils/helpers'
-import { useTheme } from '@/context/ThemeContext'
+import { useChartTheme } from './theme'
 
 interface ChartData {
   name: string
@@ -30,22 +31,13 @@ export function LineChartComponent({
   area = false,
   showDots = false,
 }: LineChartProps) {
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === 'dark'
-  const gridStroke = isDark ? '#333333' : '#E7E5E4'
-  const tickFill = isDark ? '#A8A29E' : '#78716C'
-  const tooltipStyle = {
-    backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
-    border: `1px solid ${isDark ? '#333333' : '#E7E5E4'}`,
-    borderRadius: '12px',
-    color: isDark ? '#FAFAF9' : '#1C1917',
-  }
+  const { grid: gridStroke, tick: tickFill, tooltipStyle } = useChartTheme()
 
   return (
     <div className={cn('w-full', className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+          <CartesianGrid strokeDasharray="2 4" stroke={gridStroke} vertical={false} />
           <XAxis
             dataKey={index}
             tick={{ fill: tickFill, fontSize: 12 }}
@@ -69,7 +61,7 @@ export function LineChartComponent({
             formatter={(name) => labels[name] || name}
           />
           {keys.map((key, i) => (
-            <>
+            <Fragment key={key}>
               {area && (
                 <Area
                   key={`${key}-area`}
@@ -94,7 +86,7 @@ export function LineChartComponent({
                 dot={showDots}
                 activeDot={{ r: 6, strokeWidth: 2 }}
               />
-            </>
+            </Fragment>
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -138,9 +130,9 @@ export function FunnelChart({ data, className }: FunnelChartProps) {
                 </div>
               </div>
               {/* Funnel bar — width shrinks to show funnel shape */}
-              <div className="w-full bg-base-200 dark:bg-surface-dark-elevated rounded-lg h-8 overflow-hidden">
+              <div className="w-full bg-base-100 dark:bg-surface-dark-elevated rounded-md h-8 overflow-hidden">
                 <div
-                  className="h-full bg-accent-500 rounded-lg transition-all duration-500"
+                  className="h-full bg-brand-500 rounded-md transition-all duration-500"
                   style={{ width: `${widthPct}%` }}
                 />
               </div>

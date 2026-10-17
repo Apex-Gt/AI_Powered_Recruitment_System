@@ -4,10 +4,10 @@ import { cn } from '@/utils/helpers'
 
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-heading-xl font-extrabold tracking-tight text-ink-900 dark:text-ink-100">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-body-sm text-ink-500 dark:text-ink-400">{subtitle}</p>}
+        <h1 className="text-heading-xl font-bold text-ink-900 dark:text-ink-100">{title}</h1>
+        {subtitle && <p className="mt-1.5 max-w-xl text-body-md text-ink-600 dark:text-ink-400">{subtitle}</p>}
       </div>
       {action}
     </div>
@@ -131,7 +131,7 @@ export interface TabItem {
 
 export function StatusTabs({ tabs, value, onChange, label }: { tabs: TabItem[]; value: string; onChange: (value: string) => void; label: string }) {
   return (
-    <div role="tablist" aria-label={label} className="scrollbar-hide flex gap-1 overflow-x-auto">
+    <div role="tablist" aria-label={label} className="scrollbar-hide flex gap-1 overflow-x-auto border-b border-[var(--color-border)]">
       {tabs.map((t) => {
         const active = t.value === value
         return (
@@ -141,18 +141,18 @@ export function StatusTabs({ tabs, value, onChange, label }: { tabs: TabItem[]; 
             aria-selected={active}
             onClick={() => onChange(t.value)}
             className={cn(
-              'flex h-10 flex-shrink-0 cursor-pointer items-center gap-2 rounded-lg px-3.5 text-body-sm font-semibold transition-colors',
+              'relative -mb-px flex h-11 flex-shrink-0 cursor-pointer items-center gap-2 border-b-2 px-3.5 text-body-sm font-semibold transition-colors',
               active
-                ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-200'
-                : 'text-ink-500 hover:bg-base-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-surface-dark-elevated dark:hover:text-ink-100'
+                ? 'border-clay-400 text-ink-900 dark:text-ink-100'
+                : 'border-transparent text-ink-600 hover:text-ink-900 dark:text-ink-400 dark:hover:text-ink-100'
             )}
           >
             {t.label}
             {t.count !== undefined && (
               <span
                 className={cn(
-                  'rounded-md px-1.5 py-0.5 text-label-xs font-bold',
-                  active ? 'bg-brand-500 text-white' : 'bg-base-100 text-ink-600 dark:bg-surface-dark-elevated dark:text-ink-300'
+                  'rounded px-1.5 py-0.5 text-label-xs tabular-nums',
+                  active ? 'bg-clay-400 text-forest-500' : 'bg-base-100 text-ink-600 dark:bg-surface-dark-elevated dark:text-ink-300'
                 )}
               >
                 {t.count}
