@@ -9,6 +9,7 @@ import com.project.ai_resumerag_be.dto.request.CandidateUpdateRequest;
 import com.project.ai_resumerag_be.dto.request.CandidateUploadRequest;
 import com.project.ai_resumerag_be.dto.response.CandidateResponse;
 import com.project.ai_resumerag_be.entity.Candidate;
+import com.project.ai_resumerag_be.entity.Job;
 import org.springframework.web.multipart.MultipartFile;
 import reactor.core.publisher.Mono;
 
@@ -45,4 +46,13 @@ public interface CandidateService {
 
     /** Removes every candidate of a job, with their resumes, stored files and AI results. Used when the job is deleted. */
     void deleteCandidatesOfJob(UUID jobId);
+
+    /** The candidate, only if it belongs to the authenticated user's company; otherwise a not-found error. */
+    Candidate requireOwnedCandidate(UUID candidateId);
+
+    /** The job, only if it belongs to the authenticated user's company; otherwise a not-found error. */
+    Job requireOwnedJob(UUID jobId);
+
+    /** Candidates of the authenticated user's company, optionally limited to one of its jobs. */
+    List<Candidate> findOwnedCandidates(UUID jobId);
 }

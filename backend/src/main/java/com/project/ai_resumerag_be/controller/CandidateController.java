@@ -5,6 +5,10 @@ import com.project.ai_resumerag_be.dto.request.CandidateUploadRequest;
 import com.project.ai_resumerag_be.dto.response.CandidateResponse;
 import com.project.ai_resumerag_be.dto.response.CommonResponse;
 import com.project.ai_resumerag_be.entity.Candidate;
+import com.project.ai_resumerag_be.entity.CandidateNote;
+import com.project.ai_resumerag_be.repository.CandidateNoteRepository;
+import com.project.ai_resumerag_be.service.security.CustomUserDetails;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.project.ai_resumerag_be.enumerators.ApplicationStatus;
 import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
 import com.project.ai_resumerag_be.mapper.CandidateMapper;
@@ -35,6 +39,7 @@ public class CandidateController {
     private final CandidateRepository candidateRepository;
     private final CandidateMapper candidateMapper;
     private final AiResultStore aiResultStore;
+    private final CandidateNoteRepository candidateNoteRepository;
 
     // ── Recruiter/Admin: list candidates ──────────────────────────────────────
 
@@ -48,12 +53,7 @@ public class CandidateController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int pageSize) {
 
-        List<Candidate> all;
-        if (jobId != null) {
-            all = candidateRepository.findByJobId(jobId);
-        } else {
-            all = candidateRepository.findAll();
-        }
+        List<Candidate> all = candidateService.findOwnedCandidates(jobId);
 
         // Filter by status
         if (status != null && !status.isBlank()) {
@@ -105,8 +105,7 @@ public class CandidateController {
     @Transactional
     @GetMapping("/{candidateId}")
     public ResponseEntity<CommonResponse> getCandidateById(@PathVariable UUID candidateId) {
-        Candidate candidate = candidateRepository.findById(candidateId)
-                .orElseThrow(() -> new RuntimeException("Candidate not found with id: " + candidateId));
+        Candidate candidate = candidateService.requireOwnedCandidate(candidateId);
 
         CandidateResponse response = candidateMapper.toCandidateResponse(candidate);
         aiResultStore.enrich(response);
@@ -125,8 +124,7 @@ public class CandidateController {
     @Transactional
     @GetMapping("/{candidateId}/ai-analysis")
     public ResponseEntity<CommonResponse> getAiAnalysis(@PathVariable UUID candidateId) {
-        Candidate candidate = candidateRepository.findById(candidateId)
-                .orElseThrow(() -> new RuntimeException("Candidate not found with id: " + candidateId));
+        Candidate candidate = candidateService.requireOwnedCandidate(candidateId);
         UUID jobId = candidate.getJob().getId();
 
         Optional<Map<String, Object>> score = aiResultStore.find(AiResultType.MATCH_SCORE, candidateId, jobId);
@@ -175,8 +173,7 @@ public class CandidateController {
             @PathVariable UUID candidateId,
             @RequestBody Map<String, String> body) {
 
-        Candidate candidate = candidateRepository.findById(candidateId)
-                .orElseThrow(() -> new RuntimeException("Candidate not found with id: " + candidateId));
+        Candidate candidate = candidateService.requireOwnedCandidate(candidateId);
 
         String statusStr = body.get("status");
         if (statusStr == null || statusStr.isBlank()) {
@@ -241,14 +238,72 @@ public class CandidateController {
                 .build());
     }
 
+    // -- Recruiter/Admin: notes -------------------------------------------------
+
+    @PreAuthorize("hasAnyRole('RECRUITER','ADMIN')")
+    @Transactional
+    @GetMapping("/{candidateId}/notes")
+    public ResponseEntity<CommonResponse> getNotes(@PathVariable UUID candidateId) {
+        candidateService.requireOwnedCandidate(candidateId);
+        List<Map<String, Object>> data = candidateNoteRepository.findByCandidateIdOrderByCreatedAtDesc(candidateId).stream()
+                .map(this::toNoteResponse)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(CommonResponse.builder()
+                .code(200)
+                .status(CommonResponseStatus.SUCCESS)
+                .data(data)
+                .message("Notes retrieved successfully")
+                .timestamp(LocalDateTime.now())
+                .build());
+    }
+
+    @PreAuthorize("hasAnyRole('RECRUITER','ADMIN')")
+    @Transactional
+    @PostMapping("/{candidateId}/notes")
+    public ResponseEntity<CommonResponse> addNote(
+            @PathVariable UUID candidateId,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal CustomUserDetails principal) {
+        Candidate candidate = candidateService.requireOwnedCandidate(candidateId);
+        String text = body.get("note");
+        if (text == null || text.isBlank()) {
+            return ResponseEntity.badRequest().body(CommonResponse.builder()
+                    .code(400)
+                    .status(CommonResponseStatus.ERROR)
+                    .message("Note is required")
+                    .timestamp(LocalDateTime.now())
+                    .build());
+        }
+        CandidateNote saved = candidateNoteRepository.save(CandidateNote.builder()
+                .candidate(candidate)
+                .author(principal.getUser())
+                .note(text.trim())
+                .build());
+        return ResponseEntity.status(201).body(CommonResponse.builder()
+                .code(201)
+                .status(CommonResponseStatus.SUCCESS)
+                .data(toNoteResponse(saved))
+                .message("Note added successfully")
+                .timestamp(LocalDateTime.now())
+                .build());
+    }
+
+    private Map<String, Object> toNoteResponse(CandidateNote n) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", n.getId());
+        m.put("note", n.getNote());
+        m.put("authorName", n.getAuthor().getUserName());
+        m.put("createdAt", n.getCreatedAt());
+        return m;
+    }
+
     // ── Recruiter/Admin: shortlist ─────────────────────────────────────────────
 
     @PreAuthorize("hasAnyRole('RECRUITER','ADMIN')")
     @Transactional
     @PostMapping("/{candidateId}/shortlist")
     public ResponseEntity<CommonResponse> shortlistCandidate(@PathVariable UUID candidateId) {
-        Candidate candidate = candidateRepository.findById(candidateId)
-                .orElseThrow(() -> new RuntimeException("Candidate not found with id: " + candidateId));
+        Candidate candidate = candidateService.requireOwnedCandidate(candidateId);
         candidate.setStatus(ApplicationStatus.SHORTLISTED);
         candidateRepository.save(candidate);
         return ResponseEntity.ok(CommonResponse.builder()
@@ -268,8 +323,7 @@ public class CandidateController {
     public ResponseEntity<CommonResponse> rejectCandidate(
             @PathVariable UUID candidateId,
             @RequestBody(required = false) Map<String, String> body) {
-        Candidate candidate = candidateRepository.findById(candidateId)
-                .orElseThrow(() -> new RuntimeException("Candidate not found with id: " + candidateId));
+        Candidate candidate = candidateService.requireOwnedCandidate(candidateId);
         candidate.setStatus(ApplicationStatus.REJECTED);
         candidateRepository.save(candidate);
         return ResponseEntity.ok(CommonResponse.builder()
@@ -292,6 +346,8 @@ public class CandidateController {
             @RequestPart(value = "location", required = false) String location,
             @RequestPart("jobId") UUID jobId,
             @RequestPart("resumeFile") MultipartFile resumeFile) {
+
+        candidateService.requireOwnedJob(jobId);
 
         CandidateUploadRequest request = CandidateUploadRequest.builder()
                 .candidateName(candidateName)
@@ -319,6 +375,9 @@ public class CandidateController {
             @RequestPart("jobId") UUID jobId,
             @RequestPart("candidates") List<CandidateUploadRequest> candidates) {
 
+        candidateService.requireOwnedJob(jobId);
+        candidates.forEach(c -> c.setJobId(jobId));
+
         return candidateService.uploadBulkCandidateResumes(candidates)
                 .map(responses -> ResponseEntity.status(201).body(
                         CommonResponse.builder()
@@ -335,6 +394,9 @@ public class CandidateController {
     public Mono<ResponseEntity<CommonResponse>> scoreCandidateJob(
             @PathVariable UUID candidateId,
             @PathVariable UUID jobId) {
+
+        candidateService.requireOwnedCandidate(candidateId);
+        candidateService.requireOwnedJob(jobId);
 
         return candidateService.triggerScoreJob(candidateId, jobId)
                 .map(response -> ResponseEntity.ok(
@@ -353,6 +415,9 @@ public class CandidateController {
             @PathVariable UUID candidateId,
             @PathVariable UUID jobId) {
 
+        candidateService.requireOwnedCandidate(candidateId);
+        candidateService.requireOwnedJob(jobId);
+
         return candidateService.triggerRAGSummary(candidateId, jobId)
                 .map(response -> ResponseEntity.ok(
                         CommonResponse.builder()
@@ -369,6 +434,9 @@ public class CandidateController {
     public Mono<ResponseEntity<CommonResponse>> rankCandidates(
             @PathVariable UUID jobId,
             @RequestBody List<UUID> candidateIds) {
+
+        candidateService.requireOwnedJob(jobId);
+        candidateIds.forEach(candidateService::requireOwnedCandidate);
 
         return candidateService.triggerRankCandidates(jobId, candidateIds)
                 .map(response -> ResponseEntity.ok(
@@ -387,6 +455,9 @@ public class CandidateController {
             @PathVariable UUID candidateId,
             @PathVariable UUID jobId) {
 
+        candidateService.requireOwnedCandidate(candidateId);
+        candidateService.requireOwnedJob(jobId);
+
         return candidateService.getMatchScore(candidateId, jobId)
                 .map(response -> ResponseEntity.ok(
                         CommonResponse.builder()
@@ -404,6 +475,9 @@ public class CandidateController {
             @PathVariable UUID candidateId,
             @PathVariable UUID jobId) {
 
+        candidateService.requireOwnedCandidate(candidateId);
+        candidateService.requireOwnedJob(jobId);
+
         return candidateService.getRAGSummary(candidateId, jobId)
                 .map(response -> ResponseEntity.ok(
                         CommonResponse.builder()
@@ -419,6 +493,8 @@ public class CandidateController {
     @GetMapping("/jobs/{jobId}/ranking")
     public Mono<ResponseEntity<CommonResponse>> getRanking(
             @PathVariable UUID jobId) {
+
+        candidateService.requireOwnedJob(jobId);
 
         return candidateService.getRanking(jobId)
                 .map(response -> ResponseEntity.ok(

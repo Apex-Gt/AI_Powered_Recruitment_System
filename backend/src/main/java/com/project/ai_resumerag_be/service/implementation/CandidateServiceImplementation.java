@@ -15,6 +15,7 @@ import com.project.ai_resumerag_be.exception.ResourceNotFoundException;
 import com.project.ai_resumerag_be.entity.Resume;
 import com.project.ai_resumerag_be.mapper.CandidateMapper;
 import com.project.ai_resumerag_be.repository.AiResultRepository;
+import com.project.ai_resumerag_be.repository.CandidateNoteRepository;
 import com.project.ai_resumerag_be.repository.CandidateRepository;
 import com.project.ai_resumerag_be.repository.JobRepository;
 import com.project.ai_resumerag_be.repository.ResumeRepository;
@@ -54,6 +55,7 @@ public class CandidateServiceImplementation implements CandidateService {
     private final FileStorageService fileStorageService;
     private final CandidateMapper candidateMapper;
     private final AiResultRepository aiResultRepository;
+    private final CandidateNoteRepository candidateNoteRepository;
     private final AiResultStore aiResultStore;
 
     @Override
@@ -271,6 +273,7 @@ public class CandidateServiceImplementation implements CandidateService {
         List<Resume> resumes = candidates.stream().map(Candidate::getResume).collect(Collectors.toList());
         List<UUID> candidateIds = candidates.stream().map(Candidate::getId).collect(Collectors.toList());
 
+        candidateNoteRepository.deleteByCandidateIdIn(candidateIds);
         // The candidate row holds the FK to its resume, so it has to go first.
         candidateRepository.deleteAll(candidates);
         candidateRepository.flush();
@@ -308,18 +311,44 @@ public class CandidateServiceImplementation implements CandidateService {
     }
 
     /** Loads a candidate, making sure it belongs to a job of the caller's company. */
-    private Candidate findOwnedCandidate(UUID candidateId) {
-        Candidate candidate = candidateRepository.findById(candidateId)
-                .orElseThrow(() -> new ResourceNotFoundException("Candidate not found with id: " + candidateId));
+    private User currentUser() {
+        return ((CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getUser();
+    }
 
-        User user = ((CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getUser();
-        boolean allowed = (user.getRole() == Role.ADMIN || user.getRole() == Role.RECRUITER)
-                && user.getCompany() != null
-                && user.getCompany().getId().equals(candidate.getJob().getCompany().getId());
-        if (!allowed) {
-            throw new ResourceNotFoundException("Candidate not found with id: " + candidateId);
+    private UUID currentCompanyId() {
+        User user = currentUser();
+        if ((user.getRole() != Role.ADMIN && user.getRole() != Role.RECRUITER) || user.getCompany() == null) {
+            throw new ResourceNotFoundException("Company not found for current user");
         }
-        return candidate;
+        return user.getCompany().getId();
+    }
+
+    private Candidate findOwnedCandidate(UUID candidateId) {
+        return requireOwnedCandidate(candidateId);
+    }
+
+    @Override
+    public Candidate requireOwnedCandidate(UUID candidateId) {
+        UUID companyId = currentCompanyId();
+        return candidateRepository.findById(candidateId)
+                .filter(c -> c.getJob().getCompany().getId().equals(companyId))
+                .orElseThrow(() -> new ResourceNotFoundException("Candidate not found with id: " + candidateId));
+    }
+
+    @Override
+    public Job requireOwnedJob(UUID jobId) {
+        UUID companyId = currentCompanyId();
+        return jobRepository.findById(jobId)
+                .filter(j -> j.getCompany().getId().equals(companyId))
+                .orElseThrow(() -> new ResourceNotFoundException("Job not found: " + jobId));
+    }
+
+    @Override
+    public List<Candidate> findOwnedCandidates(UUID jobId) {
+        UUID companyId = currentCompanyId();
+        return jobId != null
+                ? candidateRepository.findByJobIdAndJobCompanyId(jobId, companyId)
+                : candidateRepository.findByJobCompanyId(companyId);
     }
 
     private static String blankToNull(String value) {
