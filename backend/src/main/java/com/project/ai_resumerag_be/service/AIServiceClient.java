@@ -24,5 +24,8 @@ public interface AIServiceClient {
     /** Removes the candidate's resume vectors from the AI service's vector store. */
     Mono<Void> deleteCandidate(UUID candidateId);
 
+    /** Grades one free-form answer; {@code questionType} is CODE or ESSAY. */
+    Mono<AIServiceResponse<GradeResult>> gradeAnswer(String question, String answer, String questionType);
+
     Mono<AIServiceResponse<Void>> healthCheck();
 }

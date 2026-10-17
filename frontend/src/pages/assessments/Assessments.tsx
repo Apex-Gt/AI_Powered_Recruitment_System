@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { assessmentApi } from '@/utils/api'
+import { AssignAssessmentModal } from '@/components/assessments/AssignAssessmentModal'
+import { AssessmentResultsModal } from '@/components/assessments/AssessmentResultsModal'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -9,7 +11,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { StatusBadge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
-import { Plus, Edit, Trash2, CheckSquare, Search, Code2 } from 'lucide-react'
+import { Plus, Edit, Trash2, CheckSquare, Search, Code2, Send, BarChart3 } from 'lucide-react'
 import { cn } from '@/utils/helpers'
 import type { Assessment } from '@/types'
 import { useForm } from 'react-hook-form'
@@ -59,6 +61,8 @@ export function Assessments() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [assigning, setAssigning] = useState<Assessment | null>(null)
+  const [viewingResults, setViewingResults] = useState<Assessment | null>(null)
   const [questions, setQuestions] = useState<QuestionForm[]>([{ id: crypto.randomUUID(), question: '', type: 'MULTIPLE_CHOICE', weight: 10 }])
 
   const {
@@ -296,6 +300,14 @@ export function Assessments() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {assessment.status === 'ACTIVE' && (
+                            <Button variant="ghost" size="sm" onClick={() => setAssigning(assessment)} title="Send to candidate">
+                              <Send className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" onClick={() => setViewingResults(assessment)} title="Results">
+                            <BarChart3 className="w-4 h-4" />
+                          </Button>
                           <Button variant="ghost" size="sm" onClick={() => openEditModal(assessment)} title="Edit">
                             <Edit className="w-4 h-4" />
                           </Button>
@@ -419,13 +431,23 @@ export function Assessments() {
                     </div>
                   )}
 
-                  {question.type !== 'VIDEO' && (
-                    <Input
-                      label="Correct Answer / Expected Keywords"
-                      placeholder={question.type === 'CODE' ? 'Expected output or keywords' : 'Correct answer or keywords'}
+                  {question.type === 'MULTIPLE_CHOICE' && (
+                    <Select
+                      label="Correct answer *"
+                      placeholder="Select the correct option"
+                      options={(question.options || []).map((o) => ({ value: o, label: o }))}
                       value={question.correctAnswer || ''}
                       onChange={(e) => handleQuestionChange(index, 'correctAnswer', e.target.value)}
                     />
+                  )}
+                  {question.type === 'CODE' && (
+                    <p className="text-body-xs text-ink-500 dark:text-ink-400">Code answers are graded by AI against the question; you can adjust the score afterwards.</p>
+                  )}
+                  {question.type === 'ESSAY' && (
+                    <p className="text-body-xs text-ink-500 dark:text-ink-400">Essay answers are graded by AI against the question; you can adjust the score afterwards.</p>
+                  )}
+                  {question.type === 'VIDEO' && (
+                    <p className="text-body-xs text-ink-500 dark:text-ink-400">Candidates paste a link to a video answer. You score it yourself in the results.</p>
                   )}
                 </div>
               ))}
@@ -446,6 +468,9 @@ export function Assessments() {
           </CardFooter>
         </form>
       </Modal>
+
+      <AssignAssessmentModal assessment={assigning} onClose={() => setAssigning(null)} />
+      <AssessmentResultsModal assessment={viewingResults} onClose={() => setViewingResults(null)} />
     </div>
   )
 }

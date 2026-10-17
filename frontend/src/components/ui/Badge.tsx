@@ -50,6 +50,11 @@ export function StatusBadge({ status, className }: { status: string; className?:
     COMPLETED: 'success',
     CANCELLED: 'error',
     NO_SHOW: 'error',
+    ASSIGNED: 'default',
+    IN_PROGRESS: 'info',
+    SUBMITTED: 'warning',
+    GRADED: 'success',
+    EXPIRED: 'outline',
   }
 
   const labelMap: Record<string, string> = {
@@ -70,6 +75,11 @@ export function StatusBadge({ status, className }: { status: string; className?:
     COMPLETED: 'Completed',
     CANCELLED: 'Cancelled',
     NO_SHOW: 'No Show',
+    ASSIGNED: 'Sent',
+    IN_PROGRESS: 'In progress',
+    SUBMITTED: 'Needs review',
+    GRADED: 'Graded',
+    EXPIRED: 'Expired',
   }
 
   return <Badge variant={variantMap[status] || 'default'} className={className}>{labelMap[status] || status}</Badge>

@@ -15,12 +15,14 @@ import { Company } from '@/pages/company/Company'
 import { Settings } from '@/pages/settings/Settings'
 import { Login } from '@/pages/auth/Login'
 import { Register } from '@/pages/auth/Register'
+import { TakeAssessment } from '@/pages/assess/TakeAssessment'
 
 function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/assess/:token" element={<TakeAssessment />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />

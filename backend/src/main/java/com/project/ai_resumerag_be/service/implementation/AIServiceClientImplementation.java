@@ -28,6 +28,20 @@ public class AIServiceClientImplementation implements AIServiceClient {
     private static final ParameterizedTypeReference<AIServiceResponse<RankingResult>> RANKING_RESULT_RESPONSE_TYPE =
             new ParameterizedTypeReference<>() {};
 
+    private static final ParameterizedTypeReference<AIServiceResponse<GradeResult>> GRADE_RESULT_RESPONSE_TYPE =
+            new ParameterizedTypeReference<>() {};
+
+    @Override
+    public Mono<AIServiceResponse<GradeResult>> gradeAnswer(String question, String answer, String questionType) {
+        return aiServiceWebClient.post()
+                .uri("/api/v1/assessments/grade")
+                .bodyValue(java.util.Map.of("question", question, "answer", answer, "questionType", questionType))
+                .retrieve()
+                .bodyToMono(GRADE_RESULT_RESPONSE_TYPE)
+                .timeout(Duration.ofSeconds(90))
+                .doOnError(error -> log.error("Answer grading failed: {}", error.getMessage()));
+    }
+
     @Override
     public Mono<AIServiceResponse<Void>> ingestResume(IngestResumeEvent event) {
         log.info("Sending ingest resume event for candidate: {}", event.getCandidateId());

@@ -321,15 +321,27 @@ export const resumeApi = {
 }
 
 export const assessmentApi = {
-  getAll: () => api.get<Assessment[]>('/assessments'),
-  getById: (id: string) => api.get<Assessment>(`/assessments/${id}`),
-  create: (data: Partial<Assessment>) => api.post<Assessment>('/assessments', data),
-  update: (id: string, data: Partial<Assessment>) => api.put<Assessment>(`/assessments/${id}`, data),
-  delete: (id: string) => api.delete(`/assessments/${id}`),
+  getAll: () => api.get<CommonResponse<Assessment[]>>('/assessments').then((res) => res.data),
+  getById: (id: string) => api.get<CommonResponse<Assessment>>(`/assessments/${id}`).then((res) => res.data),
+  create: (data: AssessmentInput) => api.post<CommonResponse<Assessment>>('/assessments', data).then((res) => res.data),
+  update: (id: string, data: AssessmentInput) => api.put<CommonResponse<Assessment>>(`/assessments/${id}`, data).then((res) => res.data),
+  delete: (id: string) => api.delete<CommonResponse<void>>(`/assessments/${id}`),
   assign: (assessmentId: string, candidateId: string) =>
-    api.post(`/assessments/${assessmentId}/assign`, { candidateId }),
-  submit: (assessmentId: string, candidateId: string, answers: Record<string, string>) =>
-    api.post(`/assessments/${assessmentId}/submit`, { candidateId, answers }),
+    api.post<CommonResponse<AssessmentAttempt>>(`/assessments/${assessmentId}/assign`, { candidateId }).then((res) => res.data),
+  getAttempts: (params?: { assessmentId?: string; candidateId?: string }) =>
+    api.get<CommonResponse<AssessmentAttempt[]>>('/assessments/attempts', params as Record<string, unknown>).then((res) => res.data),
+  getAttempt: (attemptId: string) =>
+    api.get<CommonResponse<AssessmentAttempt>>(`/assessments/attempts/${attemptId}`).then((res) => res.data),
+  gradeAnswer: (attemptId: string, answerId: string, score: number, feedback?: string) =>
+    api.put<CommonResponse<AssessmentAttempt>>(`/assessments/attempts/${attemptId}/answers/${answerId}/grade`, { score, feedback }).then((res) => res.data),
+}
+
+/** Candidate-facing calls: no login, the secret token from the emailed link is the credential. */
+export const publicAssessmentApi = {
+  get: (token: string) => api.get<CommonResponse<PublicAssessment>>(`/public/assessments/${token}`).then((res) => res.data),
+  start: (token: string) => api.post<CommonResponse<PublicAssessment>>(`/public/assessments/${token}/start`, {}).then((res) => res.data),
+  submit: (token: string, answers: Record<string, string>) =>
+    api.post<CommonResponse<PublicAssessment>>(`/public/assessments/${token}/submit`, { answers }).then((res) => res.data),
 }
 
 export const interviewApi = {
@@ -365,7 +377,7 @@ export const userApi = {
     api.put<CommonResponse<UserResponse>>('/auth/me', data),
 }
 
-import type { User, Company, Job, Candidate, Resume, AIAnalysis, Assessment, Interview, CandidateStatus, JobSkill, InterviewFeedback } from '@/types'
+import type { User, Company, Job, Candidate, Resume, AIAnalysis, Assessment, AssessmentAttempt, AssessmentQuestion, PublicAssessment, Interview, CandidateStatus, JobSkill, InterviewFeedback } from '@/types'
 import type { PaginatedResponse } from '@/types'
 
 interface CommonResponse<T> {
@@ -495,6 +507,20 @@ interface CreateRecruiterRequest {
   email: string
   phoneNumber: string
   password: string
+}
+
+interface AssessmentInput {
+  title: string
+  type: Assessment['type']
+  duration: number
+  status?: Assessment['status']
+  questions: {
+    question: string
+    type: AssessmentQuestion['type']
+    options?: string[]
+    correctAnswer?: string
+    weight: number
+  }[]
 }
 
 interface SubmitInterviewFeedbackRequest {

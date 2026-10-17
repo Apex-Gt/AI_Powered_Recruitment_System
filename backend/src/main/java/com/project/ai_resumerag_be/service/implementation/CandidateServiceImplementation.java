@@ -17,6 +17,7 @@ import com.project.ai_resumerag_be.mapper.CandidateMapper;
 import com.project.ai_resumerag_be.repository.AiResultRepository;
 import com.project.ai_resumerag_be.repository.CandidateNoteRepository;
 import com.project.ai_resumerag_be.repository.CandidateRepository;
+import com.project.ai_resumerag_be.repository.AssessmentAttemptRepository;
 import com.project.ai_resumerag_be.repository.InterviewRepository;
 import com.project.ai_resumerag_be.repository.JobRepository;
 import com.project.ai_resumerag_be.repository.ResumeRepository;
@@ -58,6 +59,7 @@ public class CandidateServiceImplementation implements CandidateService {
     private final AiResultRepository aiResultRepository;
     private final CandidateNoteRepository candidateNoteRepository;
     private final InterviewRepository interviewRepository;
+    private final AssessmentAttemptRepository assessmentAttemptRepository;
     private final AiResultStore aiResultStore;
 
     @Override
@@ -277,6 +279,7 @@ public class CandidateServiceImplementation implements CandidateService {
 
         candidateNoteRepository.deleteByCandidateIdIn(candidateIds);
         interviewRepository.deleteByCandidateIdIn(candidateIds);
+        assessmentAttemptRepository.deleteByCandidateIdIn(candidateIds);
         // The candidate row holds the FK to its resume, so it has to go first.
         candidateRepository.deleteAll(candidates);
         candidateRepository.flush();

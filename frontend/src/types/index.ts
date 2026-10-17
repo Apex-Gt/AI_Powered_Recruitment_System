@@ -134,6 +134,52 @@ export interface AssessmentQuestion {
   weight: number
 }
 
+export type AttemptStatus = 'ASSIGNED' | 'IN_PROGRESS' | 'SUBMITTED' | 'GRADED' | 'EXPIRED'
+
+export interface AttemptAnswer {
+  id: string
+  questionId: string
+  question: string
+  type: AssessmentQuestion['type']
+  weight: number
+  answer?: string
+  correctAnswer?: string
+  score?: number | null
+  feedback?: string
+  needsReview: boolean
+}
+
+export interface AssessmentAttempt {
+  id: string
+  assessmentId: string
+  assessmentTitle: string
+  candidateId: string
+  candidateName: string
+  status: AttemptStatus
+  totalScore?: number | null
+  assignedAt: string
+  expiresAt: string
+  startedAt?: string
+  submittedAt?: string
+  pendingReview: number
+  answers?: AttemptAnswer[]
+  /** Only present right after assigning. */
+  link?: string
+}
+
+/** What a candidate sees through their emailed link. */
+export interface PublicAssessment {
+  title: string
+  companyName: string
+  candidateName: string
+  duration: number
+  status: AttemptStatus
+  questionCount: number
+  expiresAt: string
+  secondsLeft?: number | null
+  questions?: { id: string; question: string; type: AssessmentQuestion['type']; options: string[]; weight: number }[] | null
+}
+
 export interface Interview {
   id: string
   candidateId: string

@@ -123,6 +123,51 @@ public class EmailServiceImplementation implements EmailService {
                 HtmlUtils.htmlEscape(companyName));
     }
 
+    @Async
+    @Override
+    public void sendAssessmentInvite(String toEmail, String candidateName, String assessmentTitle, String companyName,
+                                     String link, int durationMinutes, LocalDateTime expiresAt) {
+        if (!isMailConfigured()) {
+            log.warn("Email not configured. Skipping assessment invite to: {}", toEmail);
+            return;
+        }
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(toEmail);
+            helper.setSubject("Assessment from " + companyName + ": " + assessmentTitle);
+            helper.setText("""
+                    <!DOCTYPE html>
+                    <html>
+                    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                        <div style="background: #f8f9fa; border-radius: 8px; padding: 30px;">
+                            <p>Hi <strong>%s</strong>,</p>
+                            <p><strong>%s</strong> has invited you to complete the assessment <strong>%s</strong>.</p>
+                            <p>You will have <strong>%d minutes</strong> once you start, and the link works until
+                            <strong>%s</strong>. You can only start once, so pick a quiet moment.</p>
+                            <p style="margin: 24px 0;"><a href="%s" style="background: #6d4aff; color: #fff; padding: 12px 20px; border-radius: 6px; text-decoration: none;">Open assessment</a></p>
+                            <p style="color: #6c757d; font-size: 13px;">Or copy this link: %s<br>This link is personal. Please do not share it.</p>
+                        </div>
+                    </body>
+                    </html>
+                    """.formatted(
+                    HtmlUtils.htmlEscape(candidateName),
+                    HtmlUtils.htmlEscape(companyName),
+                    HtmlUtils.htmlEscape(assessmentTitle),
+                    durationMinutes,
+                    expiresAt.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy 'at' HH:mm")),
+                    HtmlUtils.htmlEscape(link),
+                    HtmlUtils.htmlEscape(link)), true);
+            mailSender.send(message);
+            log.info("Assessment invite sent to: {}", toEmail);
+        } catch (MailAuthenticationException e) {
+            log.error("Email authentication failed. Check MAIL_USERNAME and MAIL_PASSWORD.", e);
+        } catch (MailSendException | MessagingException e) {
+            log.error("Failed to send assessment invite to {}: {}", toEmail, e.getMessage(), e);
+        }
+    }
+
     private boolean isMailConfigured() {
         return mailUsername != null && !mailUsername.isBlank()
                 && mailPassword != null && !mailPassword.isBlank();
