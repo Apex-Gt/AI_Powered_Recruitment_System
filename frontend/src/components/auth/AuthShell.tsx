@@ -11,35 +11,35 @@ function ShowcasePanel() {
   return (
     <aside
       className="relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-center lg:px-14 xl:px-20"
-      style={{ backgroundColor: 'var(--color-band)', color: '#f5f2ec' }}
+      style={{ backgroundColor: '#ff6000', color: '#1d1b19' }}
       aria-label="What NexHire does"
     >
-      <svg viewBox="0 0 400 400" className="pointer-events-none absolute -bottom-24 -right-24 h-[30rem] w-[30rem]" aria-hidden="true">
-        <circle cx="200" cy="200" r="190" fill="none" stroke="#ff6000" strokeWidth="2" opacity="0.5" />
-        <circle cx="200" cy="200" r="140" fill="none" stroke="#ff6000" strokeWidth="2" opacity="0.32" />
-        <circle cx="200" cy="200" r="90" fill="#ff6000" opacity="0.9" />
+      <svg viewBox="0 0 400 400" className="pointer-events-none absolute -bottom-28 -right-28 h-[32rem] w-[32rem]" aria-hidden="true">
+        <circle cx="200" cy="200" r="190" fill="none" stroke="#fefae0" strokeWidth="2" opacity="0.45" />
+        <circle cx="200" cy="200" r="140" fill="none" stroke="#fefae0" strokeWidth="2" opacity="0.3" />
+        <circle cx="200" cy="200" r="90" fill="#f26419" />
       </svg>
 
       <div className="relative max-w-[34rem]">
         <h2 className="font-display text-display-sm font-bold xl:text-display-md">Every resume read, every score explained.</h2>
-        <p className="mt-4 max-w-md text-body-lg" style={{ color: 'rgba(245,242,236,0.78)' }}>
+        <p className="mt-4 max-w-md text-body-lg" style={{ color: 'rgba(29,27,25,0.82)' }}>
           NexHire reads each resume against the job, scores the match, and shows the evidence behind the number.
         </p>
 
-        <div className="mt-10 rounded-xl p-6" style={{ backgroundColor: '#ffffff', color: '#1c1917' }} role="img" aria-label="Example of a ranked shortlist">
+        <div className="mt-10 rounded-2xl p-6 shadow-pop" style={{ backgroundColor: '#ffffff', color: '#1d1b19' }} role="img" aria-label="Example of a ranked shortlist">
           <div className="flex items-baseline justify-between">
             <p className="font-display text-body-lg font-bold">Senior Java Developer</p>
-            <p className="text-body-xs font-semibold" style={{ color: '#57524a' }}>Example shortlist</p>
+            <p className="text-body-xs font-semibold" style={{ color: '#655f56' }}>Example shortlist</p>
           </div>
-          <ol className="mt-4 divide-y" style={{ borderColor: '#e6e1d8' }}>
+          <ol className="mt-4 divide-y" style={{ borderColor: 'rgba(29,27,25,0.09)' }}>
             {SAMPLE.map((c) => (
-              <li key={c.name} className="flex items-center gap-4 py-3" style={{ borderColor: '#e6e1d8' }}>
+              <li key={c.name} className="flex items-center gap-4 py-3" style={{ borderColor: 'rgba(29,27,25,0.09)' }}>
                 <div className="min-w-0 flex-1">
                   <p className="text-body-sm font-semibold">{c.name}</p>
-                  <p className="text-body-xs" style={{ color: '#57524a' }}>{c.evidence}</p>
+                  <p className="text-body-xs" style={{ color: '#655f56' }}>{c.evidence}</p>
                 </div>
                 <div className="flex w-24 items-center gap-2">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-sm" style={{ backgroundColor: '#eeeae3' }}>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-sm" style={{ backgroundColor: '#f3eedb' }}>
                     <div className="h-full rounded-sm" style={{ width: `${c.score}%`, backgroundColor: '#ff6000' }} />
                   </div>
                   <span className="font-display text-body-sm font-bold tabular" style={{ color: '#b83f00' }}>{c.score}</span>

@@ -6,7 +6,7 @@ import { useTheme } from '@/context/ThemeContext'
 import { CommandSearch } from './CommandSearch'
 
 const iconBtn =
-  'flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-[var(--color-border-hover)] bg-[var(--color-surface)] text-ink-700 transition-colors hover:bg-base-50 dark:text-ink-200 dark:hover:bg-surface-dark-elevated'
+  'flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-[var(--color-border-hover)] bg-[var(--color-surface)] text-ink-700 transition-colors hover:bg-base-50 dark:text-ink-200 dark:hover:bg-surface-dark-elevated'
 
 export function TopBar({ onMenu }: { onMenu: () => void }) {
   const { hasRole } = useAuth()
@@ -37,14 +37,14 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
   }, [bellOpen])
 
   return (
-    <header className="sticky top-0 z-[150] flex h-16 items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 px-4 backdrop-blur sm:px-6 lg:px-10">
+    <header className="frosted sticky top-0 z-[150] flex h-16 items-center gap-3 border-b border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-bg)_80%,transparent)] px-4 sm:px-6 lg:px-10">
       <button onClick={onMenu} className={`${iconBtn} lg:hidden`} aria-label="Open menu">
         <Menu className="h-5 w-5" />
       </button>
 
       <button
         onClick={() => setSearchOpen(true)}
-        className="flex h-10 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg border border-[var(--color-border-hover)] bg-[var(--color-surface)] px-3 text-left text-body-sm text-ink-600 transition-colors hover:bg-base-50 sm:max-w-sm dark:text-ink-400 dark:hover:bg-surface-dark-elevated"
+        className="flex h-10 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-full border border-[var(--color-border-hover)] bg-[var(--color-surface)] px-3 text-left text-body-sm text-ink-600 transition-colors hover:bg-base-50 sm:max-w-sm dark:text-ink-400 dark:hover:bg-surface-dark-elevated"
         aria-label="Go to a page (Ctrl+K)"
       >
         <Search className="h-4 w-4 flex-shrink-0" aria-hidden="true" />

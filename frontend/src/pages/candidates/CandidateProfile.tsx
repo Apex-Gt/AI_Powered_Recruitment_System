@@ -58,7 +58,7 @@ function StageTrack({ status, canEdit, busy, onMove }: { status: CandidateStatus
                 aria-current={isCurrent ? 'step' : undefined}
                 aria-label={isCurrent ? `${stage.label}, current stage` : `Move to ${stage.label}`}
                 className={cn(
-                  'flex h-9 items-center rounded-lg px-3 text-body-sm font-semibold transition-colors disabled:cursor-default',
+                  'flex h-9 items-center rounded-full px-4 text-body-sm font-semibold transition-colors disabled:cursor-default',
                   isCurrent
                     ? 'bg-brand-500 text-[#1c1917]'
                     : reached

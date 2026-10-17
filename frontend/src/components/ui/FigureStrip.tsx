@@ -39,7 +39,7 @@ function Cell({ figure }: { figure: Figure }) {
 /** A single ruled strip of headline numbers: one object instead of a row of identical cards. */
 export function FigureStrip({ figures, label }: { figures: Figure[]; label: string }) {
   return (
-    <section aria-label={label} className="overflow-hidden rounded-xl border border-[var(--color-border)] border-t-2 border-t-[var(--color-rule)]">
+    <section aria-label={label} className="overflow-hidden rounded-xl border border-[var(--color-border)] shadow-card-light dark:shadow-card-dark">
       <div className={cn('grid grid-cols-2 gap-px bg-[var(--color-border)]', COLUMNS[figures.length] ?? 'lg:grid-cols-4')}>
         {figures.map((f) => (
           <Cell key={f.label} figure={f} />

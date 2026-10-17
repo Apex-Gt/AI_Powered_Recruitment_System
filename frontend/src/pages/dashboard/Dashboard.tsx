@@ -146,7 +146,7 @@ export function Dashboard() {
                   <ul className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">
                     {g.items.map((i) => (
                       <li key={i.id} className="flex items-center gap-4 py-2.5">
-                        <span className="w-16 flex-shrink-0 font-display text-body-md font-bold tabular text-ink-900 dark:text-ink-100">
+                        <span className="w-20 flex-shrink-0 whitespace-nowrap font-display text-body-md font-bold tabular text-ink-900 dark:text-ink-100">
                           {new Date(i.scheduledAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                         </span>
                         <div className="min-w-0 flex-1">

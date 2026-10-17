@@ -131,7 +131,7 @@ export interface TabItem {
 
 export function StatusTabs({ tabs, value, onChange, label }: { tabs: TabItem[]; value: string; onChange: (value: string) => void; label: string }) {
   return (
-    <div role="tablist" aria-label={label} className="scrollbar-hide flex gap-1 overflow-x-auto border-b border-[var(--color-border)]">
+    <div role="tablist" aria-label={label} className="tabs-list">
       {tabs.map((t) => {
         const active = t.value === value
         return (
@@ -140,19 +140,14 @@ export function StatusTabs({ tabs, value, onChange, label }: { tabs: TabItem[]; 
             role="tab"
             aria-selected={active}
             onClick={() => onChange(t.value)}
-            className={cn(
-              'relative -mb-px flex h-11 flex-shrink-0 cursor-pointer items-center gap-2 border-b-2 px-3.5 text-body-sm font-semibold transition-colors',
-              active
-                ? 'border-clay-400 text-ink-900 dark:text-ink-100'
-                : 'border-transparent text-ink-600 hover:text-ink-900 dark:text-ink-400 dark:hover:text-ink-100'
-            )}
+            className={cn(active ? 'tabs-trigger-active' : 'tabs-trigger', 'cursor-pointer')}
           >
             {t.label}
             {t.count !== undefined && (
               <span
                 className={cn(
-                  'rounded px-1.5 py-0.5 text-label-xs tabular-nums',
-                  active ? 'bg-clay-400 text-forest-500' : 'bg-base-100 text-ink-600 dark:bg-surface-dark-elevated dark:text-ink-300'
+                  'rounded-full px-1.5 py-0.5 text-label-xs tabular-nums',
+                  active ? 'bg-brand-500 text-[#1d1b19]' : 'bg-base-200/70 text-ink-600 dark:bg-white/10 dark:text-ink-300'
                 )}
               >
                 {t.count}

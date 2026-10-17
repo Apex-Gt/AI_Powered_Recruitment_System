@@ -10,32 +10,32 @@ export default {
       colors: {
         // BRAND: #ff6000 orange. Primary actions, active states, links (use 600-700 for text on light).
         brand: {
-          50:  '#fff4ec',
-          100: '#ffe5d1',
-          200: '#ffc8a0',
-          300: '#ffa468',
-          400: '#ff8133',
+          50:  '#fff6ee',
+          100: '#ffe8d4',
+          200: '#ffcda6',
+          300: '#ffab70',
+          400: '#ff8333',
           500: '#ff6000',
-          600: '#e04f00',
-          700: '#b83f00',
-          800: '#8f3300',
-          900: '#5c2100',
-          950: '#331200',
+          600: '#f26419',
+          700: '#c24a0c',
+          800: '#963a0a',
+          900: '#5f2506',
+          950: '#341303',
         },
 
         // ACCENT: deep amber. Reserved for AI results and scores so they read apart from actions.
         accent: {
-          50:  '#fffbeb',
-          100: '#fef3c7',
-          200: '#fde68a',
-          300: '#fcd34d',
-          400: '#f59e0b',
-          500: '#d97706',
-          600: '#b45309',
-          700: '#92400e',
-          800: '#78350f',
-          900: '#451a03',
-          950: '#2b0f02',
+          50:  '#fff4ec',
+          100: '#ffe3d0',
+          200: '#fdc7a1',
+          300: '#f9a46d',
+          400: '#f58340',
+          500: '#f26419',
+          600: '#c24a0c',
+          700: '#963a0a',
+          800: '#6b2a08',
+          900: '#3e1805',
+          950: '#240d02',
         },
 
         // CLAY: orange tints for selection, highlights and avatars.
@@ -68,28 +68,28 @@ export default {
         // NEUTRALS: warm greys that sit next to orange without turning yellow.
         base: {
           0:   '#ffffff',
-          50:  '#f6f3ee',
-          100: '#eeeae3',
-          200: '#e2ddd4',
-          300: '#cfc9be',
-          400: '#a39d92',
-          500: '#7a746a',
-          600: '#5a554d',
-          700: '#433f39',
-          800: '#2c2925',
-          900: '#1c1a17',
+          50:  '#faf7ec',
+          100: '#f3eedb',
+          200: '#e8e2cc',
+          300: '#d4cdb4',
+          400: '#a8a08f',
+          500: '#7d766a',
+          600: '#5f594e',
+          700: '#46413a',
+          800: '#2e2a26',
+          900: '#1d1b19',
           950: '#100f0d',
         },
 
         surface: {
           light:            '#ffffff',
           'light-elevated': '#ffffff',
-          'light-secondary':'#f6f3ee',
-          dark:             '#14110f',
-          'dark-card':      '#1c1815',
-          'dark-elevated':  '#26211d',
-          'dark-sidebar':   '#0e0c0a',
-          'dark-input':     '#100e0c',
+          'light-secondary':'#faf7ec',
+          dark:             '#151210',
+          'dark-card':      '#1e1a17',
+          'dark-elevated':  '#2a2420',
+          'dark-sidebar':   '#181411',
+          'dark-input':     '#14110f',
         },
 
         // SEMANTIC: no greens anywhere. Positive outcomes are blue, informational states indigo.
@@ -145,16 +145,16 @@ export default {
       },
 
       fontFamily: {
-        sans: ['Instrument Sans', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-        display: ['Bricolage Grotesque', 'Instrument Sans', 'system-ui', 'sans-serif'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'Inter', 'Segoe UI', 'system-ui', 'sans-serif'],
+        display: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Display', 'Inter', 'Segoe UI', 'system-ui', 'sans-serif'],
       },
 
       fontSize: {
-        'display-xl': ['4.5rem', { lineHeight: '1.02', letterSpacing: '-0.035em' }],
+        'display-xl': ['4.5rem', { lineHeight: '1.02', letterSpacing: '-0.03em' }],
         'display-lg': ['3.75rem', { lineHeight: '1.04', letterSpacing: '-0.03em' }],
         'display-md': ['3rem',    { lineHeight: '1.08', letterSpacing: '-0.03em' }],
         'display-sm': ['2.25rem', { lineHeight: '1.12', letterSpacing: '-0.025em' }],
-        'heading-xl': ['2.125rem',{ lineHeight: '1.12', letterSpacing: '-0.03em' }],
+        'heading-xl': ['2rem',    { lineHeight: '1.15', letterSpacing: '-0.022em' }],
         'heading-lg': ['1.5rem',  { lineHeight: '1.2',  letterSpacing: '-0.02em' }],
         'heading-md': ['1.25rem', { lineHeight: '1.3',  letterSpacing: '-0.015em' }],
         'heading-sm': ['1.0625rem',{ lineHeight: '1.4', letterSpacing: '-0.01em' }],
@@ -189,27 +189,28 @@ export default {
       },
 
       // Tighter than before: controls are 6px, panels 10px. Only avatars and dots are fully round.
+      // Apple-style: generous radii. Cards are xl, controls lg, small chips md.
       borderRadius: {
         'none': '0',
-        'xs':   '3px',
-        'sm':   '4px',
-        'md':   '5px',
-        'lg':   '6px',
-        'xl':   '10px',
-        '2xl':  '14px',
-        '3xl':  '20px',
+        'xs':   '4px',
+        'sm':   '6px',
+        'md':   '8px',
+        'lg':   '12px',
+        'xl':   '18px',
+        '2xl':  '24px',
+        '3xl':  '32px',
         'full': '9999px',
       },
 
-      // Flat by default: structure comes from borders, not shadows.
+      // Soft, diffuse and layered, the way Apple lifts a card off the page.
       boxShadow: {
-        'card-light':       '0 1px 0 rgba(28,25,23,0.05)',
-        'card-dark':        '0 1px 0 rgba(0,0,0,0.35)',
-        'card-hover-light': '0 8px 20px -10px rgba(28,25,23,0.3)',
-        'card-hover-dark':  '0 8px 20px -10px rgba(0,0,0,0.7)',
-        'accent':           'inset 0 -2px 0 rgba(0,0,0,0.22)',
-        'soft':             '0 1px 0 rgba(28,25,23,0.05)',
-        'pop':              '0 18px 40px -16px rgba(28,25,23,0.45)',
+        'card-light':       '0 1px 2px rgba(29,27,25,0.05), 0 8px 24px -10px rgba(29,27,25,0.12)',
+        'card-dark':        '0 1px 2px rgba(0,0,0,0.4), 0 10px 28px -10px rgba(0,0,0,0.55)',
+        'card-hover-light': '0 2px 4px rgba(29,27,25,0.06), 0 18px 40px -12px rgba(29,27,25,0.22)',
+        'card-hover-dark':  '0 2px 4px rgba(0,0,0,0.5), 0 18px 40px -12px rgba(0,0,0,0.7)',
+        'accent':           '0 1px 2px rgba(120,40,0,0.25), inset 0 1px 0 rgba(255,255,255,0.28)',
+        'soft':             '0 1px 2px rgba(29,27,25,0.05)',
+        'pop':              '0 30px 70px -20px rgba(29,27,25,0.45)',
       },
 
       transitionDuration: {

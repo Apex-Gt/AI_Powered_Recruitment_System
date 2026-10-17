@@ -103,20 +103,19 @@ export function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile }: Side
       <aside
         aria-label="Sidebar"
         className={cn(
-          'fixed left-0 top-0 z-[200] flex h-screen w-72 flex-col border-r transition-[transform,width] duration-200',
+          'frosted fixed left-0 top-0 z-[200] flex h-screen w-72 flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)] transition-[transform,width] duration-200 max-lg:!bg-[var(--color-surface)]',
           '-translate-x-full lg:translate-x-0',
           mobileOpen && 'translate-x-0',
           rail ? 'lg:w-[76px]' : 'lg:w-64'
         )}
-        style={{ backgroundColor: 'var(--color-band)', borderColor: 'var(--color-band-border)', color: '#f5f2ec' }}
       >
         <div className={cn('flex h-16 flex-shrink-0 items-center px-4', rail ? 'lg:justify-center lg:px-0' : 'justify-between')}>
-          <Link to="/dashboard" aria-label="NexHire home" className="text-white">
+          <Link to="/dashboard" aria-label="NexHire home" className="text-ink-900 dark:text-ink-100">
             <Wordmark showText={!rail} className={rail ? 'lg:gap-0' : undefined} />
           </Link>
           <button
             onClick={onCloseMobile}
-            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-[#f5f2ec] hover:bg-white/10 lg:hidden"
+            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-ink-700 hover:bg-[var(--sidebar-hover)] dark:text-ink-200 lg:hidden"
             aria-label="Close menu"
           >
             <X className="h-5 w-5" />
@@ -129,7 +128,7 @@ export function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile }: Side
             if (items.length === 0) return null
             return (
               <div key={section.label} className="mt-5 first:mt-2">
-                <p className={cn('mb-1.5 px-3 text-label-xs', rail && 'lg:sr-only')} style={{ color: 'rgba(245,242,236,0.5)' }}>
+                <p className={cn('mb-1.5 px-3 text-body-xs font-semibold', rail && 'lg:sr-only')} style={{ color: 'var(--sidebar-muted)' }}>
                   {section.label}
                 </p>
                 <ul className="space-y-0.5">
@@ -158,7 +157,7 @@ export function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile }: Side
           })}
         </nav>
 
-        <div className="flex-shrink-0 space-y-1 border-t px-3 py-3" style={{ borderColor: 'var(--color-band-border)' }}>
+        <div className="flex-shrink-0 space-y-1 border-t border-[var(--sidebar-border)] px-3 py-3">
           <button
             onClick={onToggle}
             className={cn('nav-item hidden lg:flex', rail && 'lg:justify-center lg:px-0')}
@@ -185,14 +184,14 @@ export function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile }: Side
               aria-expanded={menuOpen}
               aria-label="Account menu"
               className={cn(
-                'flex w-full cursor-pointer items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-white/10',
+                'flex w-full cursor-pointer items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-[var(--sidebar-hover)]',
                 rail && 'lg:justify-center lg:p-1.5'
               )}
             >
               <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-500 text-label-md font-bold text-[#1c1917]">{initial}</span>
               <span className={cn('min-w-0 flex-1', rail && 'lg:hidden')}>
-                <span className="block truncate text-body-sm font-semibold text-white">{user?.userName}</span>
-                <span className="block truncate text-body-xs capitalize" style={{ color: 'rgba(245,242,236,0.6)' }}>{roleLabel}</span>
+                <span className="block truncate text-body-sm font-semibold text-ink-900 dark:text-ink-100">{user?.userName}</span>
+                <span className="block truncate text-body-xs capitalize" style={{ color: 'var(--sidebar-muted)' }}>{roleLabel}</span>
               </span>
               <ChevronsUpDown className={cn('h-4 w-4 flex-shrink-0 opacity-60', rail && 'lg:hidden')} aria-hidden="true" />
             </button>
