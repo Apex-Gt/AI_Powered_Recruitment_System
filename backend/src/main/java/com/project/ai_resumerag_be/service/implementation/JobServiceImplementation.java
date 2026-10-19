@@ -15,6 +15,7 @@ import com.project.ai_resumerag_be.enumerators.Role;
 import com.project.ai_resumerag_be.exception.ResourceNotFoundException;
 import com.project.ai_resumerag_be.mapper.JobMapper;
 import com.project.ai_resumerag_be.mapper.JobSkillMapper;
+import com.project.ai_resumerag_be.repository.AssessmentRepository;
 import com.project.ai_resumerag_be.repository.JobRepository;
 import com.project.ai_resumerag_be.repository.SkillRepository;
 import com.project.ai_resumerag_be.service.CandidateService;
@@ -45,6 +46,7 @@ public class JobServiceImplementation implements JobService {
     private final JobSkillMapper jobSkillMapper;
     private final JobMapper jobMapper;
     private final CandidateService candidateService;
+    private final AssessmentRepository assessmentRepository;
 
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -407,6 +409,7 @@ public class JobServiceImplementation implements JobService {
                 .orElseThrow(() -> new ResourceNotFoundException("Job not found"));
 
         candidateService.deleteCandidatesOfJob(job.getId());
+        assessmentRepository.detachJob(job.getId());
         jobRepository.delete(job);
 
         return CommonResponse.builder()
@@ -441,6 +444,7 @@ public class JobServiceImplementation implements JobService {
         }
 
         candidateService.deleteCandidatesOfJob(job.getId());
+        assessmentRepository.detachJob(job.getId());
         jobRepository.delete(job);
 
         return CommonResponse.builder()

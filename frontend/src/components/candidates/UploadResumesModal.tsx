@@ -1,21 +1,17 @@
 import { useRef, useState } from 'react'
 import { AlertCircle, CheckCircle2, FileText, Loader2, UploadCloud, X } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { resumeApi } from '@/utils/api'
+import { ApiError, resumeApi } from '@/utils/api'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
+import { Dropdown } from '@/components/ui/Dropdown'
 import { cn } from '@/utils/helpers'
 
 const MAX_BYTES = 20 * 1024 * 1024
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 interface Row {
   id: string
   file: File
-  name: string
-  email: string
-  phone: string
-  location: string
   status: 'idle' | 'uploading' | 'done' | 'error'
   error?: string
 }
@@ -35,16 +31,31 @@ interface Props {
   jobs?: JobOption[]
 }
 
-const nameFromFile = (fileName: string) =>
-  fileName
-    .replace(/\.[^.]+$/, '')
-    .replace(/[_\-.]+/g, ' ')
-    .replace(/\b(resume|cv)\b/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-
 let counter = 0
+
+interface Failure {
+  name: string
+  message: string
+  /** The candidate already applied for this job (HTTP 409). */
+  duplicate: boolean
+}
+
+/** One clear toast for whatever went wrong, whether one file failed or several. */
+function failureMessage(uploaded: number, failures: Failure[]): string {
+  if (failures.length === 1 && uploaded === 0) {
+    const [f] = failures
+    return f.duplicate
+      ? `${f.name}: ${f.message}. Remove the file or upload a different resume.`
+      : `${f.name}: ${f.message}`
+  }
+  const duplicates = failures.filter((f) => f.duplicate).length
+  const others = failures.length - duplicates
+  const parts: string[] = []
+  if (duplicates > 0) parts.push(`${duplicates} already applied for this job`)
+  if (others > 0) parts.push(`${others} could not be uploaded`)
+  const lead = uploaded > 0 ? `${uploaded} uploaded, ${failures.length} failed` : `${failures.length} resumes failed`
+  return `${lead} (${parts.join(', ')}). The reason is shown under each file.`
+}
 
 export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs = [] }: Props) {
   const [jobId, setJobId] = useState(fixedJob?.id ?? '')
@@ -78,7 +89,7 @@ export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs
       if (!isPdf) problems.push(`${file.name} is not a PDF`)
       else if (file.size > MAX_BYTES) problems.push(`${file.name} is over 20 MB`)
       else
-        accepted.push({ id: `f${++counter}`, file, name: nameFromFile(file.name), email: '', phone: '', location: '', status: 'idle' })
+        accepted.push({ id: `f${++counter}`, file, status: 'idle' })
     })
     setNote(problems.length ? `Skipped: ${problems.join(', ')}.` : null)
     if (accepted.length) setRows((prev) => [...prev, ...accepted])
@@ -86,47 +97,44 @@ export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs
 
   const update = (id: string, patch: Partial<Row>) => setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
 
-  const rowErrors = (r: Row) => ({
-    name: r.name.trim() ? undefined : 'Enter a name',
-    email: !r.email.trim() ? 'Enter an email' : EMAIL_RE.test(r.email.trim()) ? undefined : 'Enter a valid email',
-  })
-
   const pending = rows.filter((r) => r.status !== 'done')
   const canUpload = pending.length > 0
 
   const upload = async () => {
     setSubmitted(true)
     if (!selectedJobId) return
-    const invalid = pending.some((r) => rowErrors(r).name || rowErrors(r).email)
-    if (invalid) return
 
     setIsUploading(true)
     let ok = 0
-    let failed = 0
-    for (const r of pending) {
-      update(r.id, { status: 'uploading', error: undefined })
-      try {
-        await resumeApi.upload(r.file, r.name.trim(), r.email.trim(), selectedJobId, r.phone.trim() || undefined, r.location.trim() || undefined)
-        update(r.id, { status: 'done' })
-        ok++
-      } catch (e) {
-        update(r.id, { status: 'error', error: e instanceof Error && e.message ? e.message : 'Upload failed' })
-        failed++
+    const failures: Failure[] = []
+    // Three at a time: faster than one by one, without flooding the LLM with simultaneous requests.
+    const queue = [...pending]
+    const worker = async () => {
+      for (let r = queue.shift(); r; r = queue.shift()) {
+        update(r.id, { status: 'uploading', error: undefined })
+        try {
+          await resumeApi.upload(r.file, selectedJobId)
+          update(r.id, { status: 'done' })
+          ok++
+        } catch (e) {
+          const message = e instanceof Error && e.message ? e.message : 'Upload failed'
+          update(r.id, { status: 'error', error: message })
+          failures.push({ name: r.file.name, message, duplicate: e instanceof ApiError && e.status === 409 })
+        }
       }
     }
+    await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker))
     setIsUploading(false)
 
     if (ok > 0) onUploaded()
-    if (failed === 0) {
+    if (failures.length === 0) {
       toast.success(ok === 1 ? 'Resume uploaded. Processing started.' : `${ok} resumes uploaded. Processing started.`)
       reset()
       onClose()
     } else {
-      toast.error(`${failed} ${failed === 1 ? 'resume' : 'resumes'} failed. Fix the errors and try again.`)
+      toast.error(failureMessage(ok, failures), { duration: 8000 })
     }
   }
-
-  const field = 'input h-9 text-body-sm'
 
   return (
     <Modal
@@ -147,20 +155,16 @@ export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs
             <label htmlFor="upload-job" className="label">
               Job<span className="ml-1 text-accent-600" aria-hidden="true">*</span>
             </label>
-            <select
+            <Dropdown
               id="upload-job"
               value={jobId}
-              onChange={(e) => setJobId(e.target.value)}
+              onChange={setJobId}
               disabled={isUploading}
-              className={cn('select h-10 cursor-pointer', submitted && !jobId && '!border-error-500')}
-            >
-              <option value="">Select a job</option>
-              {jobs.map((j) => (
-                <option key={j.id} value={j.id}>
-                  {j.title}
-                </option>
-              ))}
-            </select>
+              placeholder="Select a job"
+              invalid={submitted && !jobId}
+              className="h-10"
+              options={jobs.map((j) => ({ value: j.id, label: j.title }))}
+            />
             {submitted && !jobId && (
               <p className="error-text" role="alert">
                 Select the job these candidates are applying for
@@ -217,15 +221,13 @@ export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs
         {rows.length > 0 && (
           <div>
             <p className="mb-2 text-body-xs text-ink-500 dark:text-ink-400">
-              Names and emails are not read from the PDF yet. Check them for each candidate.
+              Name, email, phone and location are read from each resume automatically.
             </p>
             <ul className="space-y-3">
               {rows.map((r) => {
-                const err = submitted && r.status !== 'done' ? rowErrors(r) : { name: undefined, email: undefined }
-                const locked = r.status === 'uploading' || r.status === 'done' || isUploading
                 return (
                   <li key={r.id} className="rounded-xl border border-[var(--color-border)] p-3">
-                    <div className="mb-2 flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4 flex-shrink-0 text-ink-400" aria-hidden="true" />
                       <span className="min-w-0 flex-1 truncate text-body-xs font-medium text-ink-600 dark:text-ink-300">{r.file.name}</span>
                       <span className="text-body-xs text-ink-400">{(r.file.size / 1024 / 1024).toFixed(1)} MB</span>
@@ -242,50 +244,6 @@ export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs
                           <X className="h-4 w-4" />
                         </button>
                       )}
-                    </div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                      <div>
-                        <input
-                          className={cn(field, err.name && '!border-error-500')}
-                          placeholder="Full name *"
-                          aria-label={`Name for ${r.file.name}`}
-                          aria-invalid={err.name ? 'true' : 'false'}
-                          value={r.name}
-                          disabled={locked}
-                          onChange={(e) => update(r.id, { name: e.target.value })}
-                        />
-                        {err.name && <p className="error-text">{err.name}</p>}
-                      </div>
-                      <div>
-                        <input
-                          type="email"
-                          className={cn(field, err.email && '!border-error-500')}
-                          placeholder="Email *"
-                          aria-label={`Email for ${r.file.name}`}
-                          aria-invalid={err.email ? 'true' : 'false'}
-                          value={r.email}
-                          disabled={locked}
-                          onChange={(e) => update(r.id, { email: e.target.value })}
-                        />
-                        {err.email && <p className="error-text">{err.email}</p>}
-                      </div>
-                      <input
-                        type="tel"
-                        className={field}
-                        placeholder="Phone (optional)"
-                        aria-label={`Phone for ${r.file.name}`}
-                        value={r.phone}
-                        disabled={locked}
-                        onChange={(e) => update(r.id, { phone: e.target.value })}
-                      />
-                      <input
-                        className={field}
-                        placeholder="Location (optional)"
-                        aria-label={`Location for ${r.file.name}`}
-                        value={r.location}
-                        disabled={locked}
-                        onChange={(e) => update(r.id, { location: e.target.value })}
-                      />
                     </div>
                     {r.status === 'error' && (
                       <p className="mt-2 flex items-center gap-1.5 text-body-xs text-error-600" role="alert">

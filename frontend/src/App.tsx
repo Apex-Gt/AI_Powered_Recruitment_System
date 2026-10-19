@@ -8,6 +8,7 @@ import { Candidates } from '@/pages/candidates/Candidates'
 import { CandidateProfile } from '@/pages/candidates/CandidateProfile'
 import { Pipeline } from '@/pages/pipeline/Pipeline'
 import { Assessments } from '@/pages/assessments/Assessments'
+import { AssessmentEditor } from '@/pages/assessments/AssessmentEditor'
 import { Interviews } from '@/pages/interviews/Interviews'
 import { Analytics } from '@/pages/analytics/Analytics'
 import { Team } from '@/pages/team/Team'
@@ -34,6 +35,8 @@ function App() {
         <Route path="candidates/:id" element={<CandidateProfile />} />
         <Route path="pipeline" element={<Pipeline />} />
         <Route path="assessments" element={<Assessments />} />
+        <Route path="assessments/new" element={<AssessmentEditor />} />
+        <Route path="assessments/:id/edit" element={<AssessmentEditor />} />
         <Route path="interviews" element={<Interviews />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="team" element={<Team />} />

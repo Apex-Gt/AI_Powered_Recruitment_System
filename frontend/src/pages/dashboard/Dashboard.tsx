@@ -5,6 +5,7 @@ import { AlertCircle, ArrowDownRight, ArrowUpRight, CalendarDays, Sparkles, User
 import { useAuth } from '@/context/AuthContext'
 import { useChartTheme } from '@/components/charts/theme'
 import { StatusBadge } from '@/components/ui/Badge'
+import { Dropdown } from '@/components/ui/Dropdown'
 import { FigureStrip } from '@/components/ui/FigureStrip'
 import { EmptyNote, Panel, PanelLink } from '@/components/ui/Panel'
 import { cn, getInitials, formatRelativeTime, relativeDayLabel } from '@/utils/helpers'
@@ -79,11 +80,17 @@ export function Dashboard() {
         <label className="flex items-center gap-2 rounded-lg border border-[var(--color-border-hover)] bg-[var(--color-surface)] px-3 py-2 text-body-sm text-ink-800 dark:text-ink-200">
           <CalendarDays className="h-4 w-4 text-ink-600 dark:text-ink-400" aria-hidden="true" />
           <span className="sr-only">Date range</span>
-          <select value={range} onChange={(e) => setRange(Number(e.target.value) as RangeDays)} className="cursor-pointer bg-transparent font-semibold outline-none">
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-          </select>
+          <Dropdown
+            ariaLabel="Date range"
+            value={String(range)}
+            onChange={(v) => setRange(Number(v) as RangeDays)}
+            options={[
+              { value: '7', label: 'Last 7 days' },
+              { value: '30', label: 'Last 30 days' },
+              { value: '90', label: 'Last 90 days' },
+            ]}
+            className="!h-auto !w-auto !border-0 !bg-transparent !p-0 !pr-6 !shadow-none font-semibold"
+          />
         </label>
       </div>
 

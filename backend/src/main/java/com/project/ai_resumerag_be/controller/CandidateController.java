@@ -129,10 +129,13 @@ public class CandidateController {
 
         Optional<Map<String, Object>> score = aiResultStore.find(AiResultType.MATCH_SCORE, candidateId, jobId);
         if (score.isEmpty()) {
-            return ResponseEntity.status(404).body(CommonResponse.builder()
-                    .code(404)
-                    .status(CommonResponseStatus.FAILURE)
-                    .message("AI analysis is not ready yet")
+            // Not an error: ingestion/scoring is still running. data=null tells the client to keep waiting.
+            // A missing or foreign candidate still 404s via requireOwnedCandidate above.
+            return ResponseEntity.ok(CommonResponse.builder()
+                    .code(200)
+                    .status(CommonResponseStatus.SUCCESS)
+                    .data(null)
+                    .message("AI analysis is still being generated")
                     .timestamp(LocalDateTime.now())
                     .build());
         }
@@ -340,20 +343,12 @@ public class CandidateController {
     @PreAuthorize("hasAnyRole('RECRUITER','ADMIN')")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Mono<ResponseEntity<CommonResponse>> uploadCandidateResume(
-            @RequestPart("candidateName") String candidateName,
-            @RequestPart("candidateEmail") String candidateEmail,
-            @RequestPart(value = "phoneNumber", required = false) String phoneNumber,
-            @RequestPart(value = "location", required = false) String location,
             @RequestPart("jobId") UUID jobId,
             @RequestPart("resumeFile") MultipartFile resumeFile) {
 
         candidateService.requireOwnedJob(jobId);
 
         CandidateUploadRequest request = CandidateUploadRequest.builder()
-                .candidateName(candidateName)
-                .candidateEmail(candidateEmail)
-                .phoneNumber(phoneNumber)
-                .location(location)
                 .jobId(jobId)
                 .resumeFile(resumeFile)
                 .build();

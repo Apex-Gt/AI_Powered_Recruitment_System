@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext'
 import { ConfirmModal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea, Select } from '@/components/ui/Input'
+import { PlaceInput } from '@/components/ui/PlaceInput'
 import { CharCounter, FormSection, SegmentedRadio, SummaryRow } from '@/components/ui/FormParts'
 import { AlertCircle, ArrowLeft, Briefcase, FileText, IndianRupee, Sparkles, X } from 'lucide-react'
 import { formatCurrency } from '@/utils/helpers'
@@ -24,7 +25,7 @@ const createJobSchema = z.object({
   department: z.string().min(1, 'Department is required'),
   employmentType: z.enum(['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERNSHIP']),
   workMode: z.enum(['REMOTE', 'HYBRID', 'ONSITE']),
-  location: z.string().min(1, 'Location is required'),
+  location: z.string().min(1, 'Select a city from the suggestions'),
   experienceRequired: z.number().min(0, 'Experience must be 0 or more'),
   educationRequired: z.string().min(1, 'Education requirement is required'),
   minimumSalary: z.number().min(0, 'Minimum salary must be 0 or more'),
@@ -86,6 +87,8 @@ export function CreateJob() {
   const [skillDraft, setSkillDraft] = useState('')
   const [draftType, setDraftType] = useState<SkillForm['type']>('REQUIRED')
   const [draftWeight, setDraftWeight] = useState(10)
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkText, setBulkText] = useState('')
   const [skillNote, setSkillNote] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -156,6 +159,7 @@ export function CreateJob() {
   }, [editId, isAdmin, reset])
 
   const watched = watch()
+  register('location')
   const totalWeight = skills.reduce((sum, sk) => sum + (Number(sk.weight) || 0), 0)
   const today = new Date().toISOString().split('T')[0]
 
@@ -174,6 +178,40 @@ export function CreateJob() {
     setSkillNote(null)
     syncSkills([...skills, { skillName: name, type: draftType, weight: Math.min(100, Math.max(1, draftWeight || 1)) }])
     setSkillDraft('')
+  }
+
+  /** Adds many skills at once from comma, semicolon or line separated text; returns how many were new. */
+  const addManySkills = (raw: string) => {
+    const seen = new Set(skills.map((sk) => sk.skillName.toLowerCase()))
+    const fresh: SkillForm[] = []
+    let skipped = 0
+    for (const part of raw.split(/[\n\r,;]+/)) {
+      const name = part.trim()
+      if (!name) continue
+      if (seen.has(name.toLowerCase())) {
+        skipped++
+        continue
+      }
+      seen.add(name.toLowerCase())
+      fresh.push({ skillName: name, type: draftType, weight: Math.min(100, Math.max(1, draftWeight || 1)) })
+    }
+    if (fresh.length > 0) syncSkills([...skills, ...fresh])
+    setSkillNote(
+      fresh.length === 0 && skipped === 0
+        ? 'No skills found in that text'
+        : `${fresh.length} added${skipped ? `, ${skipped} duplicate${skipped === 1 ? '' : 's'} skipped` : ''}`
+    )
+    return fresh.length
+  }
+
+  const importSkillFile = async (file: File | undefined) => {
+    if (!file) return
+    if (file.size > 100 * 1024) {
+      setSkillNote('That file is too large. Use a .csv or .txt list under 100 KB')
+      return
+    }
+    addManySkills(await file.text())
+    setBulkOpen(false)
   }
 
   const removeSkill = (index: number) => syncSkills(skills.filter((_, i) => i !== index))
@@ -299,7 +337,16 @@ export function CreateJob() {
               <SegmentedRadio legend="Work mode" required options={workModes} error={errors.workMode?.message} {...register('workMode')} />
             </div>
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              <Input label="Location" required placeholder="e.g. Bangalore, India" error={errors.location?.message} {...register('location')} />
+              <PlaceInput
+                label="Location"
+                kind="city"
+                fullLabel
+                required
+                placeholder="Start typing a city"
+                value={watched.location ?? ''}
+                onChange={(place) => setValue('location', place?.label ?? '', { shouldValidate: true, shouldDirty: true })}
+                error={errors.location?.message}
+              />
               <Input label="Vacancies" required type="number" min={1} error={errors.vacancies?.message} {...register('vacancies', { valueAsNumber: true })} />
             </div>
           </FormSection>
@@ -377,12 +424,77 @@ export function CreateJob() {
               <label htmlFor="skill-input" className="label">
                 Skills<span className="ml-1 text-accent-600" aria-hidden="true">*</span>
               </label>
-              <div
-                className={`flex min-h-[3rem] flex-wrap items-center gap-2 rounded-lg border bg-[var(--color-input-bg)] p-2 transition-colors focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20 ${
-                  errors.skills ? 'border-error-500' : 'border-[var(--color-border)]'
-                }`}
-                onClick={() => document.getElementById('skill-input')?.focus()}
-              >
+              <input
+                id="skill-input"
+                value={skillDraft}
+                onChange={(e) => {
+                  setSkillDraft(e.target.value)
+                  setSkillNote(null)
+                }}
+                onKeyDown={onSkillKeyDown}
+                onPaste={(e) => {
+                  const text = e.clipboardData.getData('text')
+                  if (/[\n\r,;]/.test(text)) {
+                    e.preventDefault()
+                    addManySkills(text)
+                  }
+                }}
+                onBlur={() => commitSkill(skillDraft)}
+                placeholder={skills.length === 0 ? 'e.g. React, then press Enter' : 'Add another skill'}
+                className={errors.skills ? 'input-error' : 'input'}
+                autoComplete="off"
+              />
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => setBulkOpen((o) => !o)}
+                  className="cursor-pointer text-body-sm font-semibold text-brand-700 hover:underline dark:text-brand-300"
+                  aria-expanded={bulkOpen}
+                >
+                  {bulkOpen ? 'Hide bulk add' : 'Add many skills at once'}
+                </button>
+              </div>
+              {bulkOpen && (
+                <div className="mt-2 rounded-xl border border-[var(--color-border)] p-4">
+                  <label htmlFor="bulk-skills" className="label">Paste skills, separated by commas or new lines</label>
+                  <textarea
+                    id="bulk-skills"
+                    rows={4}
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                    placeholder={'React, TypeScript, Node.js\nPostgreSQL'}
+                    className="input"
+                  />
+                  <p className="helper-text">They are added with the type and weight chosen below under "Next skill".</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        addManySkills(bulkText)
+                        setBulkText('')
+                      }}
+                      disabled={!bulkText.trim()}
+                    >
+                      Add skills
+                    </Button>
+                    <label className="btn-secondary-sm cursor-pointer">
+                      Import .csv / .txt
+                      <input
+                        type="file"
+                        accept=".csv,.txt,text/csv,text/plain"
+                        className="sr-only"
+                        onChange={(e) => {
+                          importSkillFile(e.target.files?.[0])
+                          e.target.value = ''
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+              {skills.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                 {skills.map((skill, index) => (
                   <span
                     key={skill.skillName}
@@ -408,20 +520,8 @@ export function CreateJob() {
                     </button>
                   </span>
                 ))}
-                <input
-                  id="skill-input"
-                  value={skillDraft}
-                  onChange={(e) => {
-                    setSkillDraft(e.target.value)
-                    setSkillNote(null)
-                  }}
-                  onKeyDown={onSkillKeyDown}
-                  onBlur={() => commitSkill(skillDraft)}
-                  placeholder={skills.length === 0 ? 'e.g. React, then press Enter' : 'Add another skill'}
-                  className="min-w-[10rem] flex-1 bg-transparent px-1 py-1 text-body-md text-ink-900 outline-none placeholder:text-ink-400 dark:text-ink-100"
-                  autoComplete="off"
-                />
-              </div>
+                </div>
+              )}
               {(errors.skills?.message || errors.skills?.root?.message) && (
                 <p className="error-text" role="alert">
                   {errors.skills?.message || errors.skills?.root?.message}

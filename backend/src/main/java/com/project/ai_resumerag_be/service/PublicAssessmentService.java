@@ -4,7 +4,9 @@ import com.project.ai_resumerag_be.dto.ai.GradeResult;
 import com.project.ai_resumerag_be.dto.request.SubmitAssessmentRequest;
 import com.project.ai_resumerag_be.dto.response.PublicAssessmentResponse;
 import com.project.ai_resumerag_be.entity.AssessmentAttempt;
+import com.project.ai_resumerag_be.entity.Assessment;
 import com.project.ai_resumerag_be.entity.AssessmentQuestion;
+import com.project.ai_resumerag_be.entity.AssessmentRound;
 import com.project.ai_resumerag_be.entity.AttemptAnswer;
 import com.project.ai_resumerag_be.enumerators.AttemptStatus;
 import com.project.ai_resumerag_be.enumerators.QuestionType;
@@ -43,18 +45,34 @@ public class PublicAssessmentService {
         return transaction.execute(status -> toResponse(find(token), false));
     }
 
-    /** Starts the clock (once) and returns the questions. Calling it again while running just returns them again. */
-    public PublicAssessmentResponse start(String token) {
+    /**
+     * Begins the assessment (the first call, which needs the terms accepted) or the next round (once the previous one
+     * was submitted), starting that round's clock. Calling it again while a round is running just returns its
+     * questions again.
+     */
+    public PublicAssessmentResponse start(String token, boolean acceptedTerms) {
         return transaction.execute(status -> {
             AssessmentAttempt attempt = find(token);
-            AttemptStatus effective = AttemptRules.effectiveStatus(attempt, LocalDateTime.now());
+            LocalDateTime now = LocalDateTime.now();
+            AttemptStatus effective = AttemptRules.effectiveStatus(attempt, now);
             switch (effective) {
                 case ASSIGNED -> {
+                    String terms = attempt.getAssessment().getTermsAndConditions();
+                    if (terms != null && !terms.isBlank() && !acceptedTerms) {
+                        throw new BadRequestException("You need to accept the terms and conditions to start");
+                    }
                     attempt.setStatus(AttemptStatus.IN_PROGRESS);
-                    attempt.setStartedAt(LocalDateTime.now());
+                    attempt.setStartedAt(now);
+                    attempt.setTermsAcceptedAt(now);
+                    attempt.setCurrentRound(0);
+                    attempt.setRoundStartedAt(now);
                     attemptRepository.save(attempt);
                 }
                 case IN_PROGRESS -> {
+                    if (AttemptRules.roundStart(attempt) == null) {
+                        attempt.setRoundStartedAt(now);
+                        attemptRepository.save(attempt);
+                    }
                 }
                 case EXPIRED -> throw new BadRequestException("This assessment link has expired");
                 default -> throw new ConflictException("This assessment was already submitted");
@@ -104,9 +122,16 @@ public class PublicAssessmentService {
             throw new ConflictException(effective == AttemptStatus.ASSIGNED
                     ? "Start the assessment before submitting" : "This assessment was already submitted");
         }
+        if (AttemptRules.roundStart(attempt) == null) {
+            throw new ConflictException("Start the next round before submitting");
+        }
 
+        Assessment assessment = attempt.getAssessment();
+        int roundIndex = AttemptRules.roundIndex(attempt);
+        AssessmentRound round = assessment.effectiveRounds().get(roundIndex);
+        List<AttemptAnswer> recorded = new ArrayList<>();
         List<PendingGrade> pending = new ArrayList<>();
-        for (AssessmentQuestion question : attempt.getAssessment().getQuestions()) {
+        for (AssessmentQuestion question : assessment.questionsOf(round)) {
             String raw = submitted.get(question.getId().toString());
             String text = raw == null ? "" : raw.strip();
             if (text.length() > MAX_ANSWER_CHARS) {
@@ -136,19 +161,27 @@ public class PublicAssessmentService {
                 }
             }
             attempt.getAnswers().add(answer);
+            recorded.add(answer);
         }
 
-        attempt.setStatus(AttemptStatus.SUBMITTED);
-        attempt.setSubmittedAt(now);
+        if (roundIndex >= assessment.effectiveRounds().size() - 1) {
+            attempt.setStatus(AttemptStatus.SUBMITTED);
+            attempt.setSubmittedAt(now);
+        } else {
+            // The next round waits for the candidate to start it.
+            attempt.setCurrentRound(roundIndex + 1);
+            attempt.setRoundStartedAt(null);
+        }
         attemptRepository.flush();
 
-        for (AttemptAnswer answer : attempt.getAnswers()) {
+        for (AttemptAnswer answer : recorded) {
             QuestionType type = answer.getQuestion().getType();
             if ((type == QuestionType.CODE || type == QuestionType.ESSAY) && answer.getScore() == null) {
                 pending.add(new PendingGrade(answer.getId(), answer.getQuestion().getQuestion(), answer.getAnswer(), type.name()));
             }
         }
-        // Answers that already carry a score (multiple choice, blanks) may complete the attempt right away.
+        // Answers that already carry a score (multiple choice, blanks) may complete the attempt right away
+        // (this only does anything once the last round was submitted).
         AttemptRules.recompute(attempt);
         return pending;
     }
@@ -169,19 +202,39 @@ public class PublicAssessmentService {
     }
 
     private PublicAssessmentResponse toResponse(AssessmentAttempt attempt, boolean withQuestions) {
-        AttemptStatus status = AttemptRules.effectiveStatus(attempt, LocalDateTime.now());
-        List<AssessmentQuestion> questions = attempt.getAssessment().getQuestions();
+        LocalDateTime now = LocalDateTime.now();
+        AttemptStatus status = AttemptRules.effectiveStatus(attempt, now);
+        Assessment assessment = attempt.getAssessment();
+        boolean inProgress = status == AttemptStatus.IN_PROGRESS;
+        boolean running = inProgress && AttemptRules.roundStart(attempt) != null;
+        int roundIndex = AttemptRules.roundIndex(attempt);
+
+        List<PublicAssessmentResponse.Round> rounds = assessment.effectiveRounds().stream()
+                .map(r -> PublicAssessmentResponse.Round.builder()
+                        .title(r.getTitle())
+                        .description(r.getDescription())
+                        .durationMinutes(r.getDurationMinutes())
+                        .questionCount(assessment.questionsOf(r).size())
+                        .build())
+                .toList();
+
         return PublicAssessmentResponse.builder()
-                .title(attempt.getAssessment().getTitle())
-                .companyName(attempt.getAssessment().getCompany().getCompanyName())
+                .title(assessment.getTitle())
+                .companyName(assessment.getCompany().getCompanyName())
                 .candidateName(attempt.getCandidate().getCandidateName())
-                .duration(attempt.getAssessment().getDuration())
+                .duration(assessment.getDuration())
                 .status(status)
-                .questionCount(questions.size())
+                .questionCount(assessment.getQuestions().size())
                 .expiresAt(attempt.getExpiresAt())
-                .secondsLeft(status == AttemptStatus.IN_PROGRESS
-                        ? Math.max(0, Duration.between(LocalDateTime.now(), AttemptRules.deadline(attempt)).getSeconds()) : null)
-                .questions(withQuestions && status == AttemptStatus.IN_PROGRESS ? questions.stream()
+                .about(assessment.getAbout())
+                .termsAndConditions(assessment.getTermsAndConditions())
+                .rounds(rounds)
+                .currentRound(inProgress ? roundIndex : null)
+                .roundRunning(inProgress ? running : null)
+                // The countdown is the round's real time limit; the grace period only affects what is still accepted.
+                .secondsLeft(running
+                        ? Math.max(0, Duration.between(now, AttemptRules.roundEnd(attempt)).getSeconds()) : null)
+                .questions(withQuestions && running ? assessment.questionsOf(assessment.effectiveRounds().get(roundIndex)).stream()
                         .map(q -> PublicAssessmentResponse.Question.builder()
                                 .id(q.getId())
                                 .question(q.getQuestion())

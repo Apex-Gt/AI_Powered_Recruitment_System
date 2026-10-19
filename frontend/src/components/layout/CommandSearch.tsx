@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { CornerDownLeft, Search } from 'lucide-react'
 import { cn } from '@/utils/helpers'
@@ -36,6 +37,16 @@ export function CommandSearch({ open, onClose }: { open: boolean; onClose: () =>
     }
   }, [open])
 
+  // Esc closes the palette wherever focus is, not only while the input has it.
+  useEffect(() => {
+    if (!open) return
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onEsc)
+    return () => document.removeEventListener('keydown', onEsc)
+  }, [open, onClose])
+
   if (!open) return null
 
   const go = (href: string) => {
@@ -52,12 +63,11 @@ export function CommandSearch({ open, onClose }: { open: boolean; onClose: () =>
       setActive((a) => Math.max(a - 1, 0))
     } else if (e.key === 'Enter' && results[active]) {
       go(results[active].href)
-    } else if (e.key === 'Escape') {
-      onClose()
     }
   }
 
-  return (
+  // Portal to <body>: the top bar is a backdrop-filter element, which would otherwise trap the fixed overlay inside the bar.
+  return createPortal(
     <div className="modal-overlay !items-start pt-[14vh]" onClick={onClose}>
       <div
         role="dialog"
@@ -78,7 +88,7 @@ export function CommandSearch({ open, onClose }: { open: boolean; onClose: () =>
             }}
             placeholder="Go to a page"
             aria-label="Go to a page"
-            className="h-14 flex-1 bg-transparent text-body-md text-ink-900 outline-none placeholder:text-ink-400 dark:text-ink-100"
+            className="h-14 flex-1 bg-transparent text-body-md text-ink-900 outline-none focus:outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0 placeholder:text-ink-400 dark:text-ink-100"
           />
           <kbd className="rounded-md border border-[var(--color-border-hover)] px-1.5 py-0.5 text-label-xs text-ink-600 dark:text-ink-400">Esc</kbd>
         </div>
@@ -104,6 +114,7 @@ export function CommandSearch({ open, onClose }: { open: boolean; onClose: () =>
           ))}
         </ul>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -30,9 +30,17 @@ public class Assessment {
     @Column(nullable = false)
     private AssessmentType type;
 
-    /** Time limit in minutes once the candidate starts. */
+    /** Total time limit in minutes: the sum of the round time limits. */
     @Column(nullable = false)
     private Integer duration;
+
+    /** Shown to the candidate before the test starts. */
+    @Column(columnDefinition = "TEXT")
+    private String about;
+
+    /** Shown to the candidate before the test starts; they must accept it to begin. */
+    @Column(columnDefinition = "TEXT")
+    private String termsAndConditions;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -42,6 +50,11 @@ public class Assessment {
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
 
+    /** Optional: the job this assessment was built for. Null means a general, company-wide assessment. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "job_id")
+    private Job job;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
@@ -50,6 +63,33 @@ public class Assessment {
     @OrderBy("position ASC")
     @Builder.Default
     private List<AssessmentQuestion> questions = new ArrayList<>();
+
+    @OneToMany(mappedBy = "assessment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("position ASC")
+    @Builder.Default
+    private List<AssessmentRound> rounds = new ArrayList<>();
+
+    /**
+     * The rounds as the candidate experiences them. An assessment created before rounds existed has none stored,
+     * so it reads as a single round holding every question and the whole time limit.
+     */
+    public List<AssessmentRound> effectiveRounds() {
+        if (!rounds.isEmpty()) {
+            return rounds;
+        }
+        return List.of(AssessmentRound.builder().assessment(this).position(0).title("Round 1").durationMinutes(duration).build());
+    }
+
+    /** The questions of one of {@link #effectiveRounds()}, in order. */
+    public List<AssessmentQuestion> questionsOf(AssessmentRound round) {
+        if (rounds.isEmpty()) {
+            return questions;
+        }
+        return questions.stream()
+                .filter(q -> q.getRound() == round
+                        || (q.getRound() != null && round.getId() != null && round.getId().equals(q.getRound().getId())))
+                .toList();
+    }
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

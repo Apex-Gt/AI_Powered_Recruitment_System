@@ -14,7 +14,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <ThemeProvider>
           <App />
           <Toaster
-            position="bottom-right"
+            position="top-right"
             toastOptions={{
               duration: 4000,
               style: {

@@ -43,7 +43,8 @@ public class FileStorageServiceImplementation implements FileStorageService {
 
     @Override
     public String getFilePath(String fileUrl) {
-        return Paths.get(storagePath, fileUrl).toString();
+        // Absolute, because the AI service runs from a different working directory and reads this path directly.
+        return Paths.get(storagePath, fileUrl).toAbsolutePath().normalize().toString();
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.project.ai_resumerag_be.controller;
 
 import com.project.ai_resumerag_be.dto.request.AssessmentRequest;
 import com.project.ai_resumerag_be.dto.request.AssignAssessmentRequest;
+import com.project.ai_resumerag_be.dto.request.BulkAssignAssessmentRequest;
 import com.project.ai_resumerag_be.dto.request.ManualGradeRequest;
 import com.project.ai_resumerag_be.dto.response.CommonResponse;
 import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
@@ -24,8 +25,8 @@ public class AssessmentController {
     private final AssessmentService assessmentService;
 
     @GetMapping
-    public ResponseEntity<CommonResponse> list() {
-        return respond(assessmentService.list(), "Assessments retrieved successfully", 200);
+    public ResponseEntity<CommonResponse> list(@RequestParam(required = false) UUID jobId) {
+        return respond(assessmentService.list(jobId), "Assessments retrieved successfully", 200);
     }
 
     @GetMapping("/{id}")
@@ -52,6 +53,11 @@ public class AssessmentController {
     @PostMapping("/{id}/assign")
     public ResponseEntity<CommonResponse> assign(@PathVariable UUID id, @Valid @RequestBody AssignAssessmentRequest request) {
         return respond(assessmentService.assign(id, request.getCandidateId()), "Assessment sent to candidate", 201);
+    }
+
+    @PostMapping("/{id}/assign-many")
+    public ResponseEntity<CommonResponse> assignMany(@PathVariable UUID id, @Valid @RequestBody BulkAssignAssessmentRequest request) {
+        return respond(assessmentService.assignMany(id, request.getCandidateIds()), "Assessment sent", 201);
     }
 
     @GetMapping("/attempts")

@@ -21,4 +21,5 @@ public class IngestResumeEvent {
     private UUID jobId;
     private String pdfPath;
     private String sourcePdf;
+    private java.util.Map<String, Object> profile;
 }

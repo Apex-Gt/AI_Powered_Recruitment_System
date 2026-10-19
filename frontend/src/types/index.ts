@@ -117,10 +117,29 @@ export interface Assessment {
   id: string
   title: string
   type: 'CODING' | 'TECHNICAL' | 'BEHAVIORAL' | 'CUSTOM'
+  /** Total minutes: the sum of the round time limits. */
   duration: number
+  /** Every question across all rounds, in order. */
   questions: AssessmentQuestion[]
+  rounds: AssessmentRound[]
+  /** Shown to the candidate before the test starts. */
+  about?: string | null
+  /** The candidate must accept these before starting. */
+  termsAndConditions?: string | null
   status: 'DRAFT' | 'ACTIVE' | 'COMPLETED'
+  /** The job this assessment belongs to; null when it is a general assessment. */
+  jobId?: string | null
+  jobTitle?: string | null
   createdAt: string
+}
+
+export interface AssessmentRound {
+  /** Missing for an assessment from before rounds existed, which reads as one implicit round. */
+  id?: string | null
+  title: string
+  description?: string | null
+  durationMinutes: number
+  questions: AssessmentQuestion[]
 }
 
 export interface AssessmentQuestion {
@@ -140,6 +159,9 @@ export interface AttemptAnswer {
   question: string
   type: AssessmentQuestion['type']
   weight: number
+  roundTitle?: string | null
+  /** The choices of a multiple choice question. */
+  options?: string[]
   answer?: string
   correctAnswer?: string
   score?: number | null
@@ -165,16 +187,34 @@ export interface AssessmentAttempt {
   link?: string
 }
 
+/** Outcome of sending one assessment to many candidates. */
+export interface BulkAssignResult {
+  /** Each carries the personal link, in case email is not configured. */
+  sent: AssessmentAttempt[]
+  skipped: { candidateId: string; candidateName?: string | null; reason: string }[]
+}
+
 /** What a candidate sees through their emailed link. */
 export interface PublicAssessment {
   title: string
   companyName: string
   candidateName: string
+  /** Total minutes across all rounds. */
   duration: number
   status: AttemptStatus
   questionCount: number
   expiresAt: string
+  about?: string | null
+  termsAndConditions?: string | null
+  /** The whole structure, shown up front. No questions in here. */
+  rounds: { title: string; description?: string | null; durationMinutes: number; questionCount: number }[]
+  /** Zero-based index of the round the candidate is on; only while in progress. */
+  currentRound?: number | null
+  /** False while the candidate still has to start the current round. */
+  roundRunning?: boolean | null
+  /** Time left in the running round. */
   secondsLeft?: number | null
+  /** Only the current round's questions, only while it is running. */
   questions?: { id: string; question: string; type: AssessmentQuestion['type']; options: string[]; weight: number }[] | null
 }
 

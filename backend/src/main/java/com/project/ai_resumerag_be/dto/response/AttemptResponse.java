@@ -37,6 +37,10 @@ public class AttemptResponse {
         private String question;
         private QuestionType type;
         private Integer weight;
+        /** The round the question belongs to; null for assessments from before rounds existed. */
+        private String roundTitle;
+        /** The choices of a multiple choice question, so the recruiter can see which one was picked. */
+        private List<String> options;
         private String answer;
         private String correctAnswer;
         private Double score;

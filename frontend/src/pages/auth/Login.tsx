@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { AuthShell } from '@/components/auth/AuthShell'
-import { AlertCircle, Eye, EyeOff, Lock, Mail } from 'lucide-react'
+import { AlertCircle, Lock, Mail } from 'lucide-react'
 
 export function Login() {
   const navigate = useNavigate()
@@ -14,7 +14,6 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({})
-  const [showPassword, setShowPassword] = useState(false)
 
   const validateForm = () => {
     const newErrors: typeof errors = {}
@@ -53,7 +52,7 @@ export function Login() {
   }
 
   return (
-    <AuthShell footer={<span>Demo credentials: admin@abctech.com / Admin@123</span>}>
+    <AuthShell>
       <h1 className="text-display-sm font-bold text-ink-900 dark:text-ink-100">
         Welcome back
       </h1>
@@ -84,7 +83,7 @@ export function Login() {
         <div className="relative">
           <Input
             label="Password"
-            type={showPassword ? 'text' : 'password'}
+            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             error={errors.password}
@@ -93,14 +92,6 @@ export function Login() {
             icon={<Lock className="h-5 w-5" aria-hidden="true" />}
             className="h-12 pr-12"
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-2 top-[34px] flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-base-100 hover:text-ink-700 dark:hover:bg-white/10"
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
-          >
-            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-          </button>
         </div>
 
         <div className="flex justify-end">

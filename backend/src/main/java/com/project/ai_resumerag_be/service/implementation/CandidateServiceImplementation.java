@@ -10,6 +10,7 @@ import com.project.ai_resumerag_be.entity.JobSkill;
 import com.project.ai_resumerag_be.enumerators.SkillType;
 import com.project.ai_resumerag_be.entity.User;
 import com.project.ai_resumerag_be.enumerators.Role;
+import com.project.ai_resumerag_be.exception.BadRequestException;
 import com.project.ai_resumerag_be.exception.ConflictException;
 import com.project.ai_resumerag_be.exception.ResourceNotFoundException;
 import com.project.ai_resumerag_be.entity.Resume;
@@ -34,6 +35,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
 import java.io.IOException;
@@ -68,29 +71,7 @@ public class CandidateServiceImplementation implements CandidateService {
         return Mono.fromCallable(() -> {
             Job job = jobRepository.findById(request.getJobId())
                     .orElseThrow(() -> new RuntimeException("Job not found: " + request.getJobId()));
-
-            Resume resume = saveResume(request.getResumeFile(), job.getId());
-
-            Candidate candidate = Candidate.builder()
-                    .candidateName(request.getCandidateName())
-                    .candidateEmail(request.getCandidateEmail())
-                    .phoneNumber(request.getPhoneNumber())
-                    .location(request.getLocation())
-                    .job(job)
-                    .resume(resume)
-                    .build();
-
-            candidate = candidateRepository.save(candidate);
-
-            String pdfPath = fileStorageService.getFilePath(resume.getFileUrl());
-
-            final UUID savedCandidateId = candidate.getId();
-            triggerIngestResume(savedCandidateId, resume.getId(), job.getId(), pdfPath)
-                    .subscribe(
-                            ok -> log.info("Resume ingestion started for candidate {}", savedCandidateId),
-                            err -> log.warn("Could not start resume ingestion for candidate {}: {}", savedCandidateId, err.getMessage()));
-
-            return candidateMapper.toCandidateResponse(candidate);
+            return candidateMapper.toCandidateResponse(createFromResume(request.getResumeFile(), job));
         });
     }
 
@@ -106,62 +87,101 @@ public class CandidateServiceImplementation implements CandidateService {
             Job job = jobRepository.findById(jobId)
                     .orElseThrow(() -> new RuntimeException("Job not found: " + jobId));
 
-            List<CandidateResponse> responses = requests.stream()
-                    .map(req -> {
-                        Resume resume = saveResume(req.getResumeFile(), jobId);
-
-                        Candidate candidate = Candidate.builder()
-                                .candidateName(req.getCandidateName())
-                                .candidateEmail(req.getCandidateEmail())
-                                .phoneNumber(req.getPhoneNumber())
-                                .location(req.getLocation())
-                                .job(job)
-                                .resume(resume)
-                                .build();
-
-                        candidate = candidateRepository.save(candidate);
-
-                        String pdfPath = fileStorageService.getFilePath(resume.getFileUrl());
-
-                        final UUID savedCandidateId = candidate.getId();
-                        triggerIngestResume(savedCandidateId, resume.getId(), jobId, pdfPath)
-                                .subscribe(
-                                        ok -> log.info("Resume ingestion started for candidate {}", savedCandidateId),
-                                        err -> log.warn("Could not start resume ingestion for candidate {}: {}", savedCandidateId, err.getMessage()));
-
-                        return candidateMapper.toCandidateResponse(candidate);
-                    })
+            return requests.stream()
+                    .map(req -> candidateMapper.toCandidateResponse(createFromResume(req.getResumeFile(), job)))
                     .collect(Collectors.toList());
-
-            return responses;
         });
     }
 
-    private Resume saveResume(MultipartFile file, UUID jobId) {
+    /** Stores the resume, reads the candidate's details out of it, and creates the candidate. Nothing is typed in by hand. */
+    private Candidate createFromResume(MultipartFile file, Job job) {
+        String fileUrl = storeResumeFile(file, job.getId());
+        ContactInfo contact;
         try {
-            String fileName = file.getOriginalFilename();
-            String fileUrl = fileStorageService.storeFile(file, "resumes/" + jobId);
+            contact = readContact(fileUrl, file.getOriginalFilename());
+            String email = contact.getEmail() == null ? "" : contact.getEmail().trim();
+            if (email.isEmpty()) {
+                throw new BadRequestException("Could not find an email address in " + file.getOriginalFilename());
+            }
+            if (!candidateRepository.findByJobIdAndCandidateEmail(job.getId(), email).isEmpty()) {
+                throw new ConflictException(email + " has already applied for this job");
+            }
+            contact.setEmail(email);
+        } catch (RuntimeException e) {
+            deleteQuietly(fileUrl); // nothing was saved yet, so only the stored file needs cleaning up
+            throw e;
+        }
 
-            Resume resume = Resume.builder()
-                    .fileName(fileName)
-                    .fileUrl(fileUrl)
-                    .build();
+        Resume resume = resumeRepository.save(Resume.builder()
+                .fileName(file.getOriginalFilename())
+                .fileUrl(fileUrl)
+                .build());
 
-            return resumeRepository.save(resume);
+        Candidate candidate = candidateRepository.save(Candidate.builder()
+                .candidateName(blankToNull(contact.getName()) != null ? contact.getName().trim() : "Unknown candidate")
+                .candidateEmail(contact.getEmail())
+                .phoneNumber(blankToNull(contact.getPhone()))
+                .location(blankToNull(contact.getLocation()))
+                .job(job)
+                .resume(resume)
+                .build());
+
+        String pdfPath = fileStorageService.getFilePath(resume.getFileUrl());
+        final UUID savedCandidateId = candidate.getId();
+        triggerIngestResume(savedCandidateId, resume.getId(), job.getId(), pdfPath, contact.getProfile())
+                .subscribe(
+                        ok -> log.info("Resume ingestion started for candidate {}", savedCandidateId),
+                        err -> log.warn("Could not start resume ingestion for candidate {}: {}", savedCandidateId, err.getMessage()));
+        return candidate;
+    }
+
+    private ContactInfo readContact(String fileUrl, String fileName) {
+        try {
+            AIServiceResponse<ContactInfo> response =
+                    aiServiceClient.extractContact(fileStorageService.getFilePath(fileUrl), fileName).block();
+            if (response == null || response.getData() == null) {
+                throw new BadRequestException("Could not read " + fileName);
+            }
+            return response.getData();
+        } catch (WebClientResponseException e) {
+            if (e.getStatusCode().value() == 422) {
+                throw new BadRequestException("Could not read " + fileName + ": it has no readable text");
+            }
+            log.error("Resume reading failed for {}: {}", fileName, e.getMessage());
+            throw new BadRequestException("The resume reader is unavailable right now. Try again in a moment.");
+        } catch (WebClientRequestException e) {
+            log.error("Resume reading failed for {}: {}", fileName, e.getMessage());
+            throw new BadRequestException("The resume reader is unavailable right now. Try again in a moment.");
+        }
+    }
+
+    private String storeResumeFile(MultipartFile file, UUID jobId) {
+        try {
+            return fileStorageService.storeFile(file, "resumes/" + jobId);
         } catch (IOException e) {
             log.error("Failed to save resume file: {}", e.getMessage());
             throw new RuntimeException("Failed to save resume file", e);
         }
     }
 
+    private void deleteQuietly(String fileUrl) {
+        try {
+            fileStorageService.deleteFile(fileUrl);
+        } catch (IOException e) {
+            log.warn("Could not clean up resume file {}: {}", fileUrl, e.getMessage());
+        }
+    }
+
     @Override
-    public Mono<AIServiceResponse<Void>> triggerIngestResume(UUID candidateId, UUID resumeId, UUID jobId, String pdfPath) {
+    public Mono<AIServiceResponse<Void>> triggerIngestResume(UUID candidateId, UUID resumeId, UUID jobId, String pdfPath,
+                                                             java.util.Map<String, Object> profile) {
         IngestResumeEvent event = IngestResumeEvent.builder()
                 .candidateId(candidateId)
                 .resumeId(resumeId)
                 .jobId(jobId)
                 .pdfPath(pdfPath)
                 .sourcePdf(resumeId.toString())
+                .profile(profile)
                 .build();
 
         return aiServiceClient.ingestResume(event);
@@ -338,6 +358,7 @@ public class CandidateServiceImplementation implements CandidateService {
         UUID companyId = currentCompanyId();
         return candidateRepository.findById(candidateId)
                 .filter(c -> c.getJob().getCompany().getId().equals(companyId))
+                .filter(c -> canAccessJob(c.getJob()))
                 .orElseThrow(() -> new ResourceNotFoundException("Candidate not found with id: " + candidateId));
     }
 
@@ -346,15 +367,24 @@ public class CandidateServiceImplementation implements CandidateService {
         UUID companyId = currentCompanyId();
         return jobRepository.findById(jobId)
                 .filter(j -> j.getCompany().getId().equals(companyId))
+                .filter(this::canAccessJob)
                 .orElseThrow(() -> new ResourceNotFoundException("Job not found: " + jobId));
+    }
+
+    /** Admins see every job of their company; a recruiter only the jobs they created. */
+    private boolean canAccessJob(Job job) {
+        User user = currentUser();
+        return user.getRole() == Role.ADMIN
+                || (job.getCreatedBy() != null && job.getCreatedBy().getId().equals(user.getId()));
     }
 
     @Override
     public List<Candidate> findOwnedCandidates(UUID jobId) {
         UUID companyId = currentCompanyId();
-        return jobId != null
+        List<Candidate> candidates = jobId != null
                 ? candidateRepository.findByJobIdAndJobCompanyId(jobId, companyId)
                 : candidateRepository.findByJobCompanyId(companyId);
+        return candidates.stream().filter(c -> canAccessJob(c.getJob())).collect(Collectors.toList());
     }
 
     private static String blankToNull(String value) {

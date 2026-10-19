@@ -1,4 +1,5 @@
 import { Fragment, ReactNode, KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '@/utils/helpers'
 import { Button } from './Button'
@@ -38,7 +39,8 @@ export function Modal({
     if (e.key === 'Escape') onClose()
   }
 
-  return (
+  // Portal to <body> so the overlay isn't clipped/offset by a transformed or stacked ancestor (e.g. the sticky top bar).
+  return createPortal(
     <Fragment>
       <div
         className="modal-overlay"
@@ -85,7 +87,8 @@ export function Modal({
           </div>
         </div>
       </div>
-    </Fragment>
+    </Fragment>,
+    document.body
   )
 }
 

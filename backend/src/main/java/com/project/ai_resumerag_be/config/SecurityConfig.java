@@ -72,6 +72,8 @@ public class SecurityConfig {
                         ).permitAll()
                         // Candidates reach assessments through an unguessable emailed token, not an account.
                         .requestMatchers("/public/**").permitAll()
+                        // Country/state/city suggestions are needed on the sign-up form, before any account exists.
+                        .requestMatchers(HttpMethod.GET, "/places/**").permitAll()
                         // Server-to-server endpoints used by the AI service (X-API-Key, see ApiKeyAuthenticationFilter)
                         .requestMatchers("/ai/**", "/candidates/*/profile", "/jobs/*/description").hasRole("SERVICE")
                         .anyRequest().authenticated())

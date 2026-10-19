@@ -112,20 +112,21 @@ class PublicAssessmentServiceTest {
 
     @Test
     void startBeginsTheClockOnceAndHidesCorrectAnswers() {
-        PublicAssessmentResponse first = service.start(TOKEN);
+        PublicAssessmentResponse first = service.start(TOKEN, true);
         LocalDateTime startedAt = attempt.getStartedAt();
         assertNotNull(startedAt);
         assertEquals(2, first.getQuestions().size());
-        assertTrue(first.getSecondsLeft() > 0 && first.getSecondsLeft() <= (30 + AttemptRules.GRACE_MINUTES) * 60);
+        // The countdown is the configured limit, without the grace period
+        assertTrue(first.getSecondsLeft() > (30 - 1) * 60 && first.getSecondsLeft() <= 30 * 60);
 
-        service.start(TOKEN);
+        service.start(TOKEN, true);
         assertEquals(startedAt, attempt.getStartedAt());
     }
 
     @Test
     void expiredLinkCannotBeStarted() {
         attempt.setExpiresAt(LocalDateTime.now().minusMinutes(1));
-        assertThrows(BadRequestException.class, () -> service.start(TOKEN));
+        assertThrows(BadRequestException.class, () -> service.start(TOKEN, true));
     }
 
     @Test
@@ -195,6 +196,103 @@ class PublicAssessmentServiceTest {
         attempt.setStatus(AttemptStatus.GRADED);
         assertThrows(ConflictException.class, () -> service.submit(TOKEN, answers("4", "x")));
         verifyNoInteractions(aiServiceClient);
+    }
+
+    /** Splits the two questions into round 1 (mcq, 10 min) and round 2 (code, 20 min). */
+    private void twoRounds() {
+        Assessment assessment = attempt.getAssessment();
+        AssessmentRound first = AssessmentRound.builder().id(UUID.randomUUID()).assessment(assessment).position(0)
+                .title("Basics").description("Warm up").durationMinutes(10).build();
+        AssessmentRound second = AssessmentRound.builder().id(UUID.randomUUID()).assessment(assessment).position(1)
+                .title("Coding").durationMinutes(20).build();
+        assessment.setRounds(new ArrayList<>(List.of(first, second)));
+        assessment.setDuration(30);
+        mcq.setRound(first);
+        code.setRound(second);
+    }
+
+    @Test
+    void termsMustBeAcceptedBeforeStarting() {
+        attempt.getAssessment().setTermsAndConditions("No outside help.");
+
+        assertThrows(BadRequestException.class, () -> service.start(TOKEN, false));
+        assertEquals(AttemptStatus.ASSIGNED, attempt.getStatus());
+
+        service.start(TOKEN, true);
+        assertEquals(AttemptStatus.IN_PROGRESS, attempt.getStatus());
+        assertNotNull(attempt.getTermsAcceptedAt());
+    }
+
+    @Test
+    void previewListsEveryRoundButNoQuestions() {
+        twoRounds();
+        PublicAssessmentResponse response = service.preview(TOKEN);
+
+        assertEquals(2, response.getRounds().size());
+        assertEquals("Basics", response.getRounds().get(0).getTitle());
+        assertEquals("Warm up", response.getRounds().get(0).getDescription());
+        assertEquals(10, response.getRounds().get(0).getDurationMinutes());
+        assertEquals(1, response.getRounds().get(1).getQuestionCount());
+        assertNull(response.getQuestions());
+    }
+
+    @Test
+    void roundsAreTakenOneAtATimeEachWithItsOwnClock() {
+        twoRounds();
+        when(aiServiceClient.gradeAnswer(any(), any(), any()))
+                .thenReturn(Mono.just(new AIServiceResponse<>("success", "ok", new GradeResult(60, "ok"))));
+
+        PublicAssessmentResponse first = service.start(TOKEN, true);
+        assertEquals(1, first.getQuestions().size());
+        assertEquals(mcq.getId(), first.getQuestions().get(0).getId());
+        assertTrue(first.getSecondsLeft() > 9 * 60 && first.getSecondsLeft() <= 10 * 60);
+
+        PublicAssessmentResponse between = service.submit(TOKEN, answers("4", "ignored"));
+        assertEquals(AttemptStatus.IN_PROGRESS, between.getStatus());
+        assertEquals(1, between.getCurrentRound());
+        assertFalse(between.getRoundRunning());
+        assertNull(between.getQuestions());
+        assertEquals(1, attempt.getAnswers().size());
+        assertNull(attempt.getTotalScore());
+
+        // The next round has not been started, so it cannot be submitted yet.
+        assertThrows(ConflictException.class, () -> service.submit(TOKEN, answers("4", "x")));
+
+        PublicAssessmentResponse second = service.start(TOKEN, false);
+        assertEquals(code.getId(), second.getQuestions().get(0).getId());
+        assertTrue(second.getRoundRunning());
+        assertTrue(second.getSecondsLeft() > 19 * 60 && second.getSecondsLeft() <= 20 * 60);
+
+        service.submit(TOKEN, answers("4", "s[::-1]"));
+        assertEquals(AttemptStatus.GRADED, attempt.getStatus());
+        assertEquals(2, attempt.getAnswers().size());
+        // (100*10 + 60*30) / 40
+        assertEquals(70.0, attempt.getTotalScore());
+        assertNotNull(attempt.getSubmittedAt());
+    }
+
+    @Test
+    void aRoundThatRanOutOfTimeExpiresTheAttempt() {
+        twoRounds();
+        service.start(TOKEN, true);
+        attempt.setRoundStartedAt(LocalDateTime.now().minusMinutes(10 + AttemptRules.GRACE_MINUTES + 1));
+
+        assertThrows(BadRequestException.class, () -> service.submit(TOKEN, answers("4", "x")));
+        assertEquals(AttemptStatus.EXPIRED, service.preview(TOKEN).getStatus());
+    }
+
+    @Test
+    void timeBetweenRoundsDoesNotCountAgainstTheNextRound() {
+        twoRounds();
+        service.start(TOKEN, true);
+        // Round 1 was started long ago but submitted; the candidate only starts round 2 now.
+        attempt.setStartedAt(LocalDateTime.now().minusHours(2));
+        attempt.setCurrentRound(1);
+        attempt.setRoundStartedAt(null);
+
+        PublicAssessmentResponse second = service.start(TOKEN, false);
+        assertEquals(AttemptStatus.IN_PROGRESS, second.getStatus());
+        assertTrue(second.getSecondsLeft() > 19 * 60);
     }
 
     @Test

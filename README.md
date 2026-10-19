@@ -221,6 +221,8 @@ python main.py                                                        # terminal
 npx --yes inngest-cli@latest dev -u http://localhost:8000/api/inngest # terminal 2, port 8288
 ```
 
+`start-inngest.cmd` in the repo root runs the second command for you (and does nothing if Inngest is already up). If scoring or upload returns a 502 saying it could not queue a workflow, Inngest is not running; `/health` on the AI service also reports it as `unreachable`.
+
 Do not also start the compose `inngest` or `ai-service` containers. They would clash on ports 8288 and 8000.
 
 ---

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
-import { Briefcase, ChevronLeft, Pencil, Sparkles, Trash2, Upload, Users } from 'lucide-react'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { BarChart3, Briefcase, CheckSquare, ChevronLeft, Pencil, Plus, Send, Sparkles, Trash2, Upload, Users } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '@/context/AuthContext'
-import { jobApi, candidateApi } from '@/utils/api'
+import { jobApi, candidateApi, assessmentApi } from '@/utils/api'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -12,10 +12,21 @@ import { MatchScore } from '@/components/ui/ListPage'
 import { ConfirmModal } from '@/components/ui/Modal'
 import { Panel } from '@/components/ui/Panel'
 import { UploadResumesModal } from '@/components/candidates/UploadResumesModal'
+import { EditCandidateModal } from '@/components/candidates/EditCandidateModal'
+import { assessmentTypes } from '@/utils/assessmentTypes'
+import { AssignAssessmentModal } from '@/components/assessments/AssignAssessmentModal'
+import { AssessmentResultsModal } from '@/components/assessments/AssessmentResultsModal'
 import { formatDate, formatCurrency, getInitials } from '@/utils/helpers'
-import type { Job, Candidate, JobSkill } from '@/types'
+import type { Job, Candidate, JobSkill, Assessment } from '@/types'
 
-type Tab = 'overview' | 'candidates'
+type Tab = 'overview' | 'candidates' | 'assessments'
+
+const TAB_LABELS: Record<Tab, string> = { overview: 'Overview', candidates: 'Candidates', assessments: 'Assessments' }
+
+const SKILLS_PREVIEW = 5
+
+const iconBtn =
+  'flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-base-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-surface-dark-elevated dark:hover:text-ink-100'
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -54,11 +65,21 @@ export function JobDetail() {
   const [job, setJob] = useState<Job | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [tab, setTab] = useState<Tab>('overview')
+  const [searchParams] = useSearchParams()
+  const [tab, setTab] = useState<Tab>(searchParams.get('tab') === 'assessments' ? 'assessments' : 'overview')
   const [uploadOpen, setUploadOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [screening, setScreening] = useState(false)
+  const [showAllSkills, setShowAllSkills] = useState(false)
+  const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null)
+  const [deletingCandidate, setDeletingCandidate] = useState<Candidate | null>(null)
+  const [isDeletingCandidate, setIsDeletingCandidate] = useState(false)
+  const [assessments, setAssessments] = useState<Assessment[]>([])
+  const [assigning, setAssigning] = useState<Assessment | null>(null)
+  const [viewingResults, setViewingResults] = useState<Assessment | null>(null)
+  const [deletingAssessment, setDeletingAssessment] = useState<Assessment | null>(null)
+  const [isDeletingAssessment, setIsDeletingAssessment] = useState(false)
 
   const loadCandidates = useCallback(async () => {
     if (!id) return
@@ -67,6 +88,15 @@ export function JobDetail() {
       setCandidates(res.data as Candidate[])
     } catch (error) {
       console.error('Failed to refresh candidates:', error)
+    }
+  }, [id])
+
+  const loadAssessments = useCallback(async () => {
+    if (!id) return
+    try {
+      setAssessments(await assessmentApi.getAll({ jobId: id }))
+    } catch (error) {
+      console.error('Failed to load assessments:', error)
     }
   }, [id])
 
@@ -80,7 +110,7 @@ export function JobDetail() {
         const raw = 'data' in jobRes ? jobRes.data : (jobRes as unknown as Job)
         const status = (raw.status as string) === 'OPEN' ? 'ACTIVE' : raw.status
         if (!cancelled) setJob({ ...raw, status, skills: raw.skills ?? [] } as Job)
-        await loadCandidates()
+        await Promise.all([loadCandidates(), loadAssessments()])
       } catch (error) {
         console.error('Failed to fetch job:', error)
       } finally {
@@ -91,7 +121,7 @@ export function JobDetail() {
     return () => {
       cancelled = true
     }
-  }, [id, hasRole, loadCandidates])
+  }, [id, hasRole, loadCandidates, loadAssessments])
 
   const handleDelete = async () => {
     if (!job) return
@@ -105,6 +135,44 @@ export function JobDetail() {
       toast.error(e instanceof Error && e.message ? e.message : 'Failed to delete job')
       setIsDeleting(false)
       setConfirmDeleteOpen(false)
+    }
+  }
+
+  // The editor is a full page; it brings the user back to this job's Assessments tab when done.
+  const openAssessmentEditor = (assessment: Assessment | null = null) => {
+    if (!job) return
+    const returnTo = `/jobs/${job.id}?tab=assessments`
+    if (assessment) navigate(`/assessments/${assessment.id}/edit`, { state: { returnTo } })
+    else navigate(`/assessments/new?jobId=${job.id}`, { state: { returnTo } })
+  }
+
+  const confirmDeleteAssessment = async () => {
+    if (!deletingAssessment) return
+    setIsDeletingAssessment(true)
+    try {
+      await assessmentApi.delete(deletingAssessment.id)
+      toast.success('Assessment deleted successfully')
+      setDeletingAssessment(null)
+      await loadAssessments()
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Failed to delete assessment')
+    } finally {
+      setIsDeletingAssessment(false)
+    }
+  }
+
+  const confirmDeleteCandidate = async () => {
+    if (!deletingCandidate) return
+    setIsDeletingCandidate(true)
+    try {
+      await candidateApi.delete(deletingCandidate.id)
+      toast.success(`${deletingCandidate.candidateName} deleted`)
+      setDeletingCandidate(null)
+      await loadCandidates()
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Failed to delete candidate')
+    } finally {
+      setIsDeletingCandidate(false)
     }
   }
 
@@ -147,8 +215,12 @@ export function JobDetail() {
   }
 
   const count = (s: string) => candidates.filter((c) => (c.status ?? 'APPLIED') === s).length
-  const required = job.skills.filter((s) => s.type === 'REQUIRED')
-  const preferred = job.skills.filter((s) => s.type !== 'REQUIRED')
+  // Required skills come first, so the short preview always leads with what matters most
+  const orderedSkills = [...job.skills.filter((s) => s.type === 'REQUIRED'), ...job.skills.filter((s) => s.type !== 'REQUIRED')]
+  const hiddenSkills = Math.max(0, orderedSkills.length - SKILLS_PREVIEW)
+  const shownSkills = showAllSkills ? orderedSkills : orderedSkills.slice(0, SKILLS_PREVIEW)
+  const required = shownSkills.filter((s) => s.type === 'REQUIRED')
+  const preferred = shownSkills.filter((s) => s.type !== 'REQUIRED')
   const ranked = [...candidates].sort((a, b) => (b.aiMatchScore ?? -1) - (a.aiMatchScore ?? -1))
   const mode = job.workMode.charAt(0) + job.workMode.slice(1).toLowerCase()
   const type = job.employmentType.replace('_', ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase())
@@ -206,10 +278,11 @@ export function JobDetail() {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0">
           <div role="tablist" aria-label="Job sections" className="tabs-list">
-            {(['overview', 'candidates'] as Tab[]).map((t) => (
+            {(['overview', 'candidates', 'assessments'] as Tab[]).map((t) => (
               <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={tab === t ? 'tabs-trigger-active' : 'tabs-trigger'}>
-                {t === 'overview' ? 'Overview' : 'Candidates'}
+                {TAB_LABELS[t]}
                 {t === 'candidates' && <span className="rounded bg-base-100 px-1.5 text-label-xs tabular dark:bg-surface-dark-elevated">{candidates.length}</span>}
+                {t === 'assessments' && <span className="rounded bg-base-100 px-1.5 text-label-xs tabular dark:bg-surface-dark-elevated">{assessments.length}</span>}
               </button>
             ))}
           </div>
@@ -219,7 +292,14 @@ export function JobDetail() {
               <div className="space-y-8">
                 <section aria-label="Description">
                   <h2 className="font-display text-heading-sm font-semibold text-ink-900 dark:text-ink-100">About the role</h2>
-                  <p className="mt-3 max-w-prose whitespace-pre-wrap text-body-md leading-relaxed text-ink-800 dark:text-ink-200">{job.description}</p>
+                  <div
+                    className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl border border-[var(--color-border)] bg-base-50 p-4 text-body-md leading-relaxed text-ink-800 dark:bg-surface-dark-elevated dark:text-ink-200"
+                    tabIndex={0}
+                    role="region"
+                    aria-label="Job description, scrollable"
+                  >
+                    {job.description}
+                  </div>
                 </section>
 
                 <section aria-label="Skills" className="space-y-5">
@@ -230,6 +310,16 @@ export function JobDetail() {
                   {job.skills.length === 0 && <p className="text-body-sm text-ink-600 dark:text-ink-400">No skills were added to this job.</p>}
                   <SkillGroup title="Required" skills={required} color="#ff6000" />
                   <SkillGroup title="Preferred" skills={preferred} color="#ffa468" />
+                  {hiddenSkills > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllSkills((v) => !v)}
+                      aria-expanded={showAllSkills}
+                      className="cursor-pointer text-body-sm font-semibold text-brand-700 hover:underline dark:text-brand-300"
+                    >
+                      {showAllSkills ? 'Show fewer skills' : `Show all ${orderedSkills.length} skills (${hiddenSkills} more)`}
+                    </button>
+                  )}
                 </section>
               </div>
             )}
@@ -247,8 +337,8 @@ export function JobDetail() {
               ) : (
                 <ul className="surface divide-y divide-[var(--color-border)] overflow-hidden rounded-xl">
                   {ranked.map((c) => (
-                    <li key={c.id}>
-                      <Link to={`/candidates/${c.id}`} className="flex flex-wrap items-center gap-4 px-5 py-3.5 no-underline transition-colors hover:bg-base-50 dark:hover:bg-surface-dark-elevated">
+                    <li key={c.id} className="flex items-center transition-colors hover:bg-base-50 dark:hover:bg-surface-dark-elevated">
+                      <Link to={`/candidates/${c.id}`} className="flex min-w-0 flex-1 flex-wrap items-center gap-4 px-5 py-3.5 no-underline">
                         <span className="avatar-sm flex-shrink-0">{getInitials(c.candidateName)}</span>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-body-sm font-semibold text-ink-900 dark:text-ink-100">{c.candidateName}</p>
@@ -258,10 +348,81 @@ export function JobDetail() {
                         <StatusBadge status={c.status || 'APPLIED'} />
                         <span className="w-24 text-right text-body-xs text-ink-600 dark:text-ink-400">{formatDate(c.appliedAt || c.createdAt || new Date().toISOString())}</span>
                       </Link>
+                      {canEdit && (
+                        <div className="flex flex-shrink-0 items-center gap-0.5 pr-3">
+                          <button type="button" className={iconBtn} aria-label={`Edit ${c.candidateName}`} title="Edit" onClick={() => setEditingCandidate(c)}>
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className={`${iconBtn} hover:!bg-error-50 hover:!text-error-600 dark:hover:!bg-error-900/20`}
+                            aria-label={`Delete ${c.candidateName}`}
+                            title="Delete"
+                            onClick={() => setDeletingCandidate(c)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
               ))}
+
+            {tab === 'assessments' && (
+              <div className="space-y-4">
+                {canEdit && assessments.length > 0 && (
+                  <div className="flex justify-end">
+                    <Button onClick={() => openAssessmentEditor()}>
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                      Create assessment
+                    </Button>
+                  </div>
+                )}
+                {assessments.length === 0 ? (
+                  <div className="surface rounded-xl">
+                    <EmptyState
+                      icon={<CheckSquare className="h-14 w-14" />}
+                      title="No assessments for this job"
+                      description="Create a test for this role, then send it to candidates by email."
+                      action={canEdit ? { label: 'Create assessment', onClick: () => openAssessmentEditor() } : undefined}
+                    />
+                  </div>
+                ) : (
+                  <ul className="surface divide-y divide-[var(--color-border)] overflow-hidden rounded-xl">
+                    {assessments.map((a) => (
+                      <li key={a.id} className="flex flex-wrap items-center gap-4 px-5 py-3.5">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-body-sm font-semibold text-ink-900 dark:text-ink-100">{a.title}</p>
+                          <p className="truncate text-body-xs text-ink-600 dark:text-ink-400">
+                            {assessmentTypes.find((t) => t.value === a.type)?.label} · {a.rounds?.length ?? 1} {(a.rounds?.length ?? 1) === 1 ? 'round' : 'rounds'} · {a.duration} min · {a.questions.length} {a.questions.length === 1 ? 'question' : 'questions'}
+                          </p>
+                        </div>
+                        <StatusBadge status={a.status} />
+                        {canEdit && (
+                          <div className="flex items-center gap-1">
+                            {a.status === 'ACTIVE' && (
+                              <Button variant="ghost" size="sm" onClick={() => setAssigning(a)} title="Send to candidate">
+                                <Send className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="sm" onClick={() => setViewingResults(a)} title="Results">
+                              <BarChart3 className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => openAssessmentEditor(a)} title="Edit">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-error-500" onClick={() => setDeletingAssessment(a)} title="Delete" aria-label={`Delete ${a.title}`}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -303,6 +464,21 @@ export function JobDetail() {
           : 'Any candidates who applied, with their resumes, will be deleted too.'}
       </ConfirmModal>
 
+      <EditCandidateModal candidate={editingCandidate} onClose={() => setEditingCandidate(null)} onSaved={() => void loadCandidates()} />
+
+      <ConfirmModal
+        isOpen={deletingCandidate !== null}
+        onClose={() => setDeletingCandidate(null)}
+        onConfirm={confirmDeleteCandidate}
+        title="Delete candidate?"
+        message={`Delete ${deletingCandidate?.candidateName ?? 'this candidate'}? This can't be undone.`}
+        confirmText="Delete"
+        variant="danger"
+        loading={isDeletingCandidate}
+      >
+        Their uploaded resume and AI analysis will be removed too.
+      </ConfirmModal>
+
       <UploadResumesModal
         isOpen={uploadOpen}
         onClose={() => setUploadOpen(false)}
@@ -312,6 +488,21 @@ export function JobDetail() {
         }}
         fixedJob={{ id: job.id, title: job.title }}
       />
+
+      <ConfirmModal
+        isOpen={deletingAssessment !== null}
+        onClose={() => setDeletingAssessment(null)}
+        onConfirm={confirmDeleteAssessment}
+        title="Delete assessment?"
+        message={`Delete "${deletingAssessment?.title ?? ''}"? This can't be undone.`}
+        confirmText="Delete assessment"
+        variant="danger"
+        loading={isDeletingAssessment}
+      >
+        Its rounds and questions will be deleted, along with the answers and results of every candidate who was sent it.
+      </ConfirmModal>
+      <AssignAssessmentModal assessment={assigning} onClose={() => setAssigning(null)} />
+      <AssessmentResultsModal assessment={viewingResults} onClose={() => setViewingResults(null)} />
     </div>
   )
 }

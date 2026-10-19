@@ -88,7 +88,11 @@ async def ingest_resume_handler(ctx: inngest.Context, step: inngest.Step) -> dic
         await step.run("embed_and_store_chunks", qdrant_service.upsert_chunks, chunks)
 
         profile: Optional[CandidateProfile] = None
-        if settings.llm.is_configured:
+        if event_data.get("profile"):
+            # Already extracted from the whole resume at upload; reuse it rather than asking the LLM again.
+            profile = CandidateProfile.model_validate(event_data["profile"])
+            await step.run("store_candidate_profile", _store_candidate_profile, candidate_id, profile)
+        elif settings.llm.is_configured:
             profile = await step.run(
                 "extract_candidate_profile",
                 candidate_extractor.extract_candidate_profile,

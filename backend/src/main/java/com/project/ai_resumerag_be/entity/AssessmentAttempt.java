@@ -44,6 +44,18 @@ public class AssessmentAttempt {
 
     private LocalDateTime startedAt;
 
+    /** When the candidate accepted the terms and conditions shown before the test. */
+    private LocalDateTime termsAcceptedAt;
+
+    /**
+     * Zero-based index of the round the candidate is on. Null for attempts started before rounds existed,
+     * which behave as one round running since {@link #startedAt}.
+     */
+    private Integer currentRound;
+
+    /** When the current round's clock started; null while the candidate has not begun that round yet. */
+    private LocalDateTime roundStartedAt;
+
     private LocalDateTime submittedAt;
 
     /** Weighted average of the answer scores (0-100); set once every answer is graded. */

@@ -1,6 +1,7 @@
 package com.project.ai_resumerag_be.service;
 
 import com.project.ai_resumerag_be.entity.AssessmentAttempt;
+import com.project.ai_resumerag_be.entity.AssessmentRound;
 import com.project.ai_resumerag_be.entity.AttemptAnswer;
 import com.project.ai_resumerag_be.enumerators.AttemptStatus;
 
@@ -38,13 +39,49 @@ final class AttemptRules {
         }
     }
 
-    /** The moment a running attempt stops accepting answers; null until it has started. */
+    /** Zero-based index of the round the attempt is on (a legacy attempt without one is on the first). */
+    static int roundIndex(AssessmentAttempt attempt) {
+        int last = attempt.getAssessment().effectiveRounds().size() - 1;
+        int index = attempt.getCurrentRound() == null ? 0 : attempt.getCurrentRound();
+        return Math.max(0, Math.min(index, last));
+    }
+
+    static AssessmentRound currentRound(AssessmentAttempt attempt) {
+        return attempt.getAssessment().effectiveRounds().get(roundIndex(attempt));
+    }
+
+    /** When the current round's clock started; null while the candidate has not begun that round. */
+    static LocalDateTime roundStart(AssessmentAttempt attempt) {
+        // Attempts from before rounds existed ran a single round from the moment they started.
+        return attempt.getCurrentRound() == null ? attempt.getStartedAt() : attempt.getRoundStartedAt();
+    }
+
+    /**
+     * When the running round's own time limit ends, as shown on the candidate's countdown (no grace); null while no
+     * round is running. The link's expiry still caps it.
+     */
+    static LocalDateTime roundEnd(AssessmentAttempt attempt) {
+        LocalDateTime roundStart = roundStart(attempt);
+        if (roundStart == null) {
+            return null;
+        }
+        LocalDateTime end = roundStart.plusMinutes(currentRound(attempt).getDurationMinutes());
+        return end.isBefore(attempt.getExpiresAt()) ? end : attempt.getExpiresAt();
+    }
+
+    /**
+     * The moment a running attempt stops accepting answers; null until it has started. While a round is running
+     * that is its own time limit; between rounds nothing is running, so only the link's expiry applies.
+     */
     static LocalDateTime deadline(AssessmentAttempt attempt) {
         if (attempt.getStartedAt() == null) {
             return null;
         }
-        LocalDateTime byDuration = attempt.getStartedAt()
-                .plusMinutes(attempt.getAssessment().getDuration() + GRACE_MINUTES);
+        LocalDateTime roundStart = roundStart(attempt);
+        if (roundStart == null) {
+            return attempt.getExpiresAt();
+        }
+        LocalDateTime byDuration = roundStart.plusMinutes(currentRound(attempt).getDurationMinutes() + GRACE_MINUTES);
         return byDuration.isBefore(attempt.getExpiresAt()) ? byDuration : attempt.getExpiresAt();
     }
 

@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/Input'
 import { AITags } from '@/components/ui/ScoreIndicator'
 import { EmptyNote, Panel } from '@/components/ui/Panel'
 import { EditCandidateModal } from '@/components/candidates/EditCandidateModal'
+import { AttemptReviewModal } from '@/components/assessments/AttemptReviewModal'
 import { cn, formatDate, formatRelativeTime, getInitials } from '@/utils/helpers'
 import type { AIAnalysis, AssessmentAttempt, Candidate, CandidateStatus, Interview, Resume } from '@/types'
 
@@ -110,6 +111,7 @@ export function CandidateProfile() {
   const [busy, setBusy] = useState(false)
   const [analysing, setAnalysing] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [reviewingAttempt, setReviewingAttempt] = useState<AssessmentAttempt | null>(null)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
@@ -153,6 +155,35 @@ export function CandidateProfile() {
   useEffect(() => () => {
     if (poll.current) window.clearInterval(poll.current)
   }, [])
+
+  // Ingestion, embedding and scoring run asynchronously; wait for them instead of treating "not ready" as an error.
+  const waitingForAnalysis = !isLoading && !!candidate && !aiAnalysis && !analysing
+  useEffect(() => {
+    if (!waitingForAnalysis || !id) return
+    let cancelled = false
+    let tries = 0
+    const timer = window.setInterval(async () => {
+      tries += 1
+      try {
+        const ai = await candidateApi.getAiAnalysisUnwrapped(id)
+        if (cancelled) return
+        if (ai) {
+          window.clearInterval(timer)
+          setAiAnalysis(ai)
+          setCandidate((prev) => (prev ? { ...prev, aiMatchScore: ai.overallScore } : prev))
+        } else if (tries >= 24) {
+          window.clearInterval(timer)
+        }
+      } catch {
+        // A real error (e.g. candidate deleted): stop polling
+        window.clearInterval(timer)
+      }
+    }, 5000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [waitingForAnalysis, id])
 
   const move = useCallback(
     async (status: CandidateStatus) => {
@@ -303,6 +334,13 @@ export function CandidateProfile() {
         </div>
       </div>
 
+      <AttemptReviewModal
+        attemptId={reviewingAttempt?.id ?? null}
+        title={reviewingAttempt ? `Results: ${reviewingAttempt.assessmentTitle}` : undefined}
+        onClose={() => setReviewingAttempt(null)}
+        onChanged={() => setReloadKey((k) => k + 1)}
+      />
+
       <EditCandidateModal candidate={editOpen ? candidate : null} onClose={() => setEditOpen(false)} onSaved={() => setReloadKey((k) => k + 1)} />
 
       <ConfirmModal
@@ -396,7 +434,13 @@ export function CandidateProfile() {
                           </div>
                           <div className="flex items-center gap-3">
                             {a.totalScore != null && <span className="font-display text-body-md font-bold tabular text-ink-900 dark:text-ink-100">{a.totalScore}%</span>}
+                            {a.pendingReview > 0 && <span className="text-body-xs text-info-600 dark:text-info-400">{a.pendingReview} to review</span>}
                             <StatusBadge status={a.status} />
+                            {(a.status === 'SUBMITTED' || a.status === 'GRADED') && (
+                              <Button variant="secondary" size="sm" onClick={() => setReviewingAttempt(a)}>
+                                View answers
+                              </Button>
+                            )}
                           </div>
                         </li>
                       ))}

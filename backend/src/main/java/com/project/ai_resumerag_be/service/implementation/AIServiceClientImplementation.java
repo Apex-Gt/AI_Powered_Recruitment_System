@@ -42,6 +42,19 @@ public class AIServiceClientImplementation implements AIServiceClient {
                 .doOnError(error -> log.error("Answer grading failed: {}", error.getMessage()));
     }
 
+    private static final ParameterizedTypeReference<AIServiceResponse<ContactInfo>> CONTACT_RESPONSE_TYPE =
+            new ParameterizedTypeReference<>() {};
+
+    @Override
+    public Mono<AIServiceResponse<ContactInfo>> extractContact(String pdfPath, String fileName) {
+        return aiServiceWebClient.post()
+                .uri("/api/v1/resumes/extract-contact")
+                .bodyValue(java.util.Map.of("pdf_path", pdfPath, "file_name", fileName == null ? "" : fileName))
+                .retrieve()
+                .bodyToMono(CONTACT_RESPONSE_TYPE)
+                .timeout(Duration.ofSeconds(90));
+    }
+
     @Override
     public Mono<AIServiceResponse<Void>> ingestResume(IngestResumeEvent event) {
         log.info("Sending ingest resume event for candidate: {}", event.getCandidateId());

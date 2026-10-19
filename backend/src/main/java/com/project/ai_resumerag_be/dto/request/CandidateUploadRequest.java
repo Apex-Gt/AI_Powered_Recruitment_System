@@ -1,6 +1,5 @@
 package com.project.ai_resumerag_be.dto.request;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,17 +14,8 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/** A resume to add. Name, email, phone and location are read from the resume itself. */
 public class CandidateUploadRequest {
-
-    @NotBlank(message = "Candidate name is required")
-    private String candidateName;
-
-    @NotBlank(message = "Candidate email is required")
-    private String candidateEmail;
-
-    private String phoneNumber;
-
-    private String location;
 
     @NotNull(message = "Job ID is required")
     private UUID jobId;

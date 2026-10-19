@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
+import { Dropdown } from './Dropdown'
 import { cn } from '@/utils/helpers'
 
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
@@ -66,18 +67,13 @@ export function FilterSelect({
   return (
     <div className="relative w-full sm:w-52">
       {Icon && <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" aria-hidden="true" />}
-      <select
-        aria-label={label}
+      <Dropdown
+        ariaLabel={label}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn('select h-10 w-full cursor-pointer truncate py-0', Icon && 'pl-9', value && '!border-brand-400 font-semibold')}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        onChange={onChange}
+        options={options}
+        className={cn('h-10 py-0', Icon && 'pl-9', value && '!border-brand-400 font-semibold')}
+      />
     </div>
   )
 }

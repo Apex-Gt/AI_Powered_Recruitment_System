@@ -22,6 +22,9 @@ from app.models.schemas import (
 )
 from app.core.exceptions import LLMError
 from app.services.answer_grader import AnswerGrader
+from app.services.contact_extractor import ContactExtractionService
+from app.services.pdf_processor import PDFProcessingService
+from pydantic import BaseModel
 from app.services.registry import get_embedding_service, get_qdrant_service, get_reranker_service
 from app.workflows.ingest_resume import ALL_FUNCTIONS, inngest_client
 
@@ -72,6 +75,21 @@ app.add_middleware(
 inngest.fast_api.serve(app, inngest_client, ALL_FUNCTIONS)
 
 
+async def _inngest_status() -> str:
+    if not (settings.inngest.signing_key or settings.inngest.dev_mode):
+        return "not_configured"
+    if not settings.inngest.dev_mode:
+        return "configured"
+    # In dev the server is a separate process that is easy to forget, so check that it answers.
+    try:
+        async with httpx.AsyncClient(timeout=2) as client:
+            await client.get(settings.inngest.base_url)
+        return "configured"
+    except httpx.HTTPError:
+        logger.warning("inngest_unreachable", url=settings.inngest.base_url, hint="run start-inngest.cmd")
+        return "unreachable"
+
+
 @app.get("/health", response_model=HealthCheckResponse)
 async def health_check():
     qdrant_service = get_qdrant_service()
@@ -82,7 +100,7 @@ async def health_check():
         "qdrant": "healthy" if await qdrant_service.health_check() else "unhealthy",
         "embedding": "healthy" if await embedding_service.health_check() else "unhealthy",
         "reranker": "healthy" if await reranker_service.health_check() else "unhealthy",
-        "inngest": "configured" if settings.inngest.signing_key or settings.inngest.dev_mode else "not_configured",
+        "inngest": await _inngest_status(),
     }
 
     model_config = {
@@ -111,7 +129,13 @@ async def _send_event(name: str, data: dict) -> None:
         await inngest_client.send(inngest.Event(name=name, data=data))
     except Exception as e:
         logger.error("inngest_send_failed", event_name=name, error=str(e))
-        raise HTTPException(status_code=502, detail=f"Could not queue workflow '{name}': {e}") from e
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Could not queue workflow '{name}': {e}. "
+                f"Is the Inngest dev server running at {settings.inngest.base_url}? Start it with start-inngest.cmd."
+            ),
+        ) from e
 
 
 @app.post("/api/v1/resumes/ingest")
@@ -122,6 +146,27 @@ async def ingest_resume(request: IngestResumeEvent):
         "message": "Resume ingestion started",
         "candidate_id": request.candidate_id,
     }
+
+
+class ExtractContactRequest(BaseModel):
+    pdf_path: str
+    file_name: str = ""
+
+
+@app.post("/api/v1/resumes/extract-contact")
+async def extract_contact(request: ExtractContactRequest):
+    """Synchronously read name/email/phone/location from a stored resume so the backend can build the candidate."""
+    try:
+        text = await PDFProcessingService().extract_text_from_pdf(request.pdf_path)
+    except Exception as e:
+        logger.error("contact_pdf_read_failed", error=str(e))
+        raise HTTPException(status_code=422, detail=f"Could not read the resume: {e}") from e
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="The resume has no readable text (is it a scanned image?)")
+    contact, profile = await ContactExtractionService().extract_with_profile(text, request.file_name)
+    # The full profile rides along so the backend can hand it to ingestion instead of paying for a second LLM pass.
+    data = {**contact, "profile": profile.model_dump(mode="json") if profile else None}
+    return {"status": "success", "message": "Contact details extracted", "data": data}
 
 
 @app.delete("/api/v1/candidates/{candidate_id}")

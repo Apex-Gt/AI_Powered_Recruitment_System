@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import { companyApi } from '@/utils/api'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { PlaceInput, PlaceOption } from '@/components/ui/PlaceInput'
 import { AuthShell } from '@/components/auth/AuthShell'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { cn } from '@/utils/helpers'
@@ -40,25 +41,6 @@ const steps = [
   { number: 2, title: 'Admin Account', description: 'Create your admin account' },
 ]
 
-const countries = [
-  { value: 'India', label: 'India' },
-  { value: 'USA', label: 'United States' },
-  { value: 'UK', label: 'United Kingdom' },
-  { value: 'Canada', label: 'Canada' },
-  { value: 'Australia', label: 'Australia' },
-  { value: 'Germany', label: 'Germany' },
-  { value: 'Singapore', label: 'Singapore' },
-  { value: 'Other', label: 'Other' },
-]
-
-const indianStates = [
-  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat',
-  'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh',
-  'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
-  'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh',
-  'Uttarakhand', 'West Bengal'
-]
-
 export function Register() {
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(0)
@@ -68,9 +50,31 @@ export function Register() {
   const companyMethods = useForm<CompanyForm>({
     resolver: zodResolver(companySchema),
     defaultValues: {
-      country: 'India',
+      country: '',
+      state: '',
+      city: '',
     },
   })
+
+  const country = companyMethods.watch('country') ?? ''
+  const state = companyMethods.watch('state') ?? ''
+  const city = companyMethods.watch('city') ?? ''
+  const [countryCode, setCountryCode] = useState<string | undefined>()
+  const [stateId, setStateId] = useState<string | undefined>()
+
+  // Country narrows the state list and state narrows the city list, so changing one clears what depends on it.
+  const pickCountry = (p: PlaceOption | null) => {
+    setCountryCode(p?.countryCode)
+    setStateId(undefined)
+    companyMethods.setValue('country', p?.name ?? '', { shouldValidate: true })
+    companyMethods.setValue('state', '')
+    companyMethods.setValue('city', '')
+  }
+  const pickState = (p: PlaceOption | null) => {
+    setStateId(p?.placeId)
+    companyMethods.setValue('state', p?.name ?? '', { shouldValidate: true })
+    companyMethods.setValue('city', '')
+  }
 
   const adminMethods = useForm<AdminForm>({
     resolver: zodResolver(adminSchema),
@@ -105,8 +109,8 @@ export function Register() {
   }
 
   return (
-    <AuthShell>
-      <Link to="/login" className="mb-6 inline-flex cursor-pointer items-center gap-2 text-body-sm font-medium text-ink-500 transition-colors hover:text-ink-900 dark:text-ink-400 dark:hover:text-ink-100">
+    <AuthShell scrollForm>
+      <Link to="/login" className="mb-6 shrink-0 self-startinline-flex cursor-pointer items-center gap-2 text-body-sm font-medium text-ink-500 transition-colors hover:text-ink-900 dark:text-ink-400 dark:hover:text-ink-100">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         Back to login
       </Link>
@@ -114,7 +118,7 @@ export function Register() {
       <h1 className="text-display-sm font-extrabold tracking-tight text-ink-900 dark:text-ink-100">Register your company</h1>
       <p className="mt-2 text-body-md text-ink-500 dark:text-ink-400">{steps[currentStep].description}</p>
 
-      <ol className="mt-6 mb-8 flex items-center gap-3" aria-label="Registration progress">
+      <ol className="mt-6 mb-8 flex shrink-0 items-center gap-3" aria-label="Registration progress">
         {steps.map((step, index) => (
           <li key={step.number} className="flex flex-1 items-center gap-3" aria-current={index === currentStep ? 'step' : undefined}>
             <span className={cn(
@@ -129,7 +133,7 @@ export function Register() {
         ))}
       </ol>
 
-      <div>
+      <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:-mx-1 lg:px-1">
             {currentStep === 0 && (
               <form onSubmit={companyMethods.handleSubmit(handleCompanySubmit)} className="space-y-5">
                 <div className="space-y-5">
@@ -145,54 +149,46 @@ export function Register() {
                     error={companyMethods.formState.errors.industry?.message}
                     {...companyMethods.register('industry')}
                   />
+                  <PlaceInput
+                    label="Country"
+                    kind="country"
+                    required
+                    placeholder="Start typing a country"
+                    value={country}
+                    onChange={(p) => pickCountry(p)}
+                    error={companyMethods.formState.errors.country?.message}
+                  />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div className="w-full">
-                      <label className="label">Country *</label>
-                      <select
-                        {...companyMethods.register('country')}
-                        className={cn(companyMethods.formState.errors.country ? 'input-error' : 'input', 'w-full')}
-                        aria-invalid={companyMethods.formState.errors.country ? 'true' : 'false'}
-                      >
-                        <option value="" disabled>
-                          Select country
-                        </option>
-                        {countries.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      {companyMethods.formState.errors.country && (
-                        <p className="mt-1.5 text-body-xs text-error-600 dark:text-error-400" role="alert">
-                          {companyMethods.formState.errors.country.message}
-                        </p>
-                      )}
-                    </div>
-                    <Input
-                      label="State *"
-                      placeholder="e.g., Maharashtra"
+                    <PlaceInput
+                      label="State"
+                      kind="state"
+                      required
+                      placeholder="Start typing a state"
+                      value={state}
+                      countryCode={countryCode}
+                      disabled={!country}
+                      onChange={(p) => pickState(p)}
                       error={companyMethods.formState.errors.state?.message}
-                      {...companyMethods.register('state')}
-                      list="states-list"
                     />
-                  </div>
-                  <datalist id="states-list">
-                    {indianStates.map(state => <option key={state} value={state} />)}
-                  </datalist>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <Input
-                      label="City *"
-                      placeholder="e.g., Mumbai"
+                    <PlaceInput
+                      label="City"
+                      kind="city"
+                      required
+                      placeholder="Start typing a city"
+                      value={city}
+                      countryCode={countryCode}
+                      stateId={stateId}
+                      disabled={!state}
+                      onChange={(p) => companyMethods.setValue('city', p?.name ?? '', { shouldValidate: true })}
                       error={companyMethods.formState.errors.city?.message}
-                      {...companyMethods.register('city')}
-                    />
-                    <Input
-                      label="GST Number *"
-                      placeholder="e.g., 27AAAAA0000A1Z5"
-                      error={companyMethods.formState.errors.gstNumber?.message}
-                      {...companyMethods.register('gstNumber')}
                     />
                   </div>
+                  <Input
+                    label="GST Number *"
+                    placeholder="e.g., 27AAAAA0000A1Z5"
+                    error={companyMethods.formState.errors.gstNumber?.message}
+                    {...companyMethods.register('gstNumber')}
+                  />
                 </div>
 
                 <div className="flex justify-end pt-4">
@@ -258,7 +254,7 @@ export function Register() {
             )}
       </div>
 
-      <p className="mt-6 text-center text-body-sm text-ink-500 dark:text-ink-400">
+      <p className="mt-6 shrink-0 text-center text-body-sm text-ink-500 dark:text-ink-400">
         Already have an account?{' '}
         <Link to="/login" className="font-semibold text-accent-600 hover:underline dark:text-accent-400">
           Sign in

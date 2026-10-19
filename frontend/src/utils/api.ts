@@ -289,9 +289,10 @@ export const candidateApi = {
   updateStatus: (id: string, status: CandidateStatus) =>
     api.patch<CommonResponse<Candidate>>(`/recruiter/candidates/${id}/status`, { status }),
   getAiAnalysis: (id: string) => api.get<CommonResponse<AIAnalysis>>(`/recruiter/candidates/${id}/ai-analysis`),
-  getAiAnalysisUnwrapped: async (id: string) => {
-    const response = await api.get<CommonResponse<AIAnalysis>>(`/recruiter/candidates/${id}/ai-analysis`)
-    return response.data
+  // Resolves to null while the analysis is still being generated; rejects only on real errors (e.g. 404 candidate)
+  getAiAnalysisUnwrapped: async (id: string): Promise<AIAnalysis | null> => {
+    const response = await api.get<CommonResponse<AIAnalysis | null>>(`/recruiter/candidates/${id}/ai-analysis`)
+    return response.data ?? null
   },
   shortlist: (id: string) => api.post<CommonResponse<void>>(`/recruiter/candidates/${id}/shortlist`, {}),
   reject: (id: string, reason?: string) =>
@@ -303,15 +304,12 @@ export const candidateApi = {
 }
 
 export const resumeApi = {
-  upload: (file: File, candidateName: string, candidateEmail: string, jobId: string, phoneNumber?: string, location?: string) => {
+  // The backend reads name, email, phone and location out of the PDF itself.
+  upload: (file: File, jobId: string) => {
     const formData = new FormData()
     formData.append('resumeFile', file)
-    formData.append('candidateName', candidateName)
-    formData.append('candidateEmail', candidateEmail)
     // The backend binds jobId with @RequestPart, which needs a JSON-typed part (a plain form field is octet-stream)
     formData.append('jobId', new Blob([JSON.stringify(jobId)], { type: 'application/json' }))
-    if (phoneNumber) formData.append('phoneNumber', phoneNumber)
-    if (location) formData.append('location', location)
     return api.post<CommonResponse<CandidateResponse>>('/recruiter/candidates/upload', formData)
   },
   getById: (id: string) => api.get<CommonResponse<Resume>>(`/resumes/${id}`),
@@ -323,13 +321,16 @@ export const resumeApi = {
 }
 
 export const assessmentApi = {
-  getAll: () => api.get<CommonResponse<Assessment[]>>('/assessments').then((res) => res.data),
+  getAll: (params?: { jobId?: string }) =>
+    api.get<CommonResponse<Assessment[]>>('/assessments', params as Record<string, unknown>).then((res) => res.data),
   getById: (id: string) => api.get<CommonResponse<Assessment>>(`/assessments/${id}`).then((res) => res.data),
   create: (data: AssessmentInput) => api.post<CommonResponse<Assessment>>('/assessments', data).then((res) => res.data),
   update: (id: string, data: AssessmentInput) => api.put<CommonResponse<Assessment>>(`/assessments/${id}`, data).then((res) => res.data),
   delete: (id: string) => api.delete<CommonResponse<void>>(`/assessments/${id}`),
   assign: (assessmentId: string, candidateId: string) =>
     api.post<CommonResponse<AssessmentAttempt>>(`/assessments/${assessmentId}/assign`, { candidateId }).then((res) => res.data),
+  assignMany: (assessmentId: string, candidateIds: string[]) =>
+    api.post<CommonResponse<BulkAssignResult>>(`/assessments/${assessmentId}/assign-many`, { candidateIds }).then((res) => res.data),
   getAttempts: (params?: { assessmentId?: string; candidateId?: string }) =>
     api.get<CommonResponse<AssessmentAttempt[]>>('/assessments/attempts', params as Record<string, unknown>).then((res) => res.data),
   getAttempt: (attemptId: string) =>
@@ -341,7 +342,9 @@ export const assessmentApi = {
 /** Candidate-facing calls: no login, the secret token from the emailed link is the credential. */
 export const publicAssessmentApi = {
   get: (token: string) => api.get<CommonResponse<PublicAssessment>>(`/public/assessments/${token}`).then((res) => res.data),
-  start: (token: string) => api.post<CommonResponse<PublicAssessment>>(`/public/assessments/${token}/start`, {}).then((res) => res.data),
+  /** Begins the assessment (needs acceptedTerms the first time) or the next round. */
+  start: (token: string, acceptedTerms = false) =>
+    api.post<CommonResponse<PublicAssessment>>(`/public/assessments/${token}/start`, { acceptedTerms }).then((res) => res.data),
   submit: (token: string, answers: Record<string, string>) =>
     api.post<CommonResponse<PublicAssessment>>(`/public/assessments/${token}/submit`, { answers }).then((res) => res.data),
 }
@@ -379,7 +382,7 @@ export const userApi = {
     api.put<CommonResponse<UserResponse>>('/auth/me', data),
 }
 
-import type { User, Company, Job, Candidate, Resume, AIAnalysis, Assessment, AssessmentAttempt, AssessmentQuestion, PublicAssessment, Interview, CandidateStatus, JobSkill, InterviewFeedback } from '@/types'
+import type { User, Company, Job, Candidate, Resume, AIAnalysis, Assessment, AssessmentAttempt, AssessmentQuestion, BulkAssignResult, PublicAssessment, Interview, CandidateStatus, JobSkill, InterviewFeedback } from '@/types'
 import type { PaginatedResponse } from '@/types'
 
 interface CommonResponse<T> {
@@ -514,14 +517,22 @@ interface CreateRecruiterRequest {
 interface AssessmentInput {
   title: string
   type: Assessment['type']
-  duration: number
   status?: Assessment['status']
-  questions: {
-    question: string
-    type: AssessmentQuestion['type']
-    options?: string[]
-    correctAnswer?: string
-    weight: number
+  about?: string
+  termsAndConditions?: string
+  /** null detaches the assessment from any job */
+  jobId?: string | null
+  rounds: {
+    title: string
+    description?: string
+    durationMinutes: number
+    questions: {
+      question: string
+      type: AssessmentQuestion['type']
+      options?: string[]
+      correctAnswer?: string
+      weight: number
+    }[]
   }[]
 }
 

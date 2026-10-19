@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Wordmark } from '@/components/layout/Wordmark'
+import { cn } from '@/utils/helpers'
 
 const SAMPLE = [
   { name: 'Meera Iyer', evidence: '6 years of Java, led a payments migration', score: 94 },
@@ -56,18 +57,20 @@ function ShowcasePanel() {
 interface AuthShellProps {
   children: React.ReactNode
   footer?: React.ReactNode
+  /** On large screens keep the page fixed and let the caller scroll only its form area. */
+  scrollForm?: boolean
 }
 
-export function AuthShell({ children, footer }: AuthShellProps) {
+export function AuthShell({ children, footer, scrollForm = false }: AuthShellProps) {
   return (
-    <div className="grid min-h-screen bg-[var(--color-bg)] lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-      <div className="flex flex-col px-6 py-8 sm:px-12 lg:px-14 xl:px-20">
+    <div className={cn('grid min-h-screen bg-[var(--color-bg)] lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]', scrollForm && 'lg:h-screen lg:overflow-hidden')}>
+      <div className={cn('flex flex-col px-6 py-8 sm:px-12 lg:px-14 xl:px-20', scrollForm && 'lg:min-h-0')}>
         <Link to="/" className="w-fit text-ink-900 dark:text-ink-100" aria-label="NexHire home">
           <Wordmark />
         </Link>
 
-        <div className="flex flex-1 items-center py-10">
-          <div className="w-full max-w-[420px]">{children}</div>
+        <div className={cn('flex flex-1 items-center py-10', scrollForm && 'lg:min-h-0 lg:py-6')}>
+          <div className={cn('w-full max-w-[420px]', scrollForm && 'lg:flex lg:max-h-full lg:flex-col')}>{children}</div>
         </div>
 
         {footer && <div className="text-body-xs text-ink-600 dark:text-ink-400">{footer}</div>}

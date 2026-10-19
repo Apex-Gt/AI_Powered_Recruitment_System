@@ -5,6 +5,8 @@ import com.project.ai_resumerag_be.dto.request.InterviewRequest;
 import com.project.ai_resumerag_be.dto.response.InterviewResponse;
 import com.project.ai_resumerag_be.entity.Candidate;
 import com.project.ai_resumerag_be.entity.Interview;
+import com.project.ai_resumerag_be.entity.Job;
+import com.project.ai_resumerag_be.enumerators.Role;
 import com.project.ai_resumerag_be.entity.User;
 import com.project.ai_resumerag_be.enumerators.ApplicationStatus;
 import com.project.ai_resumerag_be.enumerators.InterviewStatus;
@@ -45,6 +47,7 @@ public class InterviewServiceImplementation implements InterviewService {
     @Transactional(readOnly = true)
     public List<InterviewResponse> list(InterviewStatus status, UUID candidateId, UUID jobId) {
         return interviewRepository.findByCandidateJobCompanyIdOrderByScheduledAtDesc(currentCompanyId()).stream()
+                .filter(i -> canAccessJob(i.getCandidate().getJob()))
                 .filter(i -> status == null || i.getStatus() == status)
                 .filter(i -> candidateId == null || i.getCandidate().getId().equals(candidateId))
                 .filter(i -> jobId == null || i.getCandidate().getJob().getId().equals(jobId))
@@ -157,7 +160,15 @@ public class InterviewServiceImplementation implements InterviewService {
 
     private Interview findOwned(UUID interviewId) {
         return interviewRepository.findByIdAndCandidateJobCompanyId(interviewId, currentCompanyId())
+                .filter(i -> canAccessJob(i.getCandidate().getJob()))
                 .orElseThrow(() -> new ResourceNotFoundException("Interview not found with id: " + interviewId));
+    }
+
+    /** Admins see every job of their company; a recruiter only the jobs they created. */
+    private boolean canAccessJob(Job job) {
+        User user = currentUser();
+        return user.getRole() == Role.ADMIN
+                || (job.getCreatedBy() != null && job.getCreatedBy().getId().equals(user.getId()));
     }
 
     private User currentUser() {

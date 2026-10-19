@@ -22,7 +22,8 @@ public interface CandidateService {
 
     Mono<List<CandidateResponse>> uploadBulkCandidateResumes(List<CandidateUploadRequest> requests);
 
-    Mono<AIServiceResponse<Void>> triggerIngestResume(UUID candidateId, UUID resumeId, UUID jobId, String pdfPath);
+    Mono<AIServiceResponse<Void>> triggerIngestResume(UUID candidateId, UUID resumeId, UUID jobId, String pdfPath,
+                                                      java.util.Map<String, Object> profile);
 
     Mono<AIServiceResponse<Void>> triggerScoreJob(UUID candidateId, UUID jobId);
 

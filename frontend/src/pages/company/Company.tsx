@@ -7,7 +7,8 @@ import toast from 'react-hot-toast'
 import { useAuth } from '@/context/AuthContext'
 import { companyApi } from '@/utils/api'
 import { Button } from '@/components/ui/Button'
-import { Input, Select } from '@/components/ui/Input'
+import { Input } from '@/components/ui/Input'
+import { PlaceInput, PlaceOption } from '@/components/ui/PlaceInput'
 import { PageHeader } from '@/components/ui/ListPage'
 import { Panel } from '@/components/ui/Panel'
 import { formatDate } from '@/utils/helpers'
@@ -22,19 +23,6 @@ const companySchema = z.object({
 })
 
 type CompanyForm = z.infer<typeof companySchema>
-
-const countries = ['India', 'USA', 'UK', 'Canada', 'Australia', 'Germany', 'Singapore', 'Other'].map((c) => ({
-  value: c,
-  label: c === 'USA' ? 'United States' : c === 'UK' ? 'United Kingdom' : c,
-}))
-
-const indianStates = [
-  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Goa', 'Gujarat',
-  'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh',
-  'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
-  'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh',
-  'Uttarakhand', 'West Bengal',
-]
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -58,7 +46,29 @@ export function Company() {
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
+    watch,
   } = useForm<CompanyForm>({ resolver: zodResolver(companySchema) })
+
+  const country = watch('country') ?? ''
+  const state = watch('state') ?? ''
+  const city = watch('city') ?? ''
+  const [countryCode, setCountryCode] = useState<string | undefined>()
+  const [stateId, setStateId] = useState<string | undefined>()
+
+  // Country narrows the state list and state narrows the city list, so changing one clears what depends on it.
+  const pickCountry = (p: PlaceOption | null) => {
+    setCountryCode(p?.countryCode)
+    setStateId(undefined)
+    setValue('country', p?.name ?? '', { shouldValidate: true })
+    setValue('state', '')
+    setValue('city', '')
+  }
+  const pickState = (p: PlaceOption | null) => {
+    setStateId(p?.placeId)
+    setValue('state', p?.name ?? '', { shouldValidate: true })
+    setValue('city', '')
+  }
 
   const fill = (c: CompanyModel) =>
     reset({ companyName: c.companyName, country: c.country, state: c.state, city: c.city, industry: c.industry || '' })
@@ -136,15 +146,19 @@ export function Company() {
                 <Input label="Industry" placeholder="Technology, healthcare, finance" error={errors.industry?.message} {...register('industry')} />
               </div>
               <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-                <Select label="Country *" options={countries} error={errors.country?.message} {...register('country')} />
-                <Input label="State *" list="states-list" error={errors.state?.message} {...register('state')} />
-                <Input label="City *" error={errors.city?.message} {...register('city')} />
+                <PlaceInput label="Country" kind="country" required value={country} onChange={pickCountry} error={errors.country?.message} />
+                <PlaceInput label="State" kind="state" required value={state} countryCode={countryCode} onChange={pickState} error={errors.state?.message} />
+                <PlaceInput
+                  label="City"
+                  kind="city"
+                  required
+                  value={city}
+                  countryCode={countryCode}
+                  stateId={stateId}
+                  onChange={(p) => setValue('city', p?.name ?? '', { shouldValidate: true })}
+                  error={errors.city?.message}
+                />
               </div>
-              <datalist id="states-list">
-                {indianStates.map((state) => (
-                  <option key={state} value={state} />
-                ))}
-              </datalist>
               <div className="flex justify-end gap-3 border-t border-[var(--color-border)] pt-5">
                 <Button type="button" variant="ghost" onClick={cancel}>Cancel</Button>
                 <Button type="submit" loading={isSaving}>Save changes</Button>

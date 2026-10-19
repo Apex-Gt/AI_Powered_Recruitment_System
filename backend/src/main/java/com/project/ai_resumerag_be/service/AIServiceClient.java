@@ -9,6 +9,9 @@ public interface AIServiceClient {
 
     Mono<AIServiceResponse<Void>> ingestResume(IngestResumeEvent event);
 
+    /** Reads name, email, phone and location from a stored resume PDF (synchronous on the AI side). */
+    Mono<AIServiceResponse<ContactInfo>> extractContact(String pdfPath, String fileName);
+
     Mono<AIServiceResponse<Void>> scoreJob(ScoreJobEvent event);
 
     Mono<AIServiceResponse<Void>> generateRAGSummary(RAGSummaryEvent event);

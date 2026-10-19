@@ -57,7 +57,7 @@ class InterviewServiceTest {
     void setUp() {
         company = Company.builder().id(UUID.randomUUID()).companyName("Acme").build();
         recruiter = User.builder().id(UUID.randomUUID()).userName("rita").role(Role.RECRUITER).company(company).build();
-        Job job = Job.builder().id(UUID.randomUUID()).title("Java Dev").company(company).build();
+        Job job = Job.builder().id(UUID.randomUUID()).title("Java Dev").company(company).createdBy(recruiter).build();
         candidate = Candidate.builder().id(UUID.randomUUID()).candidateName("Cam").candidateEmail("cam@x.com")
                 .status(ApplicationStatus.SHORTLISTED).job(job).build();
 

@@ -1,5 +1,6 @@
 package com.project.ai_resumerag_be.controller;
 
+import com.project.ai_resumerag_be.dto.request.StartAssessmentRequest;
 import com.project.ai_resumerag_be.dto.request.SubmitAssessmentRequest;
 import com.project.ai_resumerag_be.dto.response.CommonResponse;
 import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
@@ -25,8 +26,9 @@ public class PublicAssessmentController {
     }
 
     @PostMapping("/{token}/start")
-    public ResponseEntity<CommonResponse> start(@PathVariable String token) {
-        return respond(publicAssessmentService.start(token), "Assessment started");
+    public ResponseEntity<CommonResponse> start(@PathVariable String token, @RequestBody(required = false) StartAssessmentRequest request) {
+        boolean acceptedTerms = request != null && request.isAcceptedTerms();
+        return respond(publicAssessmentService.start(token, acceptedTerms), "Assessment started");
     }
 
     @PostMapping("/{token}/submit")

@@ -4,6 +4,7 @@ import { candidateApi } from '@/utils/api'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { PlaceInput } from '@/components/ui/PlaceInput'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -27,6 +28,7 @@ export function EditCandidateModal({ candidate, onClose, onSaved }: Props) {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [location, setLocation] = useState('')
+  const [locationPending, setLocationPending] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
@@ -37,6 +39,7 @@ export function EditCandidateModal({ candidate, onClose, onSaved }: Props) {
     setEmail(candidate.candidateEmail ?? '')
     setPhone(candidate.phoneNumber ?? '')
     setLocation(candidate.location ?? '')
+    setLocationPending(false)
     setSubmitted(false)
     setServerError(null)
   }, [candidate])
@@ -48,7 +51,7 @@ export function EditCandidateModal({ candidate, onClose, onSaved }: Props) {
     e.preventDefault()
     if (!candidate) return
     setSubmitted(true)
-    if (!name.trim() || !EMAIL_RE.test(email.trim())) return
+    if (!name.trim() || !EMAIL_RE.test(email.trim()) || locationPending) return
     setSaving(true)
     setServerError(null)
     try {
@@ -87,7 +90,15 @@ export function EditCandidateModal({ candidate, onClose, onSaved }: Props) {
         <Input label="Email" required type="email" value={email} onChange={(e) => setEmail(e.target.value)} error={emailError} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          <Input label="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
+          <PlaceInput
+            label="Location"
+            kind="city"
+            fullLabel
+            placeholder="Start typing a city"
+            value={location}
+            onChange={(p) => setLocation(p?.label ?? '')}
+            onPendingChange={setLocationPending}
+          />
         </div>
         <div className="flex justify-end gap-3 pt-2">
           <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>

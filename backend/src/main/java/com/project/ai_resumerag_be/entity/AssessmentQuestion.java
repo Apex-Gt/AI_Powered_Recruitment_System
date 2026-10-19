@@ -25,6 +25,12 @@ public class AssessmentQuestion {
     @JoinColumn(name = "assessment_id", nullable = false)
     private Assessment assessment;
 
+    /** The round this question belongs to. Null only for assessments created before rounds existed. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "round_id")
+    private AssessmentRound round;
+
+    /** Position across the whole assessment (rounds in order, then questions in order within each round). */
     @Column(nullable = false)
     private Integer position;
 

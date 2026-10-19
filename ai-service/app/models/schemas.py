@@ -226,6 +226,8 @@ class IngestResumeEvent(CamelModel):
     job_id: str | None = None
     pdf_path: str
     source_pdf: str
+    # Filled in when the profile was already extracted at upload, so ingestion does not ask the LLM again.
+    profile: CandidateProfile | None = None
 
 
 class ScoreJobEvent(CamelModel):
