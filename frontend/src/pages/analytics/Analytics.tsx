@@ -114,7 +114,7 @@ export function Analytics() {
           {departments.length === 0 ? (
             <EmptyNote icon={BarChart3} title="No jobs yet" text="Create a job to see how openings are spread across departments." />
           ) : (
-            <BarRows rows={departments.map(([label, value]) => ({ label, value, color: series[1] }))} />
+            <BarRows rows={departments.map(([label, value]) => ({ label, value, color: series[0] }))} />
           )}
         </Panel>
       </div>

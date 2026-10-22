@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Bell, Menu, Moon, Plus, Search, Sun } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
@@ -10,6 +10,7 @@ const iconBtn =
 
 export function TopBar({ onMenu }: { onMenu: () => void }) {
   const { hasRole } = useAuth()
+  const location = useLocation()
   const { resolvedTheme, setTheme } = useTheme()
   const [searchOpen, setSearchOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
@@ -73,7 +74,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
           )}
         </div>
 
-        {hasRole(['ADMIN', 'RECRUITER']) && (
+        {hasRole(['ADMIN', 'RECRUITER']) && !location.pathname.startsWith('/jobs') && (
           <Link to="/jobs/create" className="btn-primary hidden h-10 py-0 no-underline sm:inline-flex">
             <Plus className="h-4 w-4" aria-hidden="true" />
             Create job

@@ -320,6 +320,64 @@ export const resumeApi = {
   parse: (id: string) => api.post<CommonResponse<{ extractedText: string }>>(`/resumes/${id}/parse`, {}),
 }
 
+export type BatchStatus = 'UPLOADED' | 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PARTIAL' | 'FAILED'
+export type BatchTaskStatus = 'UPLOADED' | 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'NEEDS_REVIEW' | 'DUPLICATE'
+export type BatchTaskStage = 'EXTRACT' | 'PERSIST' | 'PROFILE' | 'INDEX' | 'SCORE' | 'SUMMARY' | 'DONE'
+
+export interface Batch {
+  id: string
+  jobId: string
+  status: BatchStatus
+  totalFiles: number
+  percentComplete: number
+  counts: Record<BatchTaskStatus, number>
+  createdAt: string
+  completedAt: string | null
+  elapsedSeconds: number | null
+  resumesPerMinute: number | null
+  medianSecondsPerResume: number | null
+  p95SecondsPerResume: number | null
+  estimatedSecondsRemaining: number | null
+}
+
+export interface BatchTask {
+  id: string
+  fileName: string
+  status: BatchTaskStatus
+  stage: BatchTaskStage
+  attempts: number
+  errorCode: string | null
+  errorMessage: string | null
+  needsReview: boolean
+  warnings: string[]
+  candidateId: string | null
+  createdAt: string
+  finishedAt: string | null
+}
+
+export const batchApi = {
+  /** Answers as soon as the files are stored and queued, however many there are; poll `get` for progress. */
+  create: (jobId: string, files: File[]) => {
+    const formData = new FormData()
+    formData.append('jobId', jobId)
+    files.forEach((file) => formData.append('files', file))
+    return api.post<CommonResponse<Batch>>('/recruiter/batches', formData).then((res) => res.data)
+  },
+  get: (batchId: string) => api.get<CommonResponse<Batch>>(`/recruiter/batches/${batchId}`).then((res) => res.data),
+  tasks: (batchId: string, params?: { status?: BatchTaskStatus; page?: number; size?: number }) =>
+    api
+      .get<CommonResponse<{ items: BatchTask[]; totalPages: number; totalItems: number }>>(
+        `/recruiter/batches/${batchId}/tasks`,
+        { size: 200, ...params } as Record<string, unknown>
+      )
+      .then((res) => res.data),
+  retryFailed: (batchId: string) =>
+    api.post<CommonResponse<{ requeued: number }>>(`/recruiter/batches/${batchId}/retry`, {}).then((res) => res.data),
+  retryTask: (batchId: string, taskId: string) =>
+    api.post<CommonResponse<{ requeued: boolean }>>(`/recruiter/batches/${batchId}/tasks/${taskId}/retry`, {}).then((res) => res.data),
+  forJob: (jobId: string) => api.get<CommonResponse<Batch[]>>('/recruiter/batches', { jobId }).then((res) => res.data),
+}
+
 export const assessmentApi = {
   getAll: (params?: { jobId?: string }) =>
     api.get<CommonResponse<Assessment[]>>('/assessments', params as Record<string, unknown>).then((res) => res.data),

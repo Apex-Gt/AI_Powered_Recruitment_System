@@ -20,7 +20,13 @@ function Cell({ figure }: { figure: Figure }) {
   const body = (
     <>
       <p className="text-body-sm font-semibold text-ink-700 dark:text-ink-300">{figure.label}</p>
-      <p className="mt-1 font-display text-display-sm font-bold tabular text-ink-900 dark:text-ink-100">
+      <p
+        className={cn(
+          'mt-1 font-display font-bold tabular text-ink-900 dark:text-ink-100',
+          // Words ("No hires yet") are set smaller than numerals so a figure never wraps to two lines.
+          typeof figure.value === 'string' && figure.value.length > 6 ? 'text-heading-lg leading-[2.5rem]' : 'text-display-sm'
+        )}
+      >
         {typeof figure.value === 'number' ? figure.value.toLocaleString() : figure.value}
       </p>
       {figure.note && <div className="mt-1 text-body-xs text-ink-600 dark:text-ink-400">{figure.note}</div>}

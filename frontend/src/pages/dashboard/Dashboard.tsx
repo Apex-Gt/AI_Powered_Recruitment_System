@@ -89,7 +89,7 @@ export function Dashboard() {
               { value: '30', label: 'Last 30 days' },
               { value: '90', label: 'Last 90 days' },
             ]}
-            className="!h-auto !w-auto !border-0 !bg-transparent !p-0 !pr-6 !shadow-none font-semibold"
+            className="!h-auto !w-auto !border-0 !bg-transparent !p-0 !pr-8 !shadow-none font-semibold"
           />
         </label>
       </div>

@@ -12,6 +12,7 @@ import { MatchScore } from '@/components/ui/ListPage'
 import { ConfirmModal } from '@/components/ui/Modal'
 import { Panel } from '@/components/ui/Panel'
 import { UploadResumesModal } from '@/components/candidates/UploadResumesModal'
+import { ActiveBatches } from '@/components/candidates/ActiveBatches'
 import { EditCandidateModal } from '@/components/candidates/EditCandidateModal'
 import { assessmentTypes } from '@/utils/assessmentTypes'
 import { AssignAssessmentModal } from '@/components/assessments/AssignAssessmentModal'
@@ -286,6 +287,8 @@ export function JobDetail() {
               </button>
             ))}
           </div>
+
+          {canEdit && <ActiveBatches jobId={job.id} onFinished={() => void loadCandidates()} />}
 
           <div className="mt-6" role="tabpanel">
             {tab === 'overview' && (
