@@ -219,6 +219,58 @@ class OpenAIEmbeddingService(BaseEmbeddingService):
             raise EmbeddingError(f"OpenAI batch embedding failed: {e}") from e
 
 
+class OllamaEmbeddingService(BaseEmbeddingService):
+    """Embeddings from a local Ollama server (``bge-m3`` is 1024-d, like the in-process BGE-M3).
+
+    Uses Ollama's native ``/api/embed`` batch endpoint, so no torch/FlagEmbedding install is needed and the
+    model weights live in Ollama's store, shared with the chat model's runtime.
+    """
+
+    def __init__(self, model_name: str = "bge-m3", dimensions: int = 1024, base_url: str = "http://localhost:11434", num_gpu: int | None = None, **kwargs):
+        super().__init__(model_name, dimensions, **kwargs)
+        self.base_url = base_url.rstrip("/")
+        self.num_gpu = num_gpu
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            import httpx
+
+            self._client = httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout)
+        return self._client
+
+    async def _post_embed(self, texts: list[str]) -> list[list[float]]:
+        import httpx
+
+        payload: dict = {"model": self.model_name, "input": texts}
+        if self.num_gpu is not None:
+            payload["options"] = {"num_gpu": self.num_gpu}
+        try:
+            response = await self._get_client().post("/api/embed", json=payload)
+        except httpx.HTTPError as e:
+            raise EmbeddingError(f"Ollama embedding server unreachable at {self.base_url}: {e}") from e
+        if response.status_code == 404:
+            raise ModelUnavailableError(
+                f"Embedding model '{self.model_name}' is not pulled in Ollama (run: ollama pull {self.model_name})",
+                self.model_name,
+            )
+        if response.status_code >= 400:
+            raise EmbeddingError(f"Ollama /api/embed returned {response.status_code}: {response.text[:200]}")
+        vectors = response.json().get("embeddings") or []
+        if len(vectors) != len(texts):
+            raise EmbeddingError(f"Ollama returned {len(vectors)} embeddings for {len(texts)} inputs")
+        return vectors
+
+    async def _embed_single(self, text: str) -> list[float]:
+        return (await self._post_embed([text]))[0]
+
+    async def _embed_batch_impl(self, texts: list[str]) -> list[list[float]]:
+        vectors: list[list[float]] = []
+        for i in range(0, len(texts), self.batch_size):
+            vectors.extend(await self._post_embed(texts[i : i + self.batch_size]))
+        return vectors
+
+
 def create_embedding_service() -> EmbeddingService:
     provider = settings.embedding.provider
     model_name = settings.embedding.model_name
@@ -231,6 +283,16 @@ def create_embedding_service() -> EmbeddingService:
         return LocalBGEEmbeddingService(
             model_name=model_name,
             dimensions=dimensions,
+            batch_size=batch_size,
+            max_retries=max_retries,
+            timeout=timeout,
+        )
+    elif provider == "ollama":
+        return OllamaEmbeddingService(
+            model_name=model_name,
+            dimensions=dimensions,
+            base_url=settings.embedding.base_url,
+            num_gpu=settings.embedding.ollama_num_gpu,
             batch_size=batch_size,
             max_retries=max_retries,
             timeout=timeout,

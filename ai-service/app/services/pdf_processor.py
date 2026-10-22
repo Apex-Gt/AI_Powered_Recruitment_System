@@ -161,6 +161,23 @@ def sanitize_profile_data(data: dict) -> dict:
         education.append(item)
     data["education"] = education
 
+    experience = []
+    for raw in data.get("experience") or []:
+        item = dict(raw or {}) if isinstance(raw, dict) else {}
+        title = str(item.get("title") or "").strip()[:200]
+        if not title:
+            continue
+        experience.append(
+            {
+                "title": title,
+                "company": (str(item["company"]).strip()[:200] if item.get("company") else None),
+                "start_date": (str(item["start_date"]).strip() if item.get("start_date") else None),
+                "end_date": (str(item["end_date"]).strip() if item.get("end_date") else None),
+                "description": (str(item["description"]).strip()[:1500] if item.get("description") else None),
+            }
+        )
+    data["experience"] = experience
+
     for key in ("certifications", "projects"):
         data[key] = [dict(item) for item in data.get(key) or [] if isinstance(item, dict) and item.get("name")]
     for project in data["projects"]:
@@ -184,9 +201,10 @@ class CandidateExtractionService:
             data = await self.llm.chat_json(
                 system="You are an expert HR assistant that extracts structured candidate information from resumes. Return only valid JSON matching the specified schema.",
                 user=self._build_extraction_prompt(text),
+                schema=CandidateProfile.model_json_schema(),
             )
             profile = CandidateProfile(**sanitize_profile_data(data))
-            logger.info("candidate_profile_extracted", name=profile.name, skills=len(profile.skills))
+            logger.info("candidate_profile_extracted", skills=len(profile.skills))  # no name: logs must not hold personal data
             return profile
         except Exception as e:
             logger.error("candidate_extraction_failed", error=str(e))
@@ -202,6 +220,9 @@ class CandidateExtractionService:
   "location": "string (optional)",
   "skills": [
     {{"name": "string", "level": "beginner|intermediate|advanced|expert", "years_experience": float, "category": "string"}}
+  ],
+  "experience": [
+    {{"title": "string", "company": "string", "start_date": "string as written, e.g. Jan 2020 or 2020-01", "end_date": "string as written, or present", "description": "string, one or two sentences of what they did"}}
   ],
   "total_experience_years": float,
   "education": [
@@ -220,7 +241,8 @@ class CandidateExtractionService:
 }}
 
 Guidelines:
-- Extract only information explicitly stated in the resume
+- Extract only information explicitly stated in the resume; never invent employers, dates, degrees or skills
+- List every employment entry under "experience" with its dates exactly as written
 - For skills, infer level and years if not explicitly stated
 - For education, determine level from degree type
 - If information is not present, use null or empty array
@@ -228,4 +250,4 @@ Guidelines:
 - Return valid JSON only
 
 Resume text:
-{text[:15000]}"""  # Limit text length for token limits
+{text[: settings.pipeline.profile_text_chars]}"""  # Limit text length for token limits

@@ -6,6 +6,7 @@ import inngest.fast_api
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.pipeline import router as pipeline_router
 from app.core.config import settings
 from app.core.logging import get_logger, setup_logging
 from app.models.schemas import (
@@ -74,8 +75,13 @@ app.add_middleware(
 # Registers GET/PUT/POST /api/inngest so the Inngest server can discover and invoke the workflows.
 inngest.fast_api.serve(app, inngest_client, ALL_FUNCTIONS)
 
+# Staged resume pipeline driven by the backend's PostgreSQL queue (no Inngest dependency).
+app.include_router(pipeline_router)
+
 
 async def _inngest_status() -> str:
+    if not settings.inngest.enabled:
+        return "disabled"  # the staged pipeline (/api/v1/pipeline/*) does not use Inngest
     if not (settings.inngest.signing_key or settings.inngest.dev_mode):
         return "not_configured"
     if not settings.inngest.dev_mode:
@@ -88,6 +94,12 @@ async def _inngest_status() -> str:
     except httpx.HTTPError:
         logger.warning("inngest_unreachable", url=settings.inngest.base_url, hint="run start-inngest.cmd")
         return "unreachable"
+
+
+@app.get("/health/live")
+async def liveness():
+    """Process is up. Deliberately checks no dependency, so a slow model server cannot get the container restarted."""
+    return {"status": "alive"}
 
 
 @app.get("/health", response_model=HealthCheckResponse)
@@ -113,7 +125,7 @@ async def health_check():
         "reranker_provider": settings.reranker.provider,
     }
 
-    overall_status = "healthy" if all(v in ("healthy", "configured") for v in deps.values()) else "degraded"
+    overall_status = "healthy" if all(v in ("healthy", "configured", "disabled") for v in deps.values()) else "degraded"
 
     return HealthCheckResponse(
         status=overall_status,

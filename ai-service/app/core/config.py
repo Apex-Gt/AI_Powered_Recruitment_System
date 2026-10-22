@@ -36,6 +36,7 @@ class InngestConfig(_EnvSettings):
     event_key: str = ""
     base_url: str = "http://localhost:8288"
     dev_mode: bool = True
+    enabled: bool = True  # INNGEST_ENABLED=false when only the staged /api/v1/pipeline endpoints are used
 
 
 class OpenAIConfig(_EnvSettings):
@@ -51,20 +52,24 @@ class OpenAIConfig(_EnvSettings):
 class LLMConfig(_EnvSettings):
     """Chat model for resume profile extraction and RAG summaries.
 
-    Any OpenAI-compatible endpoint works. Defaults to Groq's free tier; see README for
-    Gemini / OpenRouter / local Ollama presets.
+    Defaults to a locally hosted open-weight model served by Ollama's OpenAI-compatible endpoint, so
+    no metered API is called. Any other OpenAI-compatible endpoint still works by overriding
+    LLM_BASE_URL / LLM_MODEL / LLM_API_KEY.
     """
 
     model_config = SettingsConfigDict(env_prefix="LLM_")
 
     api_key: str = ""
-    base_url: str = "https://api.groq.com/openai/v1"
-    model: str = "llama-3.3-70b-versatile"
+    base_url: str = "http://localhost:11434/v1"
+    model: str = "qwen3:4b"
     temperature: float = 0.1
     max_tokens: int = 4096
-    timeout: float = 90.0
-    max_retries: int = 4  # SDK-level retries with backoff; covers free-tier 429s
+    timeout: float = 180.0  # local CPU/GPU inference is slower than a hosted API
+    max_retries: int = 1  # SDK-level retries; the pipeline queue owns the real retry policy
     json_mode: bool = True  # send response_format=json_object (auto-disabled if the model rejects it)
+    json_schema: bool = True  # prefer response_format=json_schema when a schema is supplied (Ollama >= 0.5)
+    concurrency: int = 1  # simultaneous in-flight LLM requests in this process (the model is shared)
+    no_think: bool = True  # append /no_think for Qwen3-family models so they skip the reasoning preamble
 
     @property
     def is_configured(self) -> bool:
@@ -77,8 +82,10 @@ class LLMConfig(_EnvSettings):
 class EmbeddingConfig(_EnvSettings):
     model_config = SettingsConfigDict(env_prefix="EMBEDDING_")
 
-    provider: Literal["openai", "local", "huggingface"] = "local"
-    model_name: str = "BAAI/bge-m3"
+    provider: Literal["openai", "local", "huggingface", "ollama"] = "local"
+    model_name: str = "BAAI/bge-m3"  # for provider=ollama use the Ollama tag, e.g. "bge-m3" (also 1024 dims)
+    base_url: str = "http://localhost:11434"  # Ollama server, used when provider=ollama
+    ollama_num_gpu: int | None = None  # 0 = run the embedding model on CPU so it never evicts the chat model from a small GPU
     dimensions: int = 1024
     batch_size: int = 32
     max_retries: int = 3
@@ -88,7 +95,7 @@ class EmbeddingConfig(_EnvSettings):
 class RerankerConfig(_EnvSettings):
     model_config = SettingsConfigDict(env_prefix="RERANKER_")
 
-    provider: Literal["openai", "local", "huggingface", "cohere"] = "local"
+    provider: Literal["openai", "local", "huggingface", "cohere", "none"] = "local"  # "none" keeps vector order
     model_name: str = "BAAI/bge-reranker-v2-m3"
     top_k: int = 20
     max_retries: int = 3
@@ -105,7 +112,7 @@ class ScoringConfig(_EnvSettings):
     min_skill_match_threshold: float = 0.3
     min_experience_years: float = 0.0
     prompt_version: str = "1.0"
-    scoring_version: str = "1.0"
+    scoring_version: str = "2.0"
 
 
 class ChunkingConfig(_EnvSettings):
@@ -114,6 +121,21 @@ class ChunkingConfig(_EnvSettings):
     chunk_size: int = 1000
     chunk_overlap: int = 200
     min_chunk_size: int = 100
+
+
+class PipelineConfig(_EnvSettings):
+    """Limits and switches for the staged resume pipeline (`/api/v1/pipeline/*`)."""
+
+    model_config = SettingsConfigDict(env_prefix="PIPELINE_")
+
+    api_key: str = ""  # shared secret the backend sends as X-API-Key; empty disables the check (local dev)
+    max_file_mb: int = 10
+    ocr_enabled: bool = True  # only used when a PDF has too little embedded text
+    ocr_min_chars: int = 200  # fewer extracted characters than this on a page-bearing PDF triggers OCR
+    ocr_language: str = "eng"
+    ocr_max_pages: int = 6
+    profile_text_chars: int = 15000  # resume text sent to the LLM
+    embed_concurrency: int = 1  # simultaneous embedding batches in this process
 
 
 class SpringBootConfig(_EnvSettings):
@@ -144,6 +166,7 @@ class AppConfig(BaseSettings):
     scoring: ScoringConfig = Field(default_factory=ScoringConfig)
     chunking: ChunkingConfig = Field(default_factory=ChunkingConfig)
     spring_boot: SpringBootConfig = Field(default_factory=SpringBootConfig)
+    pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
 
 
 settings = AppConfig()

@@ -195,6 +195,23 @@ Return format: [index1, index2, ...]"""
             raise AIServiceError(f"OpenAI reranking failed: {e}") from e
 
 
+class NoopRerankerService(BaseRerankerService):
+    """Keeps the vector-search order. Lets the stack run without the ~2 GB cross-encoder (RERANKER_PROVIDER=none)."""
+
+    async def _rerank_impl(self, query: str, chunks: list[ResumeChunk], top_k: int) -> list[EvidenceChunk]:
+        total = max(len(chunks), 1)
+        return [
+            EvidenceChunk(
+                chunk_id=chunk.chunk_id,
+                text=chunk.text,
+                section=chunk.section,
+                relevance_score=round(1.0 - i / total, 4),  # rank-derived, not a model score
+                source_pdf=chunk.source_pdf,
+            )
+            for i, chunk in enumerate(chunks[:top_k])
+        ]
+
+
 def create_reranker_service() -> RerankerService:
     provider = settings.reranker.provider
     model_name = settings.reranker.model_name
@@ -202,6 +219,8 @@ def create_reranker_service() -> RerankerService:
     max_retries = settings.reranker.max_retries
     timeout = settings.reranker.timeout
 
+    if provider == "none":
+        return NoopRerankerService(model_name="none", top_k=top_k, max_retries=max_retries, timeout=timeout)
     if provider == "local":
         return LocalBGERerankerService(
             model_name=model_name,

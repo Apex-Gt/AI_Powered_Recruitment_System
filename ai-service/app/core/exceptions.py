@@ -63,3 +63,11 @@ class RankingError(AIServiceError):
 class LLMError(AIServiceError):
     def __init__(self, message: str, details: dict | None = None):
         super().__init__(message, "LLM_ERROR", details)
+
+
+class LLMUnavailableError(LLMError):
+    """The model server cannot be reached or timed out: transient, the caller should retry later."""
+
+    def __init__(self, message: str, details: dict | None = None):
+        super().__init__(message, details)
+        self.code = "LLM_UNAVAILABLE"

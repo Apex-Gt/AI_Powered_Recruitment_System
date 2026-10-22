@@ -17,14 +17,23 @@ def test_model_config_defaults():
     assert config.embedding_dimensions == 1024
 
 
-def test_llm_config_defaults_to_free_groq_model():
+def test_llm_config_defaults_to_local_ollama():
     from app.core.config import LLMConfig
 
     config = LLMConfig(_env_file=None)
-    assert config.base_url == "https://api.groq.com/openai/v1"
-    assert config.model == "llama-3.3-70b-versatile"
+    assert config.base_url == "http://localhost:11434/v1"
+    assert config.model == "qwen3:4b"
     assert config.temperature == 0.1
-    assert not config.is_configured  # hosted provider needs a key
+    assert config.concurrency == 1
+    assert config.is_configured  # a local server needs no key
+
+
+def test_llm_config_hosted_provider_needs_a_key():
+    from app.core.config import LLMConfig
+
+    config = LLMConfig(_env_file=None, base_url="https://api.example.com/v1")
+    assert not config.is_configured
+    assert LLMConfig(_env_file=None, base_url="https://api.example.com/v1", api_key="k").is_configured
 
 
 def test_llm_config_local_server_needs_no_key():

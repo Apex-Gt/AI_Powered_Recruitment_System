@@ -1,12 +1,13 @@
 """Chat-completion client for any OpenAI-compatible endpoint (Groq, Gemini, OpenRouter, Ollama, ...)."""
 
+import asyncio
 import json
 import re
 from functools import lru_cache
 from typing import Any, Optional
 
 from app.core.config import settings
-from app.core.exceptions import LLMError
+from app.core.exceptions import LLMError, LLMUnavailableError
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -45,6 +46,8 @@ class LLMService:
     def __init__(self, client: Any = None):
         self._client = client
         self._json_mode = settings.llm.json_mode
+        self._schema_mode = settings.llm.json_schema
+        self._sem: Optional[asyncio.Semaphore] = None
 
     @property
     def model_name(self) -> str:
@@ -67,15 +70,28 @@ class LLMService:
             )
         return self._client
 
-    async def chat_json(self, system: str, user: str) -> dict:
-        """Run one chat completion and return the parsed JSON object."""
+    def _semaphore(self) -> asyncio.Semaphore:
+        # Created lazily so it binds to the running event loop; one slot per concurrent model request.
+        if self._sem is None:
+            self._sem = asyncio.Semaphore(max(1, settings.llm.concurrency))
+        return self._sem
+
+    async def chat_json(self, system: str, user: str, schema: Optional[dict] = None) -> dict:
+        """Run one chat completion and return the parsed JSON object.
+
+        With ``schema`` (a JSON Schema) the server is asked to constrain decoding to it when it supports that
+        (Ollama >= 0.5); otherwise this degrades to JSON mode and then to plain text parsing. Callers must still
+        validate the result (Pydantic), as constrained decoding guarantees shape, not truth.
+        """
         if not self.is_configured:
             raise LLMError(
-                "LLM is not configured: set LLM_API_KEY (free key from console.groq.com), "
-                "or point LLM_BASE_URL at a local Ollama server"
+                "LLM is not configured: point LLM_BASE_URL at a local Ollama server "
+                "(default http://localhost:11434/v1) or set LLM_API_KEY for a hosted endpoint"
             )
 
         cfg = settings.llm
+        if cfg.no_think and cfg.model.lower().startswith("qwen3") and "/no_think" not in system:
+            system = f"{system}\n/no_think"
         kwargs: dict[str, Any] = {
             "model": cfg.model,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -84,24 +100,38 @@ class LLMService:
         }
         client = self._get_client()
 
-        try:
-            if self._json_mode:
+        formats: list[Optional[dict]] = []
+        if schema is not None and cfg.json_schema and self._schema_mode:
+            formats.append(
+                {"type": "json_schema", "json_schema": {"name": "result", "schema": schema, "strict": True}}
+            )
+        if self._json_mode:
+            formats.append({"type": "json_object"})
+        formats.append(None)
+
+        response = None
+        async with self._semaphore():
+            for index, response_format in enumerate(formats):
+                call = dict(kwargs)
+                if response_format is not None:
+                    call["response_format"] = response_format
                 try:
-                    response = await client.chat.completions.create(
-                        response_format={"type": "json_object"}, **kwargs
-                    )
+                    response = await client.chat.completions.create(**call)
+                    break
+                except LLMError:
+                    raise
                 except Exception as e:
-                    if not _rejects_json_mode(e):
-                        raise
-                    logger.warning("llm_json_mode_unsupported_retrying_plain", model=cfg.model)
-                    self._json_mode = False
-                    response = await client.chat.completions.create(**kwargs)
-            else:
-                response = await client.chat.completions.create(**kwargs)
-        except LLMError:
-            raise
-        except Exception as e:
-            raise LLMError(f"LLM request to {cfg.base_url} failed: {e}") from e
+                    if _is_unavailable(e):
+                        raise LLMUnavailableError(f"LLM server at {cfg.base_url} is unavailable: {e}") from e
+                    if response_format is not None and _rejects_json_mode(e) and index < len(formats) - 1:
+                        kind = response_format["type"]
+                        logger.warning("llm_response_format_unsupported_degrading", model=cfg.model, format=kind)
+                        if kind == "json_schema":
+                            self._schema_mode = False
+                        else:
+                            self._json_mode = False
+                        continue
+                    raise LLMError(f"LLM request to {cfg.base_url} failed: {e}") from e
 
         choice = response.choices[0]
         if getattr(choice, "finish_reason", None) == "length":
@@ -111,7 +141,20 @@ class LLMService:
 
 def _rejects_json_mode(error: Exception) -> bool:
     text = str(error).lower()
-    return getattr(error, "status_code", None) == 400 and ("response_format" in text or "json" in text)
+    return getattr(error, "status_code", None) == 400 and ("response_format" in text or "json" in text or "schema" in text)
+
+
+def _is_unavailable(error: Exception) -> bool:
+    """Connection failures, timeouts, 5xx and rate limits: the server may be fine in a minute."""
+    try:
+        import openai
+
+        if isinstance(error, (openai.APIConnectionError, openai.APITimeoutError, openai.RateLimitError, openai.InternalServerError)):
+            return True
+    except ImportError:  # pragma: no cover - openai is a hard dependency
+        pass
+    status = getattr(error, "status_code", None)
+    return isinstance(status, int) and (status >= 500 or status == 429)
 
 
 @lru_cache(maxsize=1)

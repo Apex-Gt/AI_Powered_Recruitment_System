@@ -87,12 +87,23 @@ class Project(BaseModel):
     role: str | None = None
 
 
+class WorkExperience(BaseModel):
+    """One employment entry as written in the resume; years are computed from the dates, not asked of the model."""
+
+    title: str = Field(..., min_length=1, max_length=200)
+    company: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None  # "present" (or empty) for a current role
+    description: str | None = None
+
+
 class CandidateProfile(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     email: EmailStr | None = None
     phone: str | None = Field(None, max_length=50)
     location: str | None = Field(None, max_length=200)
     skills: list[Skill] = Field(default_factory=list)
+    experience: list[WorkExperience] = Field(default_factory=list)
     total_experience_years: float = Field(0.0, ge=0, le=50)
     education: list[Education] = Field(default_factory=list)
     certifications: list[Certification] = Field(default_factory=list)
@@ -169,6 +180,13 @@ class MatchScore(CamelModel):
     missing_skills: list[str] = Field(default_factory=list)
     skill_coverage: float = Field(0.0, ge=0, le=100)
     evidence_chunks: list[str] = Field(default_factory=list)
+    # Explainability (scoring v2). All optional so older stored scores and clients keep working.
+    meets_mandatory: bool = True
+    mandatory_missing: list[str] = Field(default_factory=list)
+    skill_evidence: dict[str, str] = Field(default_factory=dict)  # matched skill -> resume snippet containing it
+    relevant_experience_years: float | None = None
+    total_experience_years: float | None = None
+    warnings: list[str] = Field(default_factory=list)
     metadata: dict = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

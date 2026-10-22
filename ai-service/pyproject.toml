@@ -22,12 +22,20 @@ dependencies = [
     "numpy>=1.26.0",
     "email-validator>=2.1.0",
     "pypdf>=4.0.0",
-    # Local embedding / reranker (EMBEDDING_PROVIDER=local, RERANKER_PROVIDER=local, the default)
-    "FlagEmbedding>=1.2.10",
-    "torch>=2.2.0",
+    # Resume pipeline: PDF (PyMuPDF), DOCX, and OCR for scanned PDFs (needs the tesseract binary)
+    "pymupdf>=1.24.0",
+    "python-docx>=1.1.0",
+    "pytesseract>=0.3.10",
+    "pillow>=10.0.0",
 ]
 
 [project.optional-dependencies]
+# In-process BGE-M3 embeddings and the cross-encoder reranker (EMBEDDING_PROVIDER=local, RERANKER_PROVIDER=local).
+# About 4 GB with torch. The default deployment uses Ollama (EMBEDDING_PROVIDER=ollama) and does not need this.
+local-embeddings = [
+    "FlagEmbedding>=1.2.10",
+    "torch>=2.2.0",
+]
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.23.0",
