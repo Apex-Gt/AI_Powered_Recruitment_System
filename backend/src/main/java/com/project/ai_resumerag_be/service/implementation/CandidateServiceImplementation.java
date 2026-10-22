@@ -64,6 +64,8 @@ public class CandidateServiceImplementation implements CandidateService {
     private final InterviewRepository interviewRepository;
     private final AssessmentAttemptRepository assessmentAttemptRepository;
     private final AiResultStore aiResultStore;
+    private final com.project.ai_resumerag_be.pipeline.ResumeTaskRepository resumeTaskRepository;
+    private final com.project.ai_resumerag_be.pipeline.ResumeBatchRepository resumeBatchRepository;
 
     @Override
     @Transactional
@@ -288,6 +290,8 @@ public class CandidateServiceImplementation implements CandidateService {
     public void deleteCandidatesOfJob(UUID jobId) {
         removeCandidates(candidateRepository.findByJobId(jobId));
         aiResultRepository.deleteByJobId(jobId);
+        resumeTaskRepository.deleteByJobId(jobId);
+        resumeBatchRepository.deleteByJobId(jobId);
     }
 
     private void removeCandidates(List<Candidate> candidates) {
@@ -297,6 +301,7 @@ public class CandidateServiceImplementation implements CandidateService {
         List<Resume> resumes = candidates.stream().map(Candidate::getResume).collect(Collectors.toList());
         List<UUID> candidateIds = candidates.stream().map(Candidate::getId).collect(Collectors.toList());
 
+        resumeTaskRepository.releaseDedupeKeys(candidateIds);
         candidateNoteRepository.deleteByCandidateIdIn(candidateIds);
         interviewRepository.deleteByCandidateIdIn(candidateIds);
         assessmentAttemptRepository.deleteByCandidateIdIn(candidateIds);

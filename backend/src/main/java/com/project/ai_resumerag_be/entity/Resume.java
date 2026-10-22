@@ -30,6 +30,10 @@ public class Resume {
     @Column(columnDefinition = "TEXT")
     private String extractedText;
 
+    /** SHA-256 of the stored file; set by the batch pipeline (older rows have none). */
+    @Column(length = 64)
+    private String sha256;
+
     private LocalDateTime uploadedAt;
 
     @PrePersist
