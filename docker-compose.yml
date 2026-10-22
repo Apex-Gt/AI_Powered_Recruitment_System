@@ -1,0 +1,175 @@
+# NexHire: full local deployment, no paid AI API.
+#
+#   cp .env.example .env     # then set the secrets it marks REQUIRED
+#   docker compose up -d --build
+#
+# Only the web UI (frontend) is published to the host. PostgreSQL, Qdrant, Ollama, the AI service and the backend
+# live on the `internal` network and are not reachable from outside the stack. For local development with the
+# services on host ports, add:  -f docker-compose.dev.yml     For an NVIDIA GPU:  -f docker-compose.gpu.yml
+
+name: nexhire
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *restart
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ai_resume_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ai_resume_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  qdrant:
+    <<: *restart
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:latest}
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "bash", "-c", "</dev/tcp/127.0.0.1/6333"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [internal]
+
+  # The model server: chat (LLM_MODEL) and embeddings (EMBEDDING_MODEL). Models stay loaded between resumes
+  # (OLLAMA_KEEP_ALIVE) so weights are read from disk once, not once per resume.
+  ollama:
+    <<: *restart
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-2}
+      OLLAMA_FLASH_ATTENTION: ${OLLAMA_FLASH_ATTENTION:-1}
+    volumes:
+      # A named volume by default; set OLLAMA_MODELS_DIR to a host path to keep the (multi-GB) models on another drive.
+      - ${OLLAMA_MODELS_DIR:-ollama_models}:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    # Not published to the host. It joins `egress` only so it can download models; drop that network once they are pulled.
+    networks: [internal, egress]
+
+  # One-shot: downloads the chat and embedding models into the shared volume, then exits.
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        ollama pull "${LLM_MODEL:-qwen3:4b}"
+        ollama pull "${EMBEDDING_MODEL:-bge-m3}"
+    restart: "no"
+    networks: [internal]
+
+  ai-service:
+    <<: *restart
+    build:
+      context: ./ai-service
+      args:
+        WITH_LOCAL_EMBEDDINGS: "false"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      PIPELINE_API_KEY: ${PIPELINE_API_KEY:?set PIPELINE_API_KEY in .env}
+      PIPELINE_OCR_ENABLED: ${PIPELINE_OCR_ENABLED:-true}
+      # Local, open-weight models only. No metered API is configured anywhere in this stack.
+      LLM_BASE_URL: http://ollama:11434/v1
+      LLM_MODEL: ${LLM_MODEL:-qwen3:4b}
+      LLM_API_KEY: ""
+      LLM_CONCURRENCY: ${LLM_CONCURRENCY:-1}
+      EMBEDDING_PROVIDER: ollama
+      EMBEDDING_BASE_URL: http://ollama:11434
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL:-bge-m3}
+      EMBEDDING_DIMENSIONS: "1024"
+      MODEL_EMBEDDING_DIMENSIONS: "1024"
+      RERANKER_PROVIDER: ${RERANKER_PROVIDER:-none}
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: "6333"
+      INNGEST_ENABLED: "false"
+      SPRING_BOOT_BASE_URL: http://backend:8080
+      SPRING_BOOT_API_KEY: ${SERVICE_API_KEY:-}
+    volumes:
+      # Same path as in the backend: the backend sends absolute file paths, so both must see the files at /data/uploads.
+      - uploads:/data/uploads:ro
+    networks: [internal]
+
+  backend:
+    <<: *restart
+    build:
+      context: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-service:
+        condition: service_started # the queue keeps work and retries if the AI service is slow to come up
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ai_resume_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_JPA_SHOW_SQL: "false"
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (at least 32 random characters)}
+      AI_SERVICE_BASE_URL: http://ai-service:8000
+      AI_SERVICE_API_KEY: ${SERVICE_API_KEY:-}
+      PIPELINE_AI_API_KEY: ${PIPELINE_API_KEY}
+      PIPELINE_WORKER_CONCURRENCY: ${PIPELINE_WORKER_CONCURRENCY:-2}
+      LLM_MODEL: ${LLM_MODEL:-qwen3:4b}
+      APP_FILE_STORAGE_PATH: /data/uploads
+      APP_FRONTEND_URL: ${PUBLIC_URL:-http://localhost:8080}
+      APP_COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      SPRING_MAIL_USERNAME: ${MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      GEOAPIFY_API_KEY: ${GEOAPIFY_API_KEY:-}
+    volumes:
+      - uploads:/data/uploads
+    # `egress` lets the backend send email; nothing outside the stack can reach it directly.
+    networks: [internal, egress]
+
+  frontend:
+    <<: *restart
+    build:
+      context: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    networks: [internal, egress]
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  ollama_models:
+  uploads:
+
+networks:
+  # No route to the outside world: the data plane.
+  internal:
+    internal: true
+  # Outbound access for the few services that need it (model download, email) and the published web port.
+  egress:

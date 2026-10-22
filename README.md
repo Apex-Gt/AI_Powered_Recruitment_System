@@ -2,6 +2,7 @@
 
 A full-stack recruitment platform. Recruiters upload resumes, and an AI pipeline parses them, scores each candidate against a job, explains the score with evidence from the resume (RAG), and ranks candidates.
 
+- [Bulk resume pipeline (local models, no paid API)](#bulk-resume-pipeline-local-models-no-paid-api)
 - [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
 - [Quick start](#quick-start)
@@ -13,6 +14,32 @@ A full-stack recruitment platform. Recruiters upload resumes, and an AI pipeline
 - [Project structure](#project-structure)
 - [Development commands](#development-commands)
 - [Troubleshooting](#troubleshooting)
+
+---
+
+## Bulk resume pipeline (local models, no paid API)
+
+Upload 50 to 500 resumes (PDF, DOCX, TXT) for a job in one request. The backend stores and queues them and answers
+immediately with a batch id; a PostgreSQL-backed queue then reads, profiles, indexes, scores and summarises each resume in
+the background, with retries, partial completion and live progress in the upload dialog. Models run locally in Ollama.
+
+```bash
+cp .env.example .env              # set POSTGRES_PASSWORD, JWT_SECRET, PIPELINE_API_KEY
+docker compose up -d --build      # whole stack; only http://localhost:8080 is published
+```
+
+| Read | For |
+| --- | --- |
+| [docs/PIPELINE.md](docs/PIPELINE.md) | How it works: stages, statuses, failure handling, scoring, data kept |
+| [docs/API.md](docs/API.md) | Endpoints with sample requests and responses |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker stack, models, free-hosting findings, what was and was not verified |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Health checks, runbook, backup and restore, retention, tuning |
+| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Repeatable 50/100/500 benchmark and its (synthetic) data; no accuracy claim without measurement |
+| [docs/ARCHITECTURE_AUDIT.md](docs/ARCHITECTURE_AUDIT.md) | What the repository did before and why it changed |
+
+The sections below describe the original per-service local setup (Inngest, Groq). The default LLM is now a local Ollama
+model; `LLM_BASE_URL`/`LLM_MODEL` in `ai-service/.env` still point wherever you set them, and an existing `.env` that names
+Groq keeps using Groq until you change it.
 
 ---
 
@@ -54,7 +81,7 @@ Roles: `ADMIN` (company owner: manages recruiters, company, all jobs) and `RECRU
 | Java (JDK) | **21** | backend (Maven wrapper is included, so no Maven install is needed) |
 | Node.js + npm | 18 or newer (22 tested) | frontend |
 | Python | 3.12 | only if you run the AI service outside Docker |
-| Groq API key | free | the LLM that extracts candidate profiles and writes summaries: https://console.groq.com/keys |
+| Ollama | recent | the local LLM and embedding models (replaces the Groq API key; or a Groq key if you keep a hosted model) |
 
 Disk and RAM: the AI service downloads two models on first use, `BAAI/bge-m3` and `BAAI/bge-reranker-v2-m3`, about **2.3 GB each**, and the Docker image is large too. Keep roughly **10 GB free**.
 

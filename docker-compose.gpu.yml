@@ -1,0 +1,16 @@
+# NVIDIA GPU for the model server (needs the NVIDIA Container Toolkit on Linux, or Docker Desktop with WSL2 on Windows).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+#
+# A 6 GB card runs qwen3:4b (about 2.6 GB) plus bge-m3 (about 1.2 GB) comfortably. qwen3:8b (about 5.2 GB) leaves almost
+# no room for the context window and will partly spill to CPU, which is much slower; benchmark before choosing it.
+
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

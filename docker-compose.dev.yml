@@ -1,0 +1,29 @@
+# Development override: publishes the service ports on localhost so the backend, AI service and Vite dev server can
+# also be run directly on the host. NEVER use this file on a server; it exposes the databases and the model server.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres qdrant ollama
+#
+# Ports match the application's local defaults (backend 8080, AI service 8000, Postgres 5433).
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5433:5432"
+  qdrant:
+    ports:
+      - "127.0.0.1:6333:6333"
+  ollama:
+    ports:
+      - "127.0.0.1:11434:11434"
+  ai-service:
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+  backend:
+    ports:
+      - "127.0.0.1:8081:8080" # 8081 so a host-run backend can keep 8080
+  frontend:
+    ports:
+      - "127.0.0.1:8088:80"
