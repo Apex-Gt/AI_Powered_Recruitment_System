@@ -197,3 +197,24 @@ def test_shared_key_is_enforced_when_configured(client, monkeypatch):
     assert client.post("/api/v1/pipeline/extract", json={"filePath": "x"}).status_code == 401
     assert client.post("/api/v1/pipeline/extract", json={"filePath": "x"}, headers={"X-API-Key": "wrong"}).status_code == 401
     assert client.post("/api/v1/pipeline/extract", json={"filePath": "x"}, headers={"X-API-Key": "s3cret"}).status_code == 422
+
+
+async def test_profile_stage_empty_result_for_a_real_resume_is_retried_then_parked_for_review():
+    from app.pipeline.errors import NeedsReviewError
+
+    service = FakeProfileService(CandidateProfile(name="Jane Doe"))  # the model returned nothing useful
+    pipeline = _pipeline(profile_service=service)
+    with pytest.raises(NeedsReviewError) as exc:
+        await pipeline.profile("any.pdf")
+    assert exc.value.code == "PROFILE_EMPTY"
+    assert service.calls == 2  # one retry before giving up
+
+
+async def test_profile_stage_empty_result_succeeds_on_retry():
+    class Flaky(FakeProfileService):
+        async def extract_candidate_profile(self, text):
+            self.calls += 1
+            return CandidateProfile(name="Jane Doe") if self.calls == 1 else CandidateProfile(name="Jane Doe", skills=[Skill(name="Python")])
+
+    out = await _pipeline(profile_service=Flaky(None)).profile("any.pdf")
+    assert [s["name"] for s in out["profile"]["skills"]] == ["Python"]

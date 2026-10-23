@@ -68,8 +68,10 @@ class RAGSummaryService:
                 candidate_id=candidate_id or "",
                 job_id=job.job_id,
                 strengths=self._as_str_list(data.get("strengths")),
-                matched_skills=self._as_str_list(data.get("matched_skills")),
-                missing_skills=self._as_str_list(data.get("missing_skills")),
+                # The score is computed deterministically from the resume; the model's own lists contradicted it
+                # (skills reported missing that the resume lists), so the score's lists are authoritative.
+                matched_skills=list(match_score.matched_skills) if match_score else self._as_str_list(data.get("matched_skills")),
+                missing_skills=list(match_score.missing_skills) if match_score else self._as_str_list(data.get("missing_skills")),
                 relevant_experience=self._as_str_list(data.get("relevant_experience")),
                 evidence=top_evidence,
                 summary_text=str(data.get("summary_text") or ""),
@@ -122,6 +124,10 @@ Match Scores:
 - Experience: {match_score.experience_match_score}/100
 - Education: {match_score.education_match_score}/100
 - Semantic: {match_score.semantic_match_score}/100
+
+Verified skill check against the resume (authoritative; never contradict it):
+- Job skills found in the resume: {", ".join(match_score.matched_skills) or "none"}
+- Job skills not found in the resume: {", ".join(match_score.missing_skills) or "none"}
 """
 
         return f"""Analyze the candidate's fit for the job based ONLY on the provided evidence chunks. Do not use any external knowledge.

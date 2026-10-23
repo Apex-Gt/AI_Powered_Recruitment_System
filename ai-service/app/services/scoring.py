@@ -43,19 +43,65 @@ def normalize_skill(name: str) -> str:
     return _SKILL_ALIASES.get(compact, _SKILL_ALIASES.get(value, value))
 
 
-def find_skill_evidence(text: str, skill: str, width: int = 90) -> Optional[str]:
-    """A short snippet of the resume that literally mentions the skill (or its alias), else None."""
+# Phrases that mean the same skill. Only multi-word or unambiguous forms: a bare "rest" or "go" would match prose.
+_SYNONYM_GROUPS: list[set[str]] = [
+    {"rest apis", "rest api", "restful apis", "restful api", "restful", "rest services", "rest service", "rest endpoints", "restful services"},
+    {"object-oriented programming", "object oriented programming", "object-oriented", "object oriented", "oop", "oops"},
+    {"data structures", "data structures and algorithms", "data structures & algorithms", "dsa"},
+    {"jwt", "jwt authentication", "json web token", "json web tokens"},
+    {"sql", "mysql", "postgresql", "postgres", "sql server", "sqlite", "oracle sql", "pl/sql", "t-sql"},
+    {"ci/cd", "ci cd", "cicd", "continuous integration", "github actions", "jenkins", "gitlab ci"},
+    {"docker", "dockerfile", "docker compose", "containerization", "containerisation"},
+    {"git", "github", "gitlab", "version control"},
+    {"hibernate", "hibernate orm"},
+    {"machine learning", "ml"},
+]
+
+
+def _skill_forms(skill: str) -> set[str]:
+    """'Object-Oriented Programming (OOP)' -> {full, without the brackets, the bracketed abbreviation}."""
+    skill = normalize_skill(skill)
+    forms = {skill}
+    stripped = re.sub(r"\s*\([^)]*\)", "", skill).strip()
+    if stripped:
+        forms.add(stripped)
+    forms.update(m.strip() for m in re.findall(r"\(([^)]*)\)", skill) if m.strip())
+    return forms
+
+
+def _skill_patterns(skill: str) -> set[str]:
+    """Every spelling of this skill worth searching for in a resume: itself, aliases and synonyms."""
+    forms = _skill_forms(skill)
+    patterns = set(forms)
+    for form in forms:
+        patterns |= {alias for alias, canon in _SKILL_ALIASES.items() if canon == form}
+    for group in _SYNONYM_GROUPS:
+        if forms & group:
+            patterns |= group
+    # One- and two-letter names (C, R, Go) would match ordinary words; trust the extracted skill list for those.
+    return {p for p in patterns if len(p) >= 3}
+
+
+def mentions_skill(text: str, skill: str) -> Optional[re.Match]:
+    """The first place the resume literally mentions the skill, its alias or a synonym, on word boundaries."""
     if not text or not skill:
         return None
-    aliases = {skill} | {alias for alias, canon in _SKILL_ALIASES.items() if canon == skill}
     lowered = text.lower()
-    for alias in sorted(aliases, key=len, reverse=True):
-        match = re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", lowered)
+    for pattern in sorted(_skill_patterns(skill), key=len, reverse=True):
+        match = re.search(rf"(?<![a-z0-9]){re.escape(pattern)}(?![a-z0-9])", lowered)
         if match:
-            start = max(0, match.start() - width)
-            end = min(len(text), match.end() + width)
-            return re.sub(r"\s+", " ", text[start:end]).strip()
+            return match
     return None
+
+
+def find_skill_evidence(text: str, skill: str, width: int = 90) -> Optional[str]:
+    """A short snippet of the resume that literally mentions the skill (or its alias), else None."""
+    match = mentions_skill(text, skill)
+    if not match:
+        return None
+    start = max(0, match.start() - width)
+    end = min(len(text), match.end() + width)
+    return re.sub(r"\s+", " ", text[start:end]).strip()
 
 
 class ScoringService:
@@ -70,8 +116,15 @@ class ScoringService:
         self,
         candidate: CandidateProfile,
         job: JobDescription,
+        resume_text: Optional[str] = None,
     ) -> tuple[float, list[str], list[str], float]:
         candidate_skills = {normalize_skill(s.name): s for s in candidate.skills}
+
+        def has(skill_name: str) -> bool:
+            # The extracted list can miss or rename a skill ("JWT Authentication", "REST services"), so the
+            # resume text itself is the second witness.
+            return skill_name in candidate_skills or mentions_skill(resume_text or "", skill_name) is not None
+
         requirements = list(job.requirements)
         if not requirements:
             requirements = [JobRequirement(skill=name, required=True) for name in job.required_skills]
@@ -83,13 +136,13 @@ class ScoringService:
         missing_skills = []
 
         for skill_name, req in required_skills.items():
-            if skill_name in candidate_skills:
+            if has(skill_name):
                 matched_skills.append(skill_name)
             else:
                 missing_skills.append(skill_name)
 
         for skill_name, req in preferred_skills.items():
-            if skill_name in candidate_skills:
+            if has(skill_name):
                 matched_skills.append(skill_name)
             else:
                 missing_skills.append(skill_name)
@@ -101,13 +154,17 @@ class ScoringService:
         if total_skills == 0:
             return 0.0, [], [], 0.0
 
-        required_matched = sum(1 for s in required_skills if s in candidate_skills)
-        preferred_matched = sum(1 for s in preferred_skills if s in candidate_skills)
+        required_matched = sum(1 for s in required_skills if has(s))
+        preferred_matched = sum(1 for s in preferred_skills if has(s))
 
-        required_score = (required_matched / total_required * 100) if total_required > 0 else 100
-        preferred_score = (preferred_matched / total_preferred * 100) if total_preferred > 0 else 100
+        required_score = required_matched / total_required * 100 if total_required else 0.0
+        preferred_score = preferred_matched / total_preferred * 100 if total_preferred else 0.0
 
-        overall_skill_score = (required_score * 0.7) + (preferred_score * 0.3)
+        # An absent group must not hand out free points: with no preferred skills, required skills are 100%.
+        if total_required and total_preferred:
+            overall_skill_score = required_score * 0.7 + preferred_score * 0.3
+        else:
+            overall_skill_score = required_score if total_required else preferred_score
         coverage = (len(matched_skills) / total_skills * 100) if total_skills > 0 else 0
 
         return overall_skill_score, matched_skills, missing_skills, coverage
@@ -194,28 +251,32 @@ class ScoringService:
 
         return max(0.0, min(100.0, avg_similarity * 100))
 
+    def _effective_weights(self, experience_applies: bool = True, education_applies: bool = True) -> dict[str, float]:
+        return {
+            "skill": self.skill_weight,
+            "experience": self.experience_weight if experience_applies else 0.0,
+            "education": self.education_weight if education_applies else 0.0,
+            "semantic": self.semantic_weight,
+        }
+
     def calculate_overall_score(
         self,
         skill_score: float,
-        experience_score: float,
-        education_score: float,
+        experience_score: Optional[float],
+        education_score: Optional[float],
         semantic_score: float,
     ) -> float:
-        total_weight = (
-            self.skill_weight
-            + self.experience_weight
-            + self.education_weight
-            + self.semantic_weight
-        )
-
+        """Weighted mean. A component passed as None (the job sets no bar for it) is left out and the rest rescaled."""
+        weights = self._effective_weights(experience_score is not None, education_score is not None)
+        total_weight = sum(weights.values())
         if total_weight == 0:
             return 0.0
 
         weighted_score = (
-            skill_score * self.skill_weight
-            + experience_score * self.experience_weight
-            + education_score * self.education_weight
-            + semantic_score * self.semantic_weight
+            skill_score * weights["skill"]
+            + (experience_score or 0.0) * weights["experience"]
+            + (education_score or 0.0) * weights["education"]
+            + semantic_score * weights["semantic"]
         ) / total_weight
 
         return round(max(0.0, min(100.0, weighted_score)), 2)
@@ -231,7 +292,7 @@ class ScoringService:
     ) -> MatchScore:
         try:
             warnings: list[str] = []
-            skill_score, matched_skills, missing_skills, coverage = self.calculate_skill_match(candidate, job)
+            skill_score, matched_skills, missing_skills, coverage = self.calculate_skill_match(candidate, job, resume_text)
 
             requirements = list(job.requirements)
             if not requirements:
@@ -262,8 +323,15 @@ class ScoringService:
             if not chunk_embeddings:
                 warnings.append("No resume embeddings were available, so the semantic component is 0")
 
+            # A job with no experience or education bar scores every candidate 100 on it; counting that only
+            # compresses the real differences, so such components are left out of the weighted score.
+            experience_applies = job.min_experience_years > 0
+            education_applies = job.education_level is not None
             overall_score = self.calculate_overall_score(
-                skill_score, experience_score, education_score, semantic_score
+                skill_score,
+                experience_score if experience_applies else None,
+                education_score if education_applies else None,
+                semantic_score,
             )
             if mandatory_missing:
                 warnings.append("Missing mandatory requirement(s): " + ", ".join(mandatory_missing))
@@ -303,6 +371,7 @@ class ScoringService:
                         "education": self.education_weight,
                         "semantic": self.semantic_weight,
                     },
+                    "effective_weights": self._effective_weights(experience_applies, education_applies),
                 },
             )
         except Exception as e:

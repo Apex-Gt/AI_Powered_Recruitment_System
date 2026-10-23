@@ -29,7 +29,7 @@ from app.core.exceptions import (
 )
 from app.core.logging import get_logger
 from app.models.schemas import CandidateProfile, JobDescription, MatchScore, RAGSummary, ResumeChunk
-from app.pipeline.errors import PipelineError, TransientDependencyError
+from app.pipeline.errors import NeedsReviewError, PipelineError, TransientDependencyError
 from app.pipeline.experience import total_experience_years
 from app.pipeline.fields import extract_contact_fields
 from app.pipeline.text_extraction import ExtractedText, extract_text_cached
@@ -168,8 +168,16 @@ class ResumePipeline:
         contact = extract_contact_fields(extracted.text, file_name)
         try:
             profile = await self.profile_service.extract_candidate_profile(extracted.text)
+            if self._is_empty_profile(profile, extracted.text):
+                logger.warning("profile_empty_retrying", chars=len(extracted.text))
+                profile = await self.profile_service.extract_candidate_profile(extracted.text)
         except Exception as e:  # noqa: BLE001
             raise map_dependency_error(e) from e
+        if self._is_empty_profile(profile, extracted.text):
+            raise NeedsReviewError(
+                "PROFILE_EMPTY",
+                "The model returned no skills or experience for a resume with readable text; extraction needs a second look",
+            )
 
         warnings: list[str] = []
         profile = self._ground(profile, contact, extracted.text, warnings)
@@ -179,6 +187,11 @@ class ResumePipeline:
             "model": settings.llm.model,
             "warnings": warnings,
         }
+
+    @staticmethod
+    def _is_empty_profile(profile: CandidateProfile, text: str) -> bool:
+        """A resume with real text but nothing extracted means the model failed, not that the person has no skills."""
+        return len(text.strip()) >= 500 and not profile.skills and not profile.experience
 
     @staticmethod
     def _ground(profile: CandidateProfile, contact, text: str, warnings: list[str]) -> CandidateProfile:
