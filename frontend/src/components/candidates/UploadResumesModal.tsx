@@ -104,7 +104,7 @@ export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs
     <Modal
       isOpen={isOpen}
       onClose={close}
-      closeOnOverlayClick={false}
+      closeOnOverlayClick={!!batchId}
       size="xl"
       title="Add candidates"
       description="Upload up to 500 resumes (PDF, DOCX or TXT) at once. They are read and scored in the background."
@@ -117,7 +117,7 @@ export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs
               Add more
             </Button>
             <Button type="button" onClick={close}>
-              Done
+              Close
             </Button>
           </div>
         </div>

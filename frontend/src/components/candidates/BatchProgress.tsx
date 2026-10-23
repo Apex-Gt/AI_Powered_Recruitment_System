@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, CheckCircle2, Copy, Loader2, RotateCcw, AlertTriangle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock, Copy, Loader2, RotateCcw, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { batchApi, type Batch, type BatchTask, type BatchTaskStage, type BatchTaskStatus } from '@/utils/api'
+import { batchApi, type Batch, type BatchTask, type BatchTaskStage } from '@/utils/api'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/utils/helpers'
 
 const TERMINAL = new Set(['COMPLETED', 'PARTIAL', 'FAILED'])
 const POLL_MS = 2500
 
-/** What the pipeline is doing right now, in the present tense; shown in the headline and per resume. */
+/** What the pipeline is doing right now, in the present tense; shown beside the count and under a processing resume. */
 const STAGE_LABEL: Record<BatchTaskStage, string> = {
   EXTRACT: 'Ingesting',
   PERSIST: 'Saving the candidate',
@@ -48,11 +48,47 @@ function describe(task: BatchTask): string {
   return CODE_HELP[task.errorCode ?? ''] ?? task.errorMessage ?? 'Something went wrong.'
 }
 
-function duration(seconds: number | null): string {
-  if (seconds === null || !Number.isFinite(seconds)) return ''
-  if (seconds < 90) return `${Math.max(1, Math.round(seconds))} s`
+/** "less than a minute", "3 minutes", "1.5 hours": rounded, because the estimate is rough anyway. */
+function timeLeft(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds) || seconds <= 0) return ''
+  if (seconds < 60) return 'less than a minute'
   const minutes = Math.round(seconds / 60)
-  return minutes < 90 ? `${minutes} min` : `${(minutes / 60).toFixed(1)} h`
+  return minutes < 90 ? `about ${minutes} minute${minutes === 1 ? '' : 's'}` : `about ${(minutes / 60).toFixed(1)} hours`
+}
+
+function took(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds)) return ''
+  if (seconds < 60) return 'under a minute'
+  const minutes = Math.round(seconds / 60)
+  return minutes < 90 ? `${minutes} minute${minutes === 1 ? '' : 's'}` : `${(minutes / 60).toFixed(1)} hours`
+}
+
+type RowIcon = 'wait' | 'work' | 'ok' | 'bad' | 'warn' | 'dup'
+
+/** Pending, Processing, Completed or Failed; needs-review and duplicates are shown as what they are. */
+function rowState(t: BatchTask): { label: string; className: string; icon: RowIcon } {
+  switch (t.status) {
+    case 'COMPLETED':
+      return { label: 'Completed', className: 'badge-success', icon: 'ok' }
+    case 'PROCESSING':
+      return { label: 'Processing', className: 'badge-primary', icon: 'work' }
+    case 'FAILED':
+      return { label: 'Failed', className: 'badge-error', icon: 'bad' }
+    case 'NEEDS_REVIEW':
+      return { label: 'Needs review', className: 'badge-warning', icon: 'warn' }
+    case 'DUPLICATE':
+      return { label: 'Duplicate', className: 'badge-default', icon: 'dup' }
+    default:
+      return { label: 'Pending', className: 'badge-default', icon: 'wait' }
+  }
+}
+
+/** Every page of a batch's tasks; the server caps a page at 200 and a batch can hold 500. */
+async function fetchAllTasks(batchId: string): Promise<BatchTask[]> {
+  const first = await batchApi.tasks(batchId, { page: 0 })
+  const items = [...first.items]
+  for (let page = 1; page < first.totalPages; page++) items.push(...(await batchApi.tasks(batchId, { page })).items)
+  return items
 }
 
 interface Props {
@@ -62,7 +98,7 @@ interface Props {
   compact?: boolean
 }
 
-/** Live progress of one bulk upload: a bar, counts, and the reason for every resume that needs attention. */
+/** Live progress of one bulk upload: overall bar and counts, then every resume with its own status. */
 export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
   const [batch, setBatch] = useState<Batch | null>(null)
   const [tasks, setTasks] = useState<BatchTask[]>([])
@@ -81,11 +117,11 @@ export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
       try {
         const next = await batchApi.get(batchId)
         const list = compact
-          ? await batchApi.tasks(batchId, { status: 'PROCESSING', size: 10 }) // just enough to name the current step
-          : await batchApi.tasks(batchId)
+          ? (await batchApi.tasks(batchId, { status: 'PROCESSING', size: 10 })).items // just enough to name the current step
+          : await fetchAllTasks(batchId)
         if (cancelled) return
         setBatch(next)
-        if (list) setTasks(list.items)
+        setTasks(list)
         setError(null)
         if (TERMINAL.has(next.status)) {
           if (!finishedRef.current) {
@@ -131,31 +167,18 @@ export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
   const c = batch.counts
   const active = c.QUEUED + c.PROCESSING + c.UPLOADED
   const finished = batch.totalFiles - active
+  const failedCount = c.FAILED + c.NEEDS_REVIEW
   const done = TERMINAL.has(batch.status)
-  const attention = tasks.filter((t) => t.status === 'FAILED' || t.status === 'NEEDS_REVIEW' || t.status === 'DUPLICATE')
-  const working = tasks.filter((t) => t.status === 'PROCESSING')
-  const stage = dominantStage(working)
+  const stage = dominantStage(tasks.filter((t) => t.status === 'PROCESSING'))
+  const left = timeLeft(batch.estimatedSecondsRemaining)
 
   const headline = done
     ? batch.status === 'COMPLETED'
-      ? `All ${c.COMPLETED} resumes are analysed`
+      ? 'All resumes are processed'
       : batch.status === 'FAILED'
         ? 'None of these resumes could be processed'
-        : `${c.COMPLETED} analysed, ${c.FAILED + c.NEEDS_REVIEW} need attention`
-    : stage
-      ? STAGE_LABEL[stage]
-      : active === c.QUEUED + c.UPLOADED && c.PROCESSING === 0
-        ? 'Waiting to start'
-        : 'Getting ready'
-
-  const chips: { key: BatchTaskStatus; label: string; className: string }[] = [
-    { key: 'COMPLETED', label: 'Analysed', className: 'badge-success' },
-    { key: 'PROCESSING', label: 'Working', className: 'badge-primary' },
-    { key: 'QUEUED', label: 'Waiting', className: 'badge-default' },
-    { key: 'NEEDS_REVIEW', label: 'Needs review', className: 'badge-warning' },
-    { key: 'FAILED', label: 'Failed', className: 'badge-error' },
-    { key: 'DUPLICATE', label: 'Duplicates', className: 'badge-default' },
-  ]
+        : 'Finished, but some resumes need attention'
+    : 'Processing resumes...'
 
   return (
     <section aria-label="Resume processing progress" className="space-y-4">
@@ -172,7 +195,6 @@ export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
               <Loader2 className="h-5 w-5 animate-spin text-brand-700" aria-hidden="true" />
             )}
             {headline}
-            {!done && <span className="animate-pulse" aria-hidden="true">…</span>}
           </p>
           <span className="text-body-sm font-semibold tabular text-ink-700 dark:text-ink-200">{batch.percentComplete}%</span>
         </div>
@@ -182,64 +204,50 @@ export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
           aria-valuenow={batch.percentComplete}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label="Batch progress"
+          aria-label="Overall progress"
         >
           <div className="progress-fill" style={{ width: `${batch.percentComplete}%` }} />
         </div>
-        <p className="mt-2 text-body-xs text-ink-500 dark:text-ink-400">
-          {!done && `Resume ${Math.min(finished + 1, batch.totalFiles)} of ${batch.totalFiles}. `}
+        <p className="mt-2 text-body-sm text-ink-700 dark:text-ink-200">
+          <span className="font-semibold tabular">{finished}</span> of <span className="font-semibold tabular">{batch.totalFiles}</span> resumes completed
+          {failedCount > 0 && <span className="text-error-600"> · {failedCount} failed</span>}
+          {!done && stage && <span className="text-ink-500 dark:text-ink-400"> · {STAGE_LABEL[stage]}</span>}
+        </p>
+        <p className="mt-1 text-body-xs text-ink-500 dark:text-ink-400">
           {done
-            ? `Finished in ${duration(batch.elapsedSeconds)}.`
-            : batch.estimatedSecondsRemaining
-              ? `About ${duration(batch.estimatedSecondsRemaining)} left${batch.resumesPerMinute ? ` at ${batch.resumesPerMinute} resumes a minute` : ''}. You can close this window; processing continues.`
-              : 'You can close this window; processing continues in the background.'}
+            ? `Finished in ${took(batch.elapsedSeconds)}.`
+            : `This may take a few minutes.${left ? ` ${left[0].toUpperCase()}${left.slice(1)} left.` : ''} You can close this window; processing continues in the background.`}
           {error && <span className="ml-2 text-warning-600">Connection problem, retrying…</span>}
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {chips
-          .filter((chip) => c[chip.key] > 0)
-          .map((chip) => (
-            <span key={chip.key} className={cn(chip.className, 'gap-1.5')}>
-              <span className="tabular font-semibold">{c[chip.key]}</span> {chip.label}
-            </span>
-          ))}
-      </div>
-
-      {!compact && working.length > 0 && (
-        <ul className="space-y-1 text-body-xs text-ink-600 dark:text-ink-300" aria-label="Resumes being processed now">
-          {working.slice(0, 4).map((t) => (
-            <li key={t.id} className="flex items-center gap-2">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-700" aria-hidden="true" />
-              <span className="min-w-0 flex-1 truncate">{t.fileName}</span>
-              <span className="text-ink-400">{STAGE_LABEL[t.stage]}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {!compact && attention.length > 0 && (
-        <div>
-          <p className="mb-2 text-body-xs font-semibold text-ink-700 dark:text-ink-200">Needs a look</p>
-          <ul className="max-h-56 space-y-2 overflow-y-auto pr-1">
-            {attention.map((t) => (
-              <li key={t.id} className="rounded-lg border border-[var(--color-border)] p-2.5">
-                <div className="flex items-center gap-2">
-                  {t.status === 'DUPLICATE' ? (
-                    <Copy className="h-4 w-4 flex-shrink-0 text-ink-400" aria-hidden="true" />
-                  ) : t.status === 'NEEDS_REVIEW' ? (
-                    <AlertTriangle className="h-4 w-4 flex-shrink-0 text-warning-600" aria-hidden="true" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4 flex-shrink-0 text-error-600" aria-hidden="true" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate text-body-xs font-medium text-ink-800 dark:text-ink-100">{t.fileName}</span>
+      {!compact && (
+        <ul className="max-h-72 divide-y divide-[var(--color-border)] overflow-y-auto rounded-lg border border-[var(--color-border)]" aria-label="Uploaded resumes">
+          {tasks.map((t) => {
+            const state = rowState(t)
+            const problem = state.icon === 'bad' || state.icon === 'warn' || state.icon === 'dup'
+            return (
+              <li key={t.id} className="flex items-start gap-3 px-3 py-2.5">
+                <span className="mt-0.5 flex-shrink-0" aria-hidden="true">
+                  {state.icon === 'ok' && <CheckCircle2 className="h-4 w-4 text-success-600" />}
+                  {state.icon === 'work' && <Loader2 className="h-4 w-4 animate-spin text-brand-700" />}
+                  {state.icon === 'wait' && <Clock className="h-4 w-4 text-ink-400" />}
+                  {state.icon === 'bad' && <XCircle className="h-4 w-4 text-error-600" />}
+                  {state.icon === 'warn' && <AlertTriangle className="h-4 w-4 text-warning-600" />}
+                  {state.icon === 'dup' && <Copy className="h-4 w-4 text-ink-400" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-body-sm font-medium text-ink-900 dark:text-ink-100" title={t.fileName}>
+                    {t.fileName}
+                  </p>
+                  {t.status === 'PROCESSING' && <p className="text-body-xs text-ink-500 dark:text-ink-400">{STAGE_LABEL[t.stage]}</p>}
+                  {problem && <p className="text-body-xs text-ink-600 dark:text-ink-300">{describe(t)}</p>}
                 </div>
-                <p className="mt-1 pl-6 text-body-xs text-ink-600 dark:text-ink-300">{describe(t)}</p>
+                <span className={cn(state.className, 'flex-shrink-0')}>{state.label}</span>
               </li>
-            ))}
-          </ul>
-        </div>
+            )
+          })}
+        </ul>
       )}
 
       {done && c.FAILED > 0 && (
