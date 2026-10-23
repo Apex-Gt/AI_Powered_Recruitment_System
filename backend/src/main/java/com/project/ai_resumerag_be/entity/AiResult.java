@@ -1,6 +1,6 @@
 package com.project.ai_resumerag_be.entity;
 
-import com.project.ai_resumerag_be.enumerators.AiResultType;
+import com.project.ai_resumerag_be.enums.AiResultType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

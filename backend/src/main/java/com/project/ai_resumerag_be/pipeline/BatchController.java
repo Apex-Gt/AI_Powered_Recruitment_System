@@ -1,7 +1,7 @@
 package com.project.ai_resumerag_be.pipeline;
 
 import com.project.ai_resumerag_be.dto.response.CommonResponse;
-import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
+import com.project.ai_resumerag_be.enums.CommonResponseStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

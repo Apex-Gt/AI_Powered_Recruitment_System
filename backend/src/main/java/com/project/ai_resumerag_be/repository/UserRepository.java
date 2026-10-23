@@ -2,7 +2,7 @@ package com.project.ai_resumerag_be.repository;
 
 import com.project.ai_resumerag_be.entity.Company;
 import com.project.ai_resumerag_be.entity.User;
-import com.project.ai_resumerag_be.enumerators.Role;
+import com.project.ai_resumerag_be.enums.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

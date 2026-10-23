@@ -1,8 +1,8 @@
 package com.project.ai_resumerag_be.dto.request;
 
-import com.project.ai_resumerag_be.enumerators.AssessmentStatus;
-import com.project.ai_resumerag_be.enumerators.AssessmentType;
-import com.project.ai_resumerag_be.enumerators.QuestionType;
+import com.project.ai_resumerag_be.enums.AssessmentStatus;
+import com.project.ai_resumerag_be.enums.AssessmentType;
+import com.project.ai_resumerag_be.enums.QuestionType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;

@@ -1,4 +1,4 @@
-package com.project.ai_resumerag_be.service.implementation;
+package com.project.ai_resumerag_be.service.impl;
 
 import com.project.ai_resumerag_be.dto.request.AdminRequest;
 import com.project.ai_resumerag_be.dto.request.CompanyRequest;
@@ -7,7 +7,7 @@ import com.project.ai_resumerag_be.dto.response.CompanyRegistrationResponse;
 import com.project.ai_resumerag_be.dto.response.CompanyResponse;
 import com.project.ai_resumerag_be.entity.Company;
 import com.project.ai_resumerag_be.entity.User;
-import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
+import com.project.ai_resumerag_be.enums.CommonResponseStatus;
 import com.project.ai_resumerag_be.exception.ConflictException;
 import com.project.ai_resumerag_be.exception.ResourceNotFoundException;
 import com.project.ai_resumerag_be.mapper.CompanyMapper;

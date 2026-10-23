@@ -1,4 +1,4 @@
-package com.project.ai_resumerag_be.service.implementation;
+package com.project.ai_resumerag_be.service.impl;
 
 import com.project.ai_resumerag_be.dto.request.InterviewFeedbackRequest;
 import com.project.ai_resumerag_be.dto.request.InterviewRequest;
@@ -6,10 +6,10 @@ import com.project.ai_resumerag_be.dto.response.InterviewResponse;
 import com.project.ai_resumerag_be.entity.Candidate;
 import com.project.ai_resumerag_be.entity.Interview;
 import com.project.ai_resumerag_be.entity.Job;
-import com.project.ai_resumerag_be.enumerators.Role;
+import com.project.ai_resumerag_be.enums.Role;
 import com.project.ai_resumerag_be.entity.User;
-import com.project.ai_resumerag_be.enumerators.ApplicationStatus;
-import com.project.ai_resumerag_be.enumerators.InterviewStatus;
+import com.project.ai_resumerag_be.enums.ApplicationStatus;
+import com.project.ai_resumerag_be.enums.InterviewStatus;
 import com.project.ai_resumerag_be.exception.BadRequestException;
 import com.project.ai_resumerag_be.exception.ResourceNotFoundException;
 import com.project.ai_resumerag_be.repository.CandidateRepository;

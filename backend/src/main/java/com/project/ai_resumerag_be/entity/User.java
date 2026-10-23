@@ -1,7 +1,7 @@
 package com.project.ai_resumerag_be.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.project.ai_resumerag_be.enumerators.Role;
+import com.project.ai_resumerag_be.enums.Role;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

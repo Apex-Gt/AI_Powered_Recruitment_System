@@ -1,4 +1,4 @@
-package com.project.ai_resumerag_be.enumerators;
+package com.project.ai_resumerag_be.enums;
 
 public enum InterviewRecommendation {
     HIRE,

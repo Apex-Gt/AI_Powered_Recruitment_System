@@ -1,4 +1,4 @@
-package com.project.ai_resumerag_be.service.implementation;
+package com.project.ai_resumerag_be.service.impl;
 
 import com.project.ai_resumerag_be.dto.request.LoginRequest;
 import com.project.ai_resumerag_be.dto.request.UpdateProfileRequest;
@@ -7,7 +7,7 @@ import com.project.ai_resumerag_be.dto.response.LoginResponse;
 import com.project.ai_resumerag_be.entity.User;
     import com.project.ai_resumerag_be.repository.UserRepository;
     import com.project.ai_resumerag_be.service.AuthService;
-    import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
+    import com.project.ai_resumerag_be.enums.CommonResponseStatus;
     import com.project.ai_resumerag_be.exception.EmailAlreadyRegisteredException;
     import com.project.ai_resumerag_be.exception.PhoneNumberAlreadyExistsException;
     import com.project.ai_resumerag_be.service.security.CustomUserDetailsService;

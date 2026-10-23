@@ -1,7 +1,7 @@
 package com.project.ai_resumerag_be.controller;
 
 import com.project.ai_resumerag_be.dto.response.CommonResponse;
-import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
+import com.project.ai_resumerag_be.enums.CommonResponseStatus;
 import com.project.ai_resumerag_be.service.AnalyticsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

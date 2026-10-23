@@ -1,7 +1,7 @@
 package com.project.ai_resumerag_be.dto.response;
 
-import com.project.ai_resumerag_be.enumerators.AttemptStatus;
-import com.project.ai_resumerag_be.enumerators.QuestionType;
+import com.project.ai_resumerag_be.enums.AttemptStatus;
+import com.project.ai_resumerag_be.enums.QuestionType;
 import lombok.Builder;
 import lombok.Getter;
 

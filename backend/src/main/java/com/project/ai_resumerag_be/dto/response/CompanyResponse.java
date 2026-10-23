@@ -1,6 +1,6 @@
 package com.project.ai_resumerag_be.dto.response;
 
-import com.project.ai_resumerag_be.enumerators.Role;
+import com.project.ai_resumerag_be.enums.Role;
 import lombok.*;
 
 import java.time.LocalDateTime;

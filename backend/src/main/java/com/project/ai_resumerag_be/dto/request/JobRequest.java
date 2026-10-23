@@ -1,8 +1,8 @@
 package com.project.ai_resumerag_be.dto.request;
 
-import com.project.ai_resumerag_be.enumerators.EmploymentType;
-import com.project.ai_resumerag_be.enumerators.JobStatus;
-import com.project.ai_resumerag_be.enumerators.WorkMode;
+import com.project.ai_resumerag_be.enums.EmploymentType;
+import com.project.ai_resumerag_be.enums.JobStatus;
+import com.project.ai_resumerag_be.enums.WorkMode;
 import jakarta.validation.constraints.*;
 import lombok.*;
 

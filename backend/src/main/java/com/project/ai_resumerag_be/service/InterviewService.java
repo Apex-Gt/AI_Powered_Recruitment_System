@@ -3,7 +3,7 @@ package com.project.ai_resumerag_be.service;
 import com.project.ai_resumerag_be.dto.request.InterviewFeedbackRequest;
 import com.project.ai_resumerag_be.dto.request.InterviewRequest;
 import com.project.ai_resumerag_be.dto.response.InterviewResponse;
-import com.project.ai_resumerag_be.enumerators.InterviewStatus;
+import com.project.ai_resumerag_be.enums.InterviewStatus;
 
 import java.util.List;
 import java.util.UUID;

@@ -1,7 +1,7 @@
 package com.project.ai_resumerag_be.entity;
 
-import com.project.ai_resumerag_be.enumerators.AssessmentStatus;
-import com.project.ai_resumerag_be.enumerators.AssessmentType;
+import com.project.ai_resumerag_be.enums.AssessmentStatus;
+import com.project.ai_resumerag_be.enums.AssessmentType;
 import jakarta.persistence.*;
 import lombok.*;
 

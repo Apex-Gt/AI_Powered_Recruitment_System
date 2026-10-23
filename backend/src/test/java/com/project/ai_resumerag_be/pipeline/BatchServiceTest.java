@@ -3,7 +3,7 @@ package com.project.ai_resumerag_be.pipeline;
 import com.project.ai_resumerag_be.entity.Company;
 import com.project.ai_resumerag_be.entity.Job;
 import com.project.ai_resumerag_be.entity.User;
-import com.project.ai_resumerag_be.enumerators.Role;
+import com.project.ai_resumerag_be.enums.Role;
 import com.project.ai_resumerag_be.exception.BadRequestException;
 import com.project.ai_resumerag_be.exception.ResourceNotFoundException;
 import com.project.ai_resumerag_be.repository.CandidateRepository;

@@ -1,4 +1,4 @@
-package com.project.ai_resumerag_be.service.implementation;
+package com.project.ai_resumerag_be.service.impl;
 
 import com.project.ai_resumerag_be.dto.ai.*;
 import com.project.ai_resumerag_be.service.AIServiceClient;

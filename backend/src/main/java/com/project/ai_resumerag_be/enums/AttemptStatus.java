@@ -1,4 +1,4 @@
-package com.project.ai_resumerag_be.enumerators;
+package com.project.ai_resumerag_be.enums;
 
 public enum AttemptStatus {
     /** Link sent, candidate has not opened the assessment yet. */

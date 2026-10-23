@@ -66,7 +66,7 @@ public class AuthController {
         response.addHeader(HttpHeaders.SET_COOKIE, buildJwtCookie("", 0).toString());
 
         return ResponseEntity.ok(CommonResponse.builder()
-                .status(com.project.ai_resumerag_be.enumerators.CommonResponseStatus.SUCCESS)
+                .status(com.project.ai_resumerag_be.enums.CommonResponseStatus.SUCCESS)
                 .code(200)
                 .message("Logged out successfully")
                 .timestamp(java.time.LocalDateTime.now())

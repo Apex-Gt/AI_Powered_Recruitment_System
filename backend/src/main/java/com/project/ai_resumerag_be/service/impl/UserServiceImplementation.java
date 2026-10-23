@@ -1,4 +1,4 @@
-package com.project.ai_resumerag_be.service.implementation;
+package com.project.ai_resumerag_be.service.impl;
 
 import com.project.ai_resumerag_be.dto.request.AdminRequest;
 import com.project.ai_resumerag_be.dto.request.RecruiterRequest;
@@ -7,8 +7,8 @@ import com.project.ai_resumerag_be.dto.response.CommonResponse;
 import com.project.ai_resumerag_be.dto.response.UserResponse;
 import com.project.ai_resumerag_be.entity.Company;
 import com.project.ai_resumerag_be.entity.User;
-import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
-import com.project.ai_resumerag_be.enumerators.Role;
+import com.project.ai_resumerag_be.enums.CommonResponseStatus;
+import com.project.ai_resumerag_be.enums.Role;
 import com.project.ai_resumerag_be.exception.EmailAlreadyRegisteredException;
 import com.project.ai_resumerag_be.exception.PhoneNumberAlreadyExistsException;
 import com.project.ai_resumerag_be.exception.ResourceNotFoundException;

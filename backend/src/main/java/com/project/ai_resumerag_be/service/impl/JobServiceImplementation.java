@@ -1,4 +1,4 @@
-package com.project.ai_resumerag_be.service.implementation;
+package com.project.ai_resumerag_be.service.impl;
 
 import com.project.ai_resumerag_be.dto.response.CommonResponse;
 import com.project.ai_resumerag_be.dto.request.JobRequest;
@@ -9,9 +9,9 @@ import com.project.ai_resumerag_be.entity.Job;
 import com.project.ai_resumerag_be.entity.JobSkill;
 import com.project.ai_resumerag_be.entity.Skill;
 import com.project.ai_resumerag_be.entity.User;
-import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
-import com.project.ai_resumerag_be.enumerators.JobStatus;
-import com.project.ai_resumerag_be.enumerators.Role;
+import com.project.ai_resumerag_be.enums.CommonResponseStatus;
+import com.project.ai_resumerag_be.enums.JobStatus;
+import com.project.ai_resumerag_be.enums.Role;
 import com.project.ai_resumerag_be.exception.ResourceNotFoundException;
 import com.project.ai_resumerag_be.mapper.JobMapper;
 import com.project.ai_resumerag_be.mapper.JobSkillMapper;

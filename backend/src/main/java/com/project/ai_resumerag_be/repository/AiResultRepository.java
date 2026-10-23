@@ -15,7 +15,7 @@ public interface AiResultRepository extends JpaRepository<AiResult, UUID> {
 
     void deleteByCandidateIdIn(Collection<UUID> candidateIds);
 
-    java.util.List<AiResult> findByTypeAndJobIdIn(com.project.ai_resumerag_be.enumerators.AiResultType type, Collection<UUID> jobIds);
+    java.util.List<AiResult> findByTypeAndJobIdIn(com.project.ai_resumerag_be.enums.AiResultType type, Collection<UUID> jobIds);
 
     void deleteByJobId(UUID jobId);
 }

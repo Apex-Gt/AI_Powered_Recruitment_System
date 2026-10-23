@@ -1,9 +1,9 @@
 package com.project.ai_resumerag_be.dto.response;
 
-import com.project.ai_resumerag_be.enumerators.EmploymentType;
-import com.project.ai_resumerag_be.enumerators.JobStatus;
-import com.project.ai_resumerag_be.enumerators.SkillType;
-import com.project.ai_resumerag_be.enumerators.WorkMode;
+import com.project.ai_resumerag_be.enums.EmploymentType;
+import com.project.ai_resumerag_be.enums.JobStatus;
+import com.project.ai_resumerag_be.enums.SkillType;
+import com.project.ai_resumerag_be.enums.WorkMode;
 import lombok.*;
 
 import java.math.BigDecimal;

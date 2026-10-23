@@ -1,6 +1,6 @@
 package com.project.ai_resumerag_be.dto.request;
 
-import com.project.ai_resumerag_be.enumerators.InterviewType;
+import com.project.ai_resumerag_be.enums.InterviewType;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;

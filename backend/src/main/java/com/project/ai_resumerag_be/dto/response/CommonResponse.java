@@ -2,7 +2,7 @@
 
 
     import com.fasterxml.jackson.annotation.JsonFormat;
-    import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
+    import com.project.ai_resumerag_be.enums.CommonResponseStatus;
     import lombok.AllArgsConstructor;
     import lombok.Builder;
     import lombok.Data;

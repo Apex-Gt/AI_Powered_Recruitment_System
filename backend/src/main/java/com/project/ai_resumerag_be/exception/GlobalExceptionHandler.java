@@ -2,7 +2,7 @@ package com.project.ai_resumerag_be.exception;
 
 
 import com.project.ai_resumerag_be.dto.response.CommonResponse;
-import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
+import com.project.ai_resumerag_be.enums.CommonResponseStatus;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;

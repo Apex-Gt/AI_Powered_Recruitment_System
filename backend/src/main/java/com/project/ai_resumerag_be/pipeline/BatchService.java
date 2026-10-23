@@ -2,7 +2,7 @@ package com.project.ai_resumerag_be.pipeline;
 
 import com.project.ai_resumerag_be.entity.Candidate;
 import com.project.ai_resumerag_be.entity.Job;
-import com.project.ai_resumerag_be.enumerators.AiResultType;
+import com.project.ai_resumerag_be.enums.AiResultType;
 import com.project.ai_resumerag_be.exception.BadRequestException;
 import com.project.ai_resumerag_be.exception.ResourceNotFoundException;
 import com.project.ai_resumerag_be.pipeline.BatchViews.BatchView;

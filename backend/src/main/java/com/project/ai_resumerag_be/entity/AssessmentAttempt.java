@@ -1,6 +1,6 @@
 package com.project.ai_resumerag_be.entity;
 
-import com.project.ai_resumerag_be.enumerators.AttemptStatus;
+import com.project.ai_resumerag_be.enums.AttemptStatus;
 import jakarta.persistence.*;
 import lombok.*;
 

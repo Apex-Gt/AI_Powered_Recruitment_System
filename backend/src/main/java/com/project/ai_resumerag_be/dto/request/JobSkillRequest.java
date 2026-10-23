@@ -1,6 +1,6 @@
 package com.project.ai_resumerag_be.dto.request;
 
-import com.project.ai_resumerag_be.enumerators.SkillType;
+import com.project.ai_resumerag_be.enums.SkillType;
 import jakarta.validation.constraints.*;
 import lombok.*;
 

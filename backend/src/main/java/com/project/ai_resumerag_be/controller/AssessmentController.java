@@ -5,7 +5,7 @@ import com.project.ai_resumerag_be.dto.request.AssignAssessmentRequest;
 import com.project.ai_resumerag_be.dto.request.BulkAssignAssessmentRequest;
 import com.project.ai_resumerag_be.dto.request.ManualGradeRequest;
 import com.project.ai_resumerag_be.dto.response.CommonResponse;
-import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
+import com.project.ai_resumerag_be.enums.CommonResponseStatus;
 import com.project.ai_resumerag_be.service.AssessmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

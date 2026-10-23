@@ -3,7 +3,7 @@ package com.project.ai_resumerag_be.controller;
 import com.project.ai_resumerag_be.dto.request.StartAssessmentRequest;
 import com.project.ai_resumerag_be.dto.request.SubmitAssessmentRequest;
 import com.project.ai_resumerag_be.dto.response.CommonResponse;
-import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
+import com.project.ai_resumerag_be.enums.CommonResponseStatus;
 import com.project.ai_resumerag_be.service.PublicAssessmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

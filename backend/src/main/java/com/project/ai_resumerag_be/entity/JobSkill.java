@@ -1,6 +1,6 @@
 package com.project.ai_resumerag_be.entity;
 
-import com.project.ai_resumerag_be.enumerators.SkillType;
+import com.project.ai_resumerag_be.enums.SkillType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;

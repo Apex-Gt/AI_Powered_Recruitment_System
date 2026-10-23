@@ -1,8 +1,8 @@
 package com.project.ai_resumerag_be.dto.response;
 
-import com.project.ai_resumerag_be.enumerators.AssessmentStatus;
-import com.project.ai_resumerag_be.enumerators.AssessmentType;
-import com.project.ai_resumerag_be.enumerators.QuestionType;
+import com.project.ai_resumerag_be.enums.AssessmentStatus;
+import com.project.ai_resumerag_be.enums.AssessmentType;
+import com.project.ai_resumerag_be.enums.QuestionType;
 import lombok.Builder;
 import lombok.Getter;
 

@@ -2,7 +2,7 @@ package com.project.ai_resumerag_be.service;
 
 import com.project.ai_resumerag_be.dto.response.CandidateResponse;
 import com.project.ai_resumerag_be.entity.AiResult;
-import com.project.ai_resumerag_be.enumerators.AiResultType;
+import com.project.ai_resumerag_be.enums.AiResultType;
 import com.project.ai_resumerag_be.repository.AiResultRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

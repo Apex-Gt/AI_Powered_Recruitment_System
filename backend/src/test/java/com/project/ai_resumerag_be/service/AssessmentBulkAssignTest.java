@@ -2,9 +2,9 @@ package com.project.ai_resumerag_be.service;
 
 import com.project.ai_resumerag_be.dto.response.BulkAssignResponse;
 import com.project.ai_resumerag_be.entity.*;
-import com.project.ai_resumerag_be.enumerators.AssessmentStatus;
-import com.project.ai_resumerag_be.enumerators.AttemptStatus;
-import com.project.ai_resumerag_be.enumerators.Role;
+import com.project.ai_resumerag_be.enums.AssessmentStatus;
+import com.project.ai_resumerag_be.enums.AttemptStatus;
+import com.project.ai_resumerag_be.enums.Role;
 import com.project.ai_resumerag_be.exception.BadRequestException;
 import com.project.ai_resumerag_be.exception.ResourceNotFoundException;
 import com.project.ai_resumerag_be.repository.AssessmentAttemptRepository;

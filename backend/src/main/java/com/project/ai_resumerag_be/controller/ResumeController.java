@@ -3,7 +3,7 @@ package com.project.ai_resumerag_be.controller;
 import com.project.ai_resumerag_be.dto.response.CommonResponse;
 import com.project.ai_resumerag_be.entity.Candidate;
 import com.project.ai_resumerag_be.entity.Resume;
-import com.project.ai_resumerag_be.enumerators.CommonResponseStatus;
+import com.project.ai_resumerag_be.enums.CommonResponseStatus;
 import com.project.ai_resumerag_be.exception.ResourceNotFoundException;
 import com.project.ai_resumerag_be.repository.CandidateRepository;
 import com.project.ai_resumerag_be.service.CandidateService;

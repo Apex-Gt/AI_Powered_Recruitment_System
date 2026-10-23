@@ -3,7 +3,7 @@ package com.project.ai_resumerag_be.service;
 import com.project.ai_resumerag_be.entity.AssessmentAttempt;
 import com.project.ai_resumerag_be.entity.AssessmentRound;
 import com.project.ai_resumerag_be.entity.AttemptAnswer;
-import com.project.ai_resumerag_be.enumerators.AttemptStatus;
+import com.project.ai_resumerag_be.enums.AttemptStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

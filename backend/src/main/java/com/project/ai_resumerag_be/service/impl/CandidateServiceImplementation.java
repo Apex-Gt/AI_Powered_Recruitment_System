@@ -1,4 +1,4 @@
-package com.project.ai_resumerag_be.service.implementation;
+package com.project.ai_resumerag_be.service.impl;
 
 import com.project.ai_resumerag_be.dto.ai.*;
 import com.project.ai_resumerag_be.dto.request.CandidateUpdateRequest;
@@ -7,9 +7,9 @@ import com.project.ai_resumerag_be.dto.response.CandidateResponse;
 import com.project.ai_resumerag_be.entity.Candidate;
 import com.project.ai_resumerag_be.entity.Job;
 import com.project.ai_resumerag_be.entity.JobSkill;
-import com.project.ai_resumerag_be.enumerators.SkillType;
+import com.project.ai_resumerag_be.enums.SkillType;
 import com.project.ai_resumerag_be.entity.User;
-import com.project.ai_resumerag_be.enumerators.Role;
+import com.project.ai_resumerag_be.enums.Role;
 import com.project.ai_resumerag_be.exception.BadRequestException;
 import com.project.ai_resumerag_be.exception.ConflictException;
 import com.project.ai_resumerag_be.exception.ResourceNotFoundException;
