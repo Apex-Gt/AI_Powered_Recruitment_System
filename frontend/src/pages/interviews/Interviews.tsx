@@ -72,6 +72,7 @@ export function Interviews() {
     handleSubmit,
     formState: { errors },
     reset,
+    setError,
   } = useForm<ScheduleInterviewForm>({
     resolver: zodResolver(scheduleInterviewSchema),
     defaultValues: {
@@ -145,6 +146,11 @@ export function Interviews() {
   }
 
   const onSubmit = async (data: ScheduleInterviewForm) => {
+    // The picker returns local wall-clock time, so a later time today is still in the future.
+    if (!isEditing && new Date(data.scheduledAt).getTime() <= Date.now()) {
+      setError('scheduledAt', { message: 'Pick a time in the future' })
+      return
+    }
     setIsSubmitting(true)
     try {
       const interviewersArray = typeof data.interviewers === 'string'
@@ -154,6 +160,7 @@ export function Interviews() {
       const submitData = {
         ...data,
         interviewers: interviewersArray,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         meetingLink: data.meetingLink || undefined,
       }
       if (isEditing && selectedInterview) {

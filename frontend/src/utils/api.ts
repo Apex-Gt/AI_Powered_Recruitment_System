@@ -614,6 +614,8 @@ interface ScheduleInterviewRequest {
   jobId: string
   type: Interview['type']
   scheduledAt: string
+  /** Browser IANA zone, so the server judges "in the future" against the user's clock. */
+  timeZone?: string
   duration: number
   interviewers: string[]
   meetingLink?: string

@@ -35,6 +35,9 @@ public class InterviewRequest {
     @NotNull(message = "Scheduled time is required")
     private LocalDateTime scheduledAt;
 
+    /** IANA zone of the browser that picked {@link #scheduledAt}, e.g. "Asia/Kolkata". Defaults to the server zone. */
+    private String timeZone;
+
     @NotNull(message = "Duration is required")
     @Min(value = 15, message = "Duration must be at least 15 minutes")
     @Max(value = 480, message = "Duration must be at most 480 minutes")

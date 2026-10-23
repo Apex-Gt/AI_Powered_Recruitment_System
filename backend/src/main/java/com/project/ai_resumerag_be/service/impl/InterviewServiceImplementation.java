@@ -23,7 +23,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DateTimeException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -61,11 +63,23 @@ public class InterviewServiceImplementation implements InterviewService {
         return toResponse(findOwned(interviewId));
     }
 
+    /** Current wall-clock time in the zone the user picked the slot in, so "later today" counts as future. */
+    private static LocalDateTime nowIn(String timeZone) {
+        if (timeZone == null || timeZone.isBlank()) {
+            return LocalDateTime.now();
+        }
+        try {
+            return LocalDateTime.now(ZoneId.of(timeZone));
+        } catch (DateTimeException e) {
+            throw new BadRequestException("Unknown time zone: " + timeZone);
+        }
+    }
+
     @Override
     public InterviewResponse schedule(InterviewRequest request) {
         Candidate candidate = candidateService.requireOwnedCandidate(request.getCandidateId());
         requireMatchingJob(candidate, request);
-        if (!request.getScheduledAt().isAfter(LocalDateTime.now())) {
+        if (!request.getScheduledAt().isAfter(nowIn(request.getTimeZone()))) {
             throw new BadRequestException("Interview must be scheduled in the future");
         }
         if (candidate.getStatus() == ApplicationStatus.REJECTED) {
