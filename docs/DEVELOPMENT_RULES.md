@@ -222,4 +222,4 @@ Report:
 - Testing steps
 - Remaining work
 
-Then update CURRENT_STATE.md.
+Then update docs/current_status.md.

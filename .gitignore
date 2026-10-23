@@ -21,3 +21,6 @@ benchmarks/data/
 # Local scratch
 .playwright-mcp/
 backups/
+
+# Generated knowledge-graph output (regenerate with /graphify)
+graphify-out/

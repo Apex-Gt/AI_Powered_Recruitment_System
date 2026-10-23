@@ -646,7 +646,7 @@ Before changing anything:
 
 1. Inspect existing code.
 2. Understand the current implementation.
-3. Check CURRENT_STATE.md.
+3. Check docs/current_status.md.
 4. Make the smallest required change.
 5. Preserve existing naming and architecture.
 6. Do not modify unrelated modules.

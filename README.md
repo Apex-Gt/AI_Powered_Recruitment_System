@@ -115,7 +115,7 @@ Create `ai-service/.env` with your LLM key. This file is git-ignored, so everybo
 LLM_API_KEY=gsk_your_groq_key_here
 ```
 
-Everything else has working defaults in `ai-service/docker-compose.yml`. See [AI service variables](#ai-service-ai-serviceenv) for optional overrides.
+Everything else has working defaults in the root `docker-compose.yml`. See [AI service variables](#ai-service-ai-serviceenv) for optional overrides.
 
 ```bash
 cd ai-service
@@ -248,7 +248,7 @@ python main.py                                                        # terminal
 npx --yes inngest-cli@latest dev -u http://localhost:8000/api/inngest # terminal 2, port 8288
 ```
 
-`start-inngest.cmd` in the repo root runs the second command for you (and does nothing if Inngest is already up). If scoring or upload returns a 502 saying it could not queue a workflow, Inngest is not running; `/health` on the AI service also reports it as `unreachable`.
+`scripts/start-inngest.cmd` runs the second command for you (and does nothing if Inngest is already up). If scoring or upload returns a 502 saying it could not queue a workflow, Inngest is not running; `/health` on the AI service also reports it as `unreachable`.
 
 Do not also start the compose `inngest` or `ai-service` containers. They would clash on ports 8288 and 8000.
 
@@ -288,14 +288,15 @@ AI service (`http://localhost:8000`): `GET /health`, `POST /api/v1/resumes/inges
 ├── frontend/          React + Vite app
 │   └── src/           pages/, components/, context/ (Auth, Theme), utils/api.ts, styles/globals.css
 ├── backend/           Spring Boot app
-│   ├── docker-compose.yml          PostgreSQL + pgvector
 │   └── src/main/java/com/project/ai_resumerag_be/
 │       ├── controller/  config/ (security, JWT filter)  service/  repository/  entity/  dto/
 ├── ai-service/        FastAPI service
-│   ├── docker-compose.yml          Qdrant + Inngest + AI service
 │   ├── app/           api/, services/, workflows/, core/ (config), models/
 │   └── tests/         unit/, integration/
-└── *.md               design and status notes (PROJECT_CONTEXT, IMPLEMENTATION_PLAN, DEVELOPMENT_RULES, ...)
+├── benchmarks/        repeatable 50/100/500 pipeline benchmark
+├── scripts/           backup/restore and start-inngest helpers
+├── docs/              architecture, pipeline, API, ops, current_status, project rules and plan
+└── docker-compose*.yml  full stack (base), host-ports (dev) and GPU overrides
 ```
 
 ---
@@ -327,7 +328,7 @@ Housekeeping: do not commit secrets, and `backend/target/`, `frontend/dist/` and
 Make sure you're on the latest `main`. Old builds skipped JWT validation on `/auth/me`. Also check that the browser accepts cookies for `localhost`, and that you open the app as `localhost:3000` (not a LAN IP, which is not in the CORS list).
 
 **Backend fails at startup with a database connection error**
-PostgreSQL isn't running or is on a different port. Run `docker ps`, then `docker logs ai_resume_postgres`. The host port is **5433**, not 5432. If something else uses 5433, change the mapping in `backend/docker-compose.yml` and set `SPRING_DATASOURCE_URL` to match.
+PostgreSQL isn't running or is on a different port. Run `docker ps`, then `docker logs ai_resume_postgres`. The host port is **5433**, not 5432. If something else uses 5433, change the `postgres` port mapping in `docker-compose.dev.yml` and set `SPRING_DATASOURCE_URL` to match.
 
 **Uploads are accepted but scores or summaries never appear**
 - Check that `AI_SERVICE_BASE_URL` points to `http://localhost:8000`. The default in `application.properties` (8001) is wrong for this setup.

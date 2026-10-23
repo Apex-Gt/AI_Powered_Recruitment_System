@@ -59,8 +59,8 @@ cp .env.example .env
 
 # Edit .env: set LLM_API_KEY (free key from https://console.groq.com/keys)
 
-# Start Qdrant
-docker-compose up -d qdrant
+# Start Qdrant (from the repo root)
+(cd .. && docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d qdrant)
 
 # Install dependencies (includes torch + FlagEmbedding for the default local
 # BGE-M3 embedder/reranker; on CPU-only machines install torch first with
@@ -99,14 +99,14 @@ and its default `ai-service.base-url` is `http://localhost:8001`, so either set 
 ### Docker Deployment
 
 ```bash
-# Build and start all services
-docker-compose up --build -d
+# From the repo root: build and start the whole stack
+docker compose up --build -d
 
 # View logs
-docker-compose logs -f ai-service
+docker compose logs -f ai-service
 
 # Stop services
-docker-compose down
+docker compose down
 ```
 
 ## Environment Variables
@@ -329,10 +329,8 @@ ai-service/
 ├── tests/
 │   ├── unit/             # Unit tests
 │   └── integration/      # Integration tests
-├── config/               # Configuration files
 ├── data/                 # Local data storage (PDFs)
 ├── Dockerfile
-├── docker-compose.yml
 ├── pyproject.toml
 ├── .env.example
 ├── main.py
