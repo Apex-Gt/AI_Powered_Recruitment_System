@@ -129,6 +129,7 @@ docker compose down
 | `SPRING_BOOT_BASE_URL` | Spring Boot API URL | `http://localhost:8080` |
 | `SPRING_BOOT_API_KEY` | Sent as `X-API-Key` on callbacks to Spring | Optional |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000,http://localhost:5173,http://localhost:8080` |
+| `QDRANT_PATH` | Embedded on-disk Qdrant (no server or Docker; single process, `API_WORKERS=1`). Overrides host/port | unset |
 | `QDRANT_LOCATION` | e.g. `:memory:` for an in-process Qdrant (tests) | unset |
 
 See `.env.example` for complete list.

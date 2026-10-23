@@ -22,7 +22,10 @@ class QdrantConfig(_EnvSettings):
 
     host: str = "localhost"
     port: int = 6333
-    location: str | None = None  # e.g. ":memory:" for tests; overrides host/port
+    location: str | None = None  # e.g. ":memory:" for tests; overrides path and host/port
+    # Embedded, on-disk Qdrant inside the AI service process: no server or Docker needed, data survives restarts.
+    # Single process only (the folder is locked), so keep API_WORKERS=1. Overrides host/port.
+    path: str | None = None
     collection_name: str = "resume_chunks"
     distance_metric: Literal["cosine", "euclidean", "dot"] = "cosine"
     batch_size: int = 100

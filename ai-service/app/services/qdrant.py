@@ -39,6 +39,8 @@ class QdrantService:
         if self.client is None:
             if settings.qdrant.location:
                 self.client = QdrantClient(location=settings.qdrant.location)
+            elif settings.qdrant.path:
+                self.client = QdrantClient(path=settings.qdrant.path)
             else:
                 self.client = QdrantClient(
                     host=settings.qdrant.host,
