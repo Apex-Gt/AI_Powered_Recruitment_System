@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   BarChart3,
@@ -6,13 +5,11 @@ import {
   Building2,
   Calendar,
   CheckSquare,
-  ChevronsUpDown,
   Kanban,
   LayoutDashboard,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
-  Settings,
   UserRound,
   Users,
   X,
@@ -64,35 +61,13 @@ export function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile }: Side
   const { user, hasRole, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!menuOpen) return
-    const onClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false)
-    document.addEventListener('mousedown', onClick)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onClick)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [menuOpen])
-
-  useEffect(() => setMenuOpen(false), [location.pathname])
-
   const isActive = (href: string) => location.pathname === href || (href !== '/dashboard' && location.pathname.startsWith(href))
 
   const signOut = async () => {
-    setMenuOpen(false)
     await logout()
     navigate('/login', { replace: true })
   }
 
-  const initial = user?.userName?.charAt(0).toUpperCase() || 'U'
-  const roleLabel = user?.role?.replace('_', ' ').toLowerCase() || ''
   // The collapsed rail only applies from lg up; the mobile drawer is always full width.
   const rail = collapsed
 
@@ -177,43 +152,6 @@ export function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile }: Side
             <LogOut className="nav-item-icon" aria-hidden="true" />
             <span className={cn(rail && 'lg:hidden')}>Sign out</span>
           </button>
-
-          <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setMenuOpen((o) => !o)}
-              aria-expanded={menuOpen}
-              aria-label="Account menu"
-              className={cn(
-                'flex w-full cursor-pointer items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-[var(--sidebar-hover)]',
-                rail && 'lg:justify-center lg:p-1.5'
-              )}
-            >
-              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-500 text-label-md font-bold text-[#1c1917]">{initial}</span>
-              <span className={cn('min-w-0 flex-1', rail && 'lg:hidden')}>
-                <span className="block truncate text-body-sm font-semibold text-ink-900 dark:text-ink-100">{user?.userName}</span>
-                <span className="block truncate text-body-xs capitalize" style={{ color: 'var(--sidebar-muted)' }}>{roleLabel}</span>
-              </span>
-              <ChevronsUpDown className={cn('h-4 w-4 flex-shrink-0 opacity-60', rail && 'lg:hidden')} aria-hidden="true" />
-            </button>
-
-            {menuOpen && (
-              <div className={cn('dropdown-menu absolute bottom-full mb-2 w-64 text-ink-900 dark:text-ink-100', rail ? 'lg:left-0' : 'left-0')}>
-                <div className="px-3 py-2.5">
-                  <p className="truncate text-body-sm font-semibold">{user?.userName}</p>
-                  <p className="truncate text-body-xs text-ink-600 dark:text-ink-400">{user?.email}</p>
-                </div>
-                <div className="dropdown-divider" />
-                <Link to="/settings" className="dropdown-item">
-                  <Settings className="h-4 w-4" aria-hidden="true" />
-                  Settings
-                </Link>
-                <button onClick={signOut} className="dropdown-item cursor-pointer">
-                  <LogOut className="h-4 w-4" aria-hidden="true" />
-                  Sign out
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </aside>
     </>
