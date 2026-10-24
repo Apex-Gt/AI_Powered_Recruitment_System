@@ -87,10 +87,10 @@ class TaskStoreTest {
     @Test
     void backoffGrowsWithEachAttempt() {
         ResumeTask first = task(ResumeTaskStage.INDEX, 1);
-        ResumeTask third = task(ResumeTaskStage.INDEX, 3);
+        ResumeTask third = task(ResumeTaskStage.INDEX, 2);
         store.recordFailure(first.getId(), StageFailure.transientFailure("X", "down"));
         store.recordFailure(third.getId(), StageFailure.transientFailure("X", "down"));
-        assertTrue(third.getNextAttemptAt().isAfter(first.getNextAttemptAt().plusSeconds(10)));
+        assertTrue(third.getNextAttemptAt().isAfter(first.getNextAttemptAt().plusSeconds(5)));
     }
 
     @Test
@@ -192,9 +192,44 @@ class TaskStoreTest {
         t.setResumeId(UUID.randomUUID());
 
         assertEquals(TaskStore.PersistOutcome.CREATED, store.persistCandidate(t.getId()));
-        assertEquals(ResumeTaskStage.PROFILE, t.getStage());
+        assertEquals(ResumeTaskStage.INDEX, t.getStage());
         verify(candidates, never()).save(any());
         verify(resumes, never()).save(any());
+    }
+
+    @Test
+    void aResumeWithoutAnEmailIsParkedBeforeTheSlowProfileStep() {
+        ResumeTask t = task(ResumeTaskStage.EXTRACT, 1);
+        store.saveExtract(t.getId(), Map.of("text", "resume text", "contact", new java.util.HashMap<String, Object>()));
+
+        assertEquals(ResumeTaskStatus.NEEDS_REVIEW, t.getStatus());
+        assertEquals("NO_EMAIL", t.getErrorCode());
+        assertEquals(ResumeTaskStage.EXTRACT, t.getStage(), "never reaches the profile stage");
+        verify(candidates, never()).save(any());
+    }
+
+    @Test
+    void anApplicantWhoAlreadyAppliedIsStoppedBeforeTheSlowProfileStep() throws IOException {
+        ResumeTask t = task(ResumeTaskStage.EXTRACT, 1);
+        Candidate existing = Candidate.builder().id(UUID.randomUUID()).build();
+        when(candidates.findByJobIdAndCandidateEmail(jobId, "jane@example.com")).thenReturn(List.of(existing));
+
+        store.saveExtract(t.getId(), Map.of("text", "resume text", "contact", Map.of("email", "Jane@Example.com")));
+
+        assertEquals(ResumeTaskStatus.DUPLICATE, t.getStatus());
+        assertEquals(ResumeTaskStage.EXTRACT, t.getStage());
+    }
+
+    @Test
+    void theProfileIsHeldOnTheTaskUntilTheCandidateExists() {
+        ResumeTask t = task(ResumeTaskStage.PROFILE, 1);
+
+        store.saveProfile(t.getId(), Map.of("profile", Map.of("name", "Jane Doe")));
+
+        assertNotNull(t.getProfileJson());
+        assertEquals(ResumeTaskStage.PERSIST, t.getStage());
+        verify(aiResults, never()).save(any(), any(), any(), any());
+        verify(candidates, never()).save(any());
     }
 
     @Test
@@ -206,6 +241,30 @@ class TaskStoreTest {
         assertEquals(ResumeTaskStatus.NEEDS_REVIEW, t.getStatus());
         assertEquals("NO_EMAIL", t.getErrorCode());
         verify(candidates, never()).save(any());
+    }
+
+    @Test
+    void anEmailTypedInResumesAtTheProfileStepWithoutCreatingACandidate() {
+        ResumeTask t = task(ResumeTaskStage.EXTRACT, 1);
+        extractWith(t, null, "Jane Doe");
+        t.setStatus(ResumeTaskStatus.NEEDS_REVIEW);
+        t.setErrorCode("NO_EMAIL");
+
+        assertEquals(TaskStore.EmailOutcome.QUEUED, store.supplyEmail(t.getId(), " Jane@Example.com "));
+
+        assertEquals(ResumeTaskStatus.QUEUED, t.getStatus());
+        assertEquals(ResumeTaskStage.PROFILE, t.getStage());
+        assertNull(t.getErrorCode());
+        assertTrue(t.getExtractJson().contains("jane@example.com"));
+        verify(candidates, never()).save(any());
+    }
+
+    @Test
+    void anEmailCannotBeTypedIntoAResumeThatWasNotWaitingForOne() {
+        ResumeTask t = task(ResumeTaskStage.PROFILE, 1);
+
+        assertEquals(TaskStore.EmailOutcome.NOT_APPLICABLE, store.supplyEmail(t.getId(), "jane@example.com"));
+        assertEquals(ResumeTaskStatus.PROCESSING, t.getStatus());
     }
 
     @Test
@@ -255,7 +314,7 @@ class TaskStoreTest {
         assertEquals("a".repeat(64), resume.getValue().getSha256());
         assertEquals("resume text", resume.getValue().getExtractedText());
         assertNotNull(t.getCandidateId());
-        assertEquals(ResumeTaskStage.PROFILE, t.getStage());
+        assertEquals(ResumeTaskStage.INDEX, t.getStage());
     }
 
     // --------------------------------------------------------- manual retry

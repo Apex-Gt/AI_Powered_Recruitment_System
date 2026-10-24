@@ -10,6 +10,7 @@ import { ConfirmModal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Input'
 import { AITags } from '@/components/ui/ScoreIndicator'
 import { EmptyNote, Panel } from '@/components/ui/Panel'
+import { RequirementEvidence } from '@/components/candidates/RequirementEvidence'
 import { EditCandidateModal } from '@/components/candidates/EditCandidateModal'
 import { AttemptReviewModal } from '@/components/assessments/AttemptReviewModal'
 import { cn, formatDate, formatRelativeTime, getInitials } from '@/utils/helpers'
@@ -209,7 +210,6 @@ export function CandidateProfile() {
     setAnalysing(true)
     try {
       await candidateApi.scoreJob(id, candidate.jobId)
-      await candidateApi.generateRAGSummary(id, candidate.jobId).catch(() => undefined)
       toast.success('Analysis started. This usually takes under a minute.')
       let tries = 0
       poll.current = window.setInterval(async () => {
@@ -454,6 +454,7 @@ export function CandidateProfile() {
               (aiAnalysis ? (
                 <div className="space-y-6">
                   {aiAnalysis.summary && <p className="max-w-prose text-body-lg text-ink-800 dark:text-ink-200">{aiAnalysis.summary}</p>}
+                  <RequirementEvidence analysis={aiAnalysis} />
                   <AITags matchingSkills={aiAnalysis.matchingSkills} relevantExperience={aiAnalysis.relevantExperience} potentialGaps={aiAnalysis.potentialGaps} />
                   {aiAnalysis.generatedAt && <p className="text-body-xs text-ink-600 dark:text-ink-400">Generated {formatRelativeTime(aiAnalysis.generatedAt)} by the AI service.</p>}
                   {canEdit && (

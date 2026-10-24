@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CandidateController {
 
+    private final com.project.ai_resumerag_be.pipeline.BatchService batchService;
+
     private final CandidateService candidateService;
     private final CandidateRepository candidateRepository;
     private final CandidateMapper candidateMapper;
@@ -156,6 +158,13 @@ public class CandidateController {
         analysis.put("relevantExperience", rag.getOrDefault("relevantExperience", List.of()));
         analysis.put("potentialGaps", s.getOrDefault("missingSkills", List.of()));
         analysis.put("summary", summary != null ? summary : "Summary is still being generated.");
+        // Evidence behind the explanation. Absent on results stored before it existed; the client treats each as optional.
+        analysis.put("strengths", rag.getOrDefault("strengths", List.of()));
+        analysis.put("requirements", rag.getOrDefault("requirementAssessments", List.of()));
+        analysis.put("notEvidenced", rag.getOrDefault("notEvidenced", List.of()));
+        analysis.put("overallAssessment", rag.getOrDefault("overallAssessment", ""));
+        analysis.put("limitations", rag.getOrDefault("limitations", List.of()));
+        analysis.put("confidence", rag.get("confidenceScore"));
         analysis.put("generatedAt", rag.getOrDefault("generatedAt", s.get("createdAt")));
 
         return ResponseEntity.ok(CommonResponse.builder()
@@ -390,18 +399,18 @@ public class CandidateController {
             @PathVariable UUID candidateId,
             @PathVariable UUID jobId) {
 
-        candidateService.requireOwnedCandidate(candidateId);
-        candidateService.requireOwnedJob(jobId);
-
-        return candidateService.triggerScoreJob(candidateId, jobId)
-                .map(response -> ResponseEntity.ok(
-                        CommonResponse.builder()
-                                .code(200)
-                                .status(CommonResponseStatus.SUCCESS)
-                                .data(response)
-                                .message("Candidate scoring started")
-                                .timestamp(LocalDateTime.now())
-                                .build()));
+        // Goes through the same queue as "Rank candidates" (scores and writes the summary); the old Inngest route is not run.
+        int queued = batchService.rankCandidate(candidateId, jobId);
+        boolean ok = queued > 0;
+        return Mono.just(ResponseEntity.status(ok ? 200 : 409).body(
+                CommonResponse.builder()
+                        .code(ok ? 200 : 409)
+                        .status(ok ? CommonResponseStatus.SUCCESS : CommonResponseStatus.FAILURE)
+                        .data(Map.of("queued", queued))
+                        .message(ok ? "Candidate analysis started"
+                                : "This resume is still being read, or its details could not be extracted yet, so it cannot be analysed")
+                        .timestamp(LocalDateTime.now())
+                        .build()));
     }
 
     @PreAuthorize("hasAnyRole('RECRUITER','ADMIN')")

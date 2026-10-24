@@ -7,10 +7,10 @@ package com.project.ai_resumerag_be.pipeline;
 public enum ResumeTaskStage {
     /** Read the file, take deterministic contact fields. No LLM. */
     EXTRACT,
-    /** Create the Resume and Candidate rows. */
-    PERSIST,
-    /** Local-LLM structured profile (skills, employment history, education). */
+    /** LLM structured profile (skills, employment history, education). Kept on the task, not yet on a candidate. */
     PROFILE,
+    /** Create the Resume and Candidate rows and attach the profile. Only reached once the profile succeeded. */
+    PERSIST,
     /** Chunk, embed and upsert into the vector store. */
     INDEX,
     /** Explainable deterministic match score. */

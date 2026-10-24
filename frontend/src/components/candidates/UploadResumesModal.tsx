@@ -44,6 +44,7 @@ export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs
   const [note, setNote] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [sent, setSent] = useState(0) // share of the files' bytes that have reached the server, 0-1
   const [batchId, setBatchId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -86,9 +87,10 @@ export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs
     if (!selectedJobId || rows.length === 0) return
 
     setIsUploading(true)
+    setSent(0)
     try {
       // One request, however many files: the server stores and queues them and answers immediately.
-      const batch = await batchApi.create(selectedJobId, rows.map((r) => r.file))
+      const batch = await batchApi.create(selectedJobId, rows.map((r) => r.file), setSent)
       setBatchId(batch.id)
       setRows([])
     } catch (e) {
@@ -107,7 +109,11 @@ export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs
       closeOnOverlayClick={!!batchId}
       size="xl"
       title="Add candidates"
-      description="Upload up to 500 resumes (PDF, DOCX or TXT) at once. They are read and scored in the background."
+      description={
+        batchId
+          ? "We're turning your uploaded resumes into structured candidate profiles. Once processing is complete, you'll be ready to discover the best matches for your job."
+          : 'Upload up to 500 resumes (PDF, DOCX or TXT) at once.'
+      }
     >
       {batchId ? (
         <div className="space-y-5">
@@ -219,6 +225,25 @@ export function UploadResumesModal({ isOpen, onClose, onUploaded, fixedJob, jobs
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {isUploading && (
+            <div role="status" aria-live="polite">
+              <div className="flex items-center justify-between text-body-sm font-semibold text-ink-900 dark:text-ink-100">
+                <span>{sent < 1 ? 'Uploading files…' : 'Files received. Queuing them for processing…'}</span>
+                <span className="tabular">{Math.round(sent * 100)}%</span>
+              </div>
+              <div
+                className="progress-bar mt-2"
+                role="progressbar"
+                aria-valuenow={Math.round(sent * 100)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Upload progress"
+              >
+                <div className="progress-fill" style={{ width: `${Math.round(sent * 100)}%` }} />
+              </div>
             </div>
           )}
 

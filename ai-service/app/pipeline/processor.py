@@ -307,6 +307,7 @@ class ResumePipeline:
                 match_score=match_score,
                 candidate_id=candidate_id,
                 query=f"{job.title}\n{job.description}".strip(),
+                resume_text=extracted.text,
             )
         except Exception as e:  # noqa: BLE001
             raise map_dependency_error(e) from e

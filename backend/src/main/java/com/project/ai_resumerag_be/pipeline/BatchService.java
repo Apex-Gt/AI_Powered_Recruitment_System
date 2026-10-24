@@ -20,6 +20,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -48,6 +51,7 @@ public class BatchService {
     private final FileStorageService fileStorage;
     private final AiResultStore aiResults;
     private final PipelineProperties properties;
+    private final ResumeTaskProcessor processor;
 
     // ------------------------------------------------------------------- upload
 
@@ -163,7 +167,11 @@ public class BatchService {
             byStatus.put(s.name(), counts.getOrDefault(s, 0L));
         }
 
-        LocalDateTime start = batch.getCreatedAt();
+        LocalDateTime start = all.stream()
+                .filter(t -> t.getStatus() == ResumeTaskStatus.PROCESSING || t.getStatus() == ResumeTaskStatus.COMPLETED
+                        || t.getStatus() == ResumeTaskStatus.NEEDS_REVIEW)
+                .map(ResumeTask::getStartedAt).filter(Objects::nonNull).min(LocalDateTime::compareTo)
+                .orElse(batch.getCreatedAt());
         LocalDateTime end = batch.getCompletedAt() != null ? batch.getCompletedAt() : LocalDateTime.now();
         long finished = counts.entrySet().stream().filter(e -> !e.getKey().isActive()).mapToLong(Map.Entry::getValue).sum();
         long remaining = Math.max(0, batch.getTotalFiles() - finished);
@@ -171,17 +179,20 @@ public class BatchService {
         Double rate = BatchProgress.perMinute(finished, start, end);
         Long eta = rate != null && remaining > 0 && batch.getCompletedAt() == null ? Math.round(remaining / rate * 60) : null;
 
+        BatchProgress.RankingCounts ranked = BatchProgress.rankingCounts(all);
         return new BatchView(batch.getId(), batch.getJobId(), batch.getStatus(), batch.getTotalFiles(),
-                BatchProgress.percent(counts, batch.getTotalFiles()), byStatus, batch.getCreatedAt(), batch.getCompletedAt(),
+                BatchProgress.weightedPercent(all, LocalDateTime.now()), byStatus, batch.getCreatedAt(), batch.getCompletedAt(),
                 Duration.between(start, end).toMillis() / 1000.0, rate,
-                BatchProgress.percentile(latencies, 50), BatchProgress.percentile(latencies, 95), eta);
+                BatchProgress.percentile(latencies, 50), BatchProgress.percentile(latencies, 95), eta,
+                all.stream().filter(t -> t.getStatus().isActive() && t.isRanking()).count(),
+                ranked.total(), ranked.done(), ranked.failed());
     }
 
     public Page<TaskView> listTasks(UUID batchId, ResumeTaskStatus status, int page, int size) {
         requireAccessible(batchId);
         PageRequest pageable = PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 200), Sort.by("createdAt").ascending());
         Page<ResumeTask> result = status == null ? tasks.findByBatchId(batchId, pageable) : tasks.findByBatchIdAndStatus(batchId, status, pageable);
-        return result.map(TaskView::of);
+        return result.map(t -> TaskView.of(t, properties.getRetry().getMaxAttempts()));
     }
 
     public List<BatchView> recentForJob(UUID jobId) {
@@ -209,7 +220,7 @@ public class BatchService {
             row.put("candidateName", candidate.getCandidateName());
             row.put("candidateEmail", candidate.getCandidateEmail());
             row.put("status", task.getStatus());
-            row.put("warnings", TaskView.of(task).warnings());
+            row.put("warnings", TaskView.of(task, properties.getRetry().getMaxAttempts()).warnings());
             aiResults.find(AiResultType.PROFILE, candidate.getId(), null).ifPresent(profile -> {
                 row.put("extractedName", profile.get("name"));
                 row.put("extractedSkills", skillNames(profile.get("skills")));
@@ -255,6 +266,105 @@ public class BatchService {
 
     // -------------------------------------------------------------------- retry
 
+    /**
+     * Scores and summarises every candidate of the job that has been read. Uploads do not do this on their own.
+     * {@code waiting} counts resumes still being read: they are not part of this run.
+     */
+    public Map<String, Object> rank(UUID jobId) {
+        candidateService.requireOwnedJob(jobId);
+        long waiting = store.stillReading(jobId);
+        int queued = store.queueRanking(jobId);
+        return Map.of("queued", queued, "waiting", waiting);
+    }
+
+    /** Re-runs scoring and the summary for one candidate through the queue. @return how many were queued (0 or 1). */
+    public int rankCandidate(UUID candidateId, UUID jobId) {
+        candidateService.requireOwnedCandidate(candidateId);
+        candidateService.requireOwnedJob(jobId);
+        return store.queueRanking(jobId, candidateId);
+    }
+
+    /**
+     * Cancels a batch that is still running.
+     * <ul>
+     *   <li>While resumes are being ranked: only the ranking stops; candidates and anything already scored stay.</li>
+     *   <li>Otherwise it is an upload cancel: every unfinished resume is stopped, and the candidates, resumes, AI
+     *   results, vectors and stored files this batch created (including ones that had already finished) are removed.
+     *   Duplicates of earlier applicants are left alone: they point at somebody else's candidate.</li>
+     * </ul>
+     * Workers still busy with a resume are interrupted after the commit, which abandons their pending AI request;
+     * anything they try to save afterwards is rejected by {@link TaskStore}.
+     */
+    @Transactional
+    public Map<String, Object> cancel(UUID batchId) {
+        requireAccessible(batchId);
+        List<ResumeTask> all = tasks.lockByBatchId(batchId);
+        LocalDateTime now = LocalDateTime.now();
+        List<UUID> interrupt = all.stream().filter(t -> t.getStatus() == ResumeTaskStatus.PROCESSING).map(ResumeTask::getId).toList();
+
+        int stopped = 0;
+        int removed = 0;
+        boolean rankingOnly = all.stream().anyMatch(t -> t.getStatus().isActive() && t.isRanking());
+        if (rankingOnly) {
+            for (ResumeTask task : all) {
+                if (task.getStatus().isActive() && task.isRanking()) {
+                    task.setRanking(false);
+                    task.setStatus(task.isNeedsReview() ? ResumeTaskStatus.NEEDS_REVIEW : ResumeTaskStatus.COMPLETED);
+                    task.setStage(ResumeTaskStage.DONE);
+                    task.setLockedBy(null);
+                    task.setLockedUntil(null);
+                    task.setFinishedAt(now);
+                    stopped++;
+                }
+            }
+        } else {
+            List<UUID> candidateIds = new ArrayList<>();
+            for (ResumeTask task : all) {
+                boolean createdHere = task.getResumeId() != null && task.getCandidateId() != null;
+                boolean unfinished = task.getStatus().isActive();
+                boolean finishedHere = createdHere && (task.getStatus() == ResumeTaskStatus.COMPLETED || task.getStatus() == ResumeTaskStatus.NEEDS_REVIEW);
+                if (!unfinished && !finishedHere) {
+                    continue;
+                }
+                if (createdHere) {
+                    candidateIds.add(task.getCandidateId());
+                } else {
+                    deleteQuietly(task.getFileUrl());
+                }
+                task.setStatus(ResumeTaskStatus.CANCELLED);
+                task.setRanking(false);
+                task.setDedupeKey(null);
+                task.setFileUrl(null);
+                task.setExtractJson(null);
+                task.setLockedBy(null);
+                task.setLockedUntil(null);
+                task.setErrorCode("CANCELLED");
+                task.setErrorMessage("The upload was cancelled");
+                task.setFinishedAt(now);
+                if (unfinished) {
+                    stopped++;
+                }
+            }
+            if (!candidateIds.isEmpty()) {
+                candidateService.deleteCandidates(candidateIds);
+                removed = candidateIds.size();
+            }
+        }
+        tasks.flush();
+        store.refreshBatch(batchId);
+
+        if (!interrupt.isEmpty()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    interrupt.forEach(processor::interrupt);
+                }
+            });
+        }
+        log.info("Batch {} cancelled ({}): {} stopped, {} candidate(s) removed", batchId, rankingOnly ? "ranking" : "upload", stopped, removed);
+        return Map.of("mode", rankingOnly ? "ranking" : "upload", "stopped", stopped, "removedCandidates", removed);
+    }
+
     public int retryFailed(UUID batchId) {
         requireAccessible(batchId);
         return store.retryFailed(batchId);
@@ -265,6 +375,19 @@ public class BatchService {
         ResumeTask task = tasks.findById(taskId).filter(t -> t.getBatchId().equals(batchId))
                 .orElseThrow(() -> new ResourceNotFoundException("Resume task not found: " + taskId));
         return store.retryOne(task.getId());
+    }
+
+    private static final java.util.regex.Pattern EMAIL = java.util.regex.Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+
+    /** @return the outcome, or empty when {@code email} is not a plausible address. */
+    public java.util.Optional<TaskStore.EmailOutcome> supplyEmail(UUID batchId, UUID taskId, String email) {
+        requireAccessible(batchId);
+        ResumeTask task = tasks.findById(taskId).filter(t -> t.getBatchId().equals(batchId))
+                .orElseThrow(() -> new ResourceNotFoundException("Resume task not found: " + taskId));
+        if (email == null || !EMAIL.matcher(email.trim()).matches()) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(store.supplyEmail(task.getId(), email));
     }
 
     // ------------------------------------------------------------------- access
@@ -285,6 +408,9 @@ public class BatchService {
     }
 
     private void deleteQuietly(String fileUrl) {
+        if (fileUrl == null) {
+            return;
+        }
         try {
             fileStorage.deleteFile(fileUrl);
         } catch (IOException e) {

@@ -199,6 +199,24 @@ class EvidenceChunk(CamelModel):
     source_pdf: str
 
 
+class EvidenceRef(CamelModel):
+    """Where in the parsed resume a claim comes from. Every field is real: nothing here is invented."""
+
+    source: str  # the project, employer or section the text sits in, as written in the resume
+    source_type: str  # project | professional experience | internship | listed skills | education | certification | resume
+    section: str | None = None  # section of the retrieved chunk that holds the quote
+    chunk_id: str | None = None  # id of a stored resume chunk that contains the quote, when one does
+    quote: str | None = None  # text copied verbatim from the resume; None when only the parsed field is known
+
+
+class RequirementAssessment(CamelModel):
+    requirement: str
+    category: str  # mandatory skill | preferred skill | experience | education | responsibility
+    status: Literal["demonstrated", "partial", "not_evidenced"]
+    explanation: str
+    evidence: list[EvidenceRef] = Field(default_factory=list)
+
+
 class RAGSummary(CamelModel):
     candidate_id: str
     job_id: str
@@ -207,6 +225,12 @@ class RAGSummary(CamelModel):
     missing_skills: list[str] = Field(default_factory=list)
     relevant_experience: list[str] = Field(default_factory=list)
     evidence: list[EvidenceChunk] = Field(default_factory=list)
+    # Requirement-by-requirement comparison with traceable evidence. Optional so results stored before it existed still load.
+    requirement_assessments: list[RequirementAssessment] = Field(default_factory=list)
+    not_evidenced: list[str] = Field(default_factory=list)
+    overall_assessment: str = ""
+    limitations: list[str] = Field(default_factory=list)
+    verification: dict = Field(default_factory=dict)  # {"passed": bool, "fallback": bool, "violations": [...]}
     summary_text: str
     confidence_score: float = Field(0.0, ge=0, le=1)
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

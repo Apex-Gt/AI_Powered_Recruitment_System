@@ -19,6 +19,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -33,6 +34,8 @@ class ResumeTaskProcessorTest {
     @Mock AiResultStore aiResults;
     @Mock CandidateService candidateService;
     @Mock FileStorageService fileStorage;
+    @Mock com.project.ai_resumerag_be.repository.CandidateRepository candidates;
+    @Mock com.project.ai_resumerag_be.service.AIServiceClient aiServiceClient;
 
     private final ObjectMapper mapper = JsonMapper.builder().build();
     private final PipelineProperties properties = new PipelineProperties();
@@ -45,14 +48,16 @@ class ResumeTaskProcessorTest {
 
     @BeforeEach
     void setUp() {
-        processor = new ResumeTaskProcessor(store, ai, aiResults, candidateService, fileStorage, properties, mapper);
+        processor = new ResumeTaskProcessor(store, ai, aiResults, candidateService, fileStorage, properties, mapper, candidates, aiServiceClient);
         lenient().when(fileStorage.getFilePath(anyString())).thenReturn("/data/cv.pdf");
     }
 
     private ResumeTask task(ResumeTaskStage stage) {
         return ResumeTask.builder().id(taskId).jobId(jobId).candidateId(candidateId).resumeId(UUID.randomUUID())
                 .fileName("cv.pdf").fileUrl("resumes/cv.pdf").sha256("s".repeat(64))
-                .status(ResumeTaskStatus.PROCESSING).stage(stage).build();
+                .status(ResumeTaskStatus.PROCESSING).stage(stage)
+                .ranking(stage == ResumeTaskStage.INDEX || stage == ResumeTaskStage.SCORE || stage == ResumeTaskStage.SUMMARY)
+                .build();
     }
 
     /** Serves the task in a given stage, then in the next one, and so on, like the database would. */
@@ -89,6 +94,39 @@ class ResumeTaskProcessorTest {
         order.verify(ai).profile("/data/cv.pdf", "cv.pdf");
         order.verify(store).saveProfile(eq(taskId), any());
         order.verify(store).complete(taskId);
+    }
+
+    @Test
+    void anUploadStopsAfterTheProfileAndLeavesRankingForLater() {
+        ResumeTask upload = task(ResumeTaskStage.INDEX);
+        upload.setRanking(false);
+        when(store.get(taskId)).thenReturn(upload);
+
+        processor.run(taskId);
+
+        verify(store).complete(taskId);
+        verify(ai, never()).index(any(), any(), any(), any(), any());
+        verify(ai, never()).score(any(), any(), any(), any());
+    }
+
+    @Test
+    void aTaskCancelledMidStageDropsItsResultAndRemovesVectorsOfARemovedCandidate() {
+        doThrow(new TaskNoLongerRunning(taskId)).when(store).markIndexed(taskId);
+        when(store.get(taskId)).thenReturn(task(ResumeTaskStage.INDEX));
+        when(candidates.existsById(candidateId)).thenReturn(false);
+        when(aiServiceClient.deleteCandidate(candidateId)).thenReturn(reactor.core.publisher.Mono.empty());
+
+        processor.run(taskId);
+
+        verify(aiServiceClient).deleteCandidate(candidateId);
+        verify(store, never()).recordFailure(any(), any());
+        verify(store, never()).complete(any());
+    }
+
+    @Test
+    void interruptingATaskThatIsNotRunningHereDoesNothing() {
+        processor.interrupt(UUID.randomUUID());
+        assertFalse(Thread.currentThread().isInterrupted());
     }
 
     @Test
@@ -161,7 +199,7 @@ class ResumeTaskProcessorTest {
         // The summary key also depends on the model, the score key does not.
         assertNotEquals(processor.analysisKey(t, job("x"), true), processor.analysisKey(t, job("x"), false));
         properties.setModelTag("qwen3:8b");
-        assertNotEquals(processor.analysisKey(t, job("x"), true), new ResumeTaskProcessor(store, ai, aiResults, candidateService, fileStorage, new PipelineProperties(), mapper).analysisKey(t, job("x"), true));
+        assertNotEquals(processor.analysisKey(t, job("x"), true), new ResumeTaskProcessor(store, ai, aiResults, candidateService, fileStorage, new PipelineProperties(), mapper, candidates, aiServiceClient).analysisKey(t, job("x"), true));
     }
 
     @Test

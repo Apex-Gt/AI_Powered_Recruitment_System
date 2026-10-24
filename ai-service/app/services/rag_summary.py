@@ -9,13 +9,32 @@ from app.models.schemas import (
     JobDescription,
     MatchScore,
     RAGSummary,
-    EvidenceChunk,
     ResumeChunk,
+)
+from app.services.evidence import (
+    Analysis,
+    analyse,
+    confidence_from,
+    fallback_narrative,
+    overall_from,
+    relevant_experience_from,
+    strengths_from,
+    strip_placeholders,
+    verify_narrative,
+    word_count,
 )
 from app.services.llm import LLMService, get_llm_service
 from app.services.reranker import RerankerService
 
 logger = get_logger(__name__)
+
+MAX_ATTEMPTS = 2
+MIN_WORDS, MAX_WORDS = 90, 160  # the prompt asks for 100-150; a little slack so a good answer is not rejected over a word
+SYSTEM_PROMPT = (
+    "You are a careful recruiting analyst. You explain how a resume matches a job using only the verified facts you are given. "
+    "You never invent or assume anything, and you never treat a missing mention as proof that someone cannot do something. "
+    "Respond with a single JSON object."
+)
 
 
 class RAGSummaryService:
@@ -35,6 +54,7 @@ class RAGSummaryService:
         match_score: Optional[MatchScore] = None,
         candidate_id: Optional[str] = None,
         query: Optional[str] = None,
+        resume_text: str = "",
     ) -> RAGSummary:
         if not retrieved_chunks:
             raise RAGError("Cannot generate summary without retrieved chunks")
@@ -49,43 +69,70 @@ class RAGSummaryService:
                 chunks=retrieved_chunks,
                 top_k=min(10, len(retrieved_chunks)),
             )
-
             top_evidence = reranked_chunks[:5]
 
-            prompt = self._build_summary_prompt(candidate, job, top_evidence, match_score)
+            # The resume text is the source of truth; the stored chunks are its retrievable pieces.
+            text = resume_text or "\n\n".join(c.text for c in retrieved_chunks)
+            analysis = analyse(candidate, job, text, retrieved_chunks, match_score)
 
-            data = await self.llm.chat_json(
-                system="You are an expert HR analyst. Generate a grounded, evidence-based candidate summary for a job match. Only use information from the provided resume chunks. Never invent information. If information is not in the chunks, state it's not mentioned. Respond with a single JSON object.",
-                user=prompt,
-            )
+            narrative, verification = await self._write_narrative(job, analysis, text)
 
-            try:
-                confidence = max(0.0, min(1.0, float(data.get("confidence_score", 0.5))))
-            except (TypeError, ValueError):
-                confidence = 0.5
-
+            skill_rows = [a for a in analysis.assessments if a.category.endswith("skill")]
             summary = RAGSummary(
                 candidate_id=candidate_id or "",
                 job_id=job.job_id,
-                strengths=self._as_str_list(data.get("strengths")),
-                # The score is computed deterministically from the resume; the model's own lists contradicted it
-                # (skills reported missing that the resume lists), so the score's lists are authoritative.
-                matched_skills=list(match_score.matched_skills) if match_score else self._as_str_list(data.get("matched_skills")),
-                missing_skills=list(match_score.missing_skills) if match_score else self._as_str_list(data.get("missing_skills")),
-                relevant_experience=self._as_str_list(data.get("relevant_experience")),
+                strengths=strengths_from(analysis),
+                # The score is computed deterministically from the resume; its lists are authoritative.
+                matched_skills=list(match_score.matched_skills) if match_score else [a.requirement for a in skill_rows if a.status == "demonstrated"],
+                missing_skills=list(match_score.missing_skills) if match_score else [a.requirement for a in skill_rows if a.status == "not_evidenced"],
+                relevant_experience=relevant_experience_from(analysis),
                 evidence=top_evidence,
-                summary_text=str(data.get("summary_text") or ""),
-                confidence_score=confidence,
+                requirement_assessments=analysis.assessments,
+                not_evidenced=analysis.not_evidenced,
+                overall_assessment=overall_from(analysis),
+                limitations=analysis.limitations,
+                verification=verification,
+                summary_text=narrative,
+                confidence_score=confidence_from(analysis),
                 model_used=self.llm.model_name,
                 prompt_version=settings.scoring.prompt_version,
             )
 
-            logger.info("rag_summary_generated", candidate=candidate.name, job=job.job_id, evidence=len(top_evidence))
+            logger.info(
+                "rag_summary_generated",
+                candidate=candidate.name,
+                job=job.job_id,
+                evidence=len(top_evidence),
+                verified=verification["passed"],
+                fallback=verification["fallback"],
+            )
             return summary
 
         except Exception as e:
             logger.error("rag_summary_failed", error=str(e))
             raise RAGError(f"Failed to generate RAG summary: {e}") from e
+
+    async def _write_narrative(self, job: JobDescription, analysis: Analysis, resume_text: str) -> tuple[str, dict]:
+        """The model words the explanation from verified facts; anything it adds that the facts do not support is rejected."""
+        violations: list[str] = []
+        for attempt in range(MAX_ATTEMPTS):
+            data = await self.llm.chat_json(
+                system=SYSTEM_PROMPT,
+                user=self._build_narrative_prompt(job, analysis, violations),
+                max_tokens=600,
+            )
+            text = strip_placeholders(str(data.get("summary_text") or ""))
+            violations = verify_narrative(text, analysis, resume_text, job)
+            words = word_count(text)
+            if words and not MIN_WORDS <= words <= MAX_WORDS:
+                violations.append(f"The explanation is {words} words; it must be between 100 and 150")
+            if not violations:
+                return text, {"passed": True, "fallback": False, "attempts": attempt + 1, "violations": []}
+            logger.warning("rag_summary_rejected", attempt=attempt + 1, violations=violations[:5])
+        return (
+            fallback_narrative(job, analysis),
+            {"passed": False, "fallback": True, "attempts": MAX_ATTEMPTS, "violations": violations[:10]},
+        )
 
     @staticmethod
     def _as_str_list(value) -> list[str]:
@@ -95,75 +142,32 @@ class RAGSummaryService:
             return [value]
         return [item if isinstance(item, str) else json.dumps(item, ensure_ascii=False) for item in value]
 
-    def _build_summary_prompt(
-        self,
-        candidate: CandidateProfile,
-        job: JobDescription,
-        evidence_chunks: list[EvidenceChunk],
-        match_score: Optional[MatchScore] = None,
-    ) -> str:
-        evidence_text = "\n\n".join(
-            [
-                f"[EVIDENCE {i+1}] (Section: {ec.section}, Source: {ec.source_pdf}, Relevance: {ec.relevance_score:.2f})\n{ec.text}"
-                for i, ec in enumerate(evidence_chunks)
-            ]
-        )
+    def _build_narrative_prompt(self, job: JobDescription, analysis: Analysis, violations: list[str]) -> str:
+        def line(a) -> str:
+            sources = "; ".join(f"{r.source_type} '{r.source}'" for r in a.evidence) or "none"
+            return f"- [{a.status.upper()}] {a.category}: {a.requirement} | {a.explanation} | evidence from: {sources}"
 
-        candidate_skills = ", ".join([s.name for s in candidate.skills])
-        job_required_skills = ", ".join(job.required_skills)
-        job_preferred_skills = ", ".join(job.preferred_skills)
+        facts = "\n".join(line(a) for a in analysis.assessments) or "- (the job gave nothing to compare)"
+        limits = "\n".join(f"- {x}" for x in analysis.limitations) or "- none"
+        retry = ""
+        if violations:
+            retry = "\nYour previous answer was rejected for these reasons. Fix every one:\n" + "\n".join(f"- {v}" for v in violations[:8]) + "\n"
+        return f"""Write a short explanation for a recruiter of how this resume matches the job "{job.title}".
 
-        highest_education = candidate.get_highest_education_level()
+VERIFIED FACTS (the only source of truth; each was checked against the resume):
+{facts}
 
-        match_info = ""
-        if match_score:
-            match_info = f"""
-Match Scores:
-- Overall: {match_score.overall_score}/100
-- Skills: {match_score.skill_match_score}/100
-- Experience: {match_score.experience_match_score}/100
-- Education: {match_score.education_match_score}/100
-- Semantic: {match_score.semantic_match_score}/100
-
-Verified skill check against the resume (authoritative; never contradict it):
-- Job skills found in the resume: {", ".join(match_score.matched_skills) or "none"}
-- Job skills not found in the resume: {", ".join(match_score.missing_skills) or "none"}
-"""
-
-        return f"""Analyze the candidate's fit for the job based ONLY on the provided evidence chunks. Do not use any external knowledge.
-
-Job: {job.title} at Company {job.company_id}
-Job Description: {job.description[:2000]}
-
-Required Skills: {job_required_skills}
-Preferred Skills: {job_preferred_skills}
-Min Experience: {job.min_experience_years} years
-Education Level: {job.education_level.value if job.education_level else "Not specified"}
-
-Candidate: {candidate.name}
-Candidate Skills: {candidate_skills}
-Total Experience: {candidate.total_experience_years} years
-Highest Education: {highest_education.value if highest_education else "Not specified"}
-
-{match_info}
-
-Evidence Chunks (ONLY SOURCE OF TRUTH):
-{evidence_text}
-
-Generate a JSON response with:
-{{
-  "strengths": ["string"],
-  "matched_skills": ["string"],
-  "missing_skills": ["string"],
-  "relevant_experience": ["string"],
-  "summary_text": "string (2-3 paragraphs grounded in evidence)",
-  "confidence_score": float (0-1, based on evidence coverage)
-}}
-
+LIMITATIONS OF THE DATA:
+{limits}
+{retry}
 Rules:
-1. Every claim MUST reference specific evidence chunks by number [EVIDENCE X]
-2. If a skill/experience is NOT in evidence, list it in missing_skills or state "not mentioned in resume"
-3. Do not infer or assume information not in the chunks
-4. Be specific and quote relevant text from evidence
-5. Confidence score should reflect how well evidence covers the job requirements
-"""
+1. About 120 words, between 100 and 150, in plain language for a non-technical recruiter. No lists, no headings.
+2. Use only the facts above. Do not add skills, tools, employers, projects, responsibilities, numbers or years that are not listed.
+3. DEMONSTRATED means used in the named project, job or internship; say where. Never move a skill to a different project or employer.
+4. PARTIAL means only listed or named by a related term: say it is not confirmed as hands-on experience. Do not call it expertise.
+5. NOT_EVIDENCED means the resume does not mention it. Say "not mentioned in the resume", never that the candidate cannot do it.
+6. Prefer mandatory requirements over preferred ones. Keep project, internship and professional experience distinct.
+7. Do not write reference tags or numbered citations, and do not quote.
+8. End with one balanced sentence on how relevant the candidate looks for the role, acknowledging any data limitation.
+
+Respond with one JSON object: {{"summary_text": "string"}}"""

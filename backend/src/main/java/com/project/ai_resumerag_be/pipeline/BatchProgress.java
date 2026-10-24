@@ -18,13 +18,17 @@ public final class BatchProgress {
         long review = count(counts, ResumeTaskStatus.NEEDS_REVIEW);
         long done = count(counts, ResumeTaskStatus.COMPLETED);
         long duplicates = count(counts, ResumeTaskStatus.DUPLICATE);
-        long finished = failed + review + done + duplicates;
+        long cancelled = count(counts, ResumeTaskStatus.CANCELLED);
+        long finished = failed + review + done + duplicates + cancelled;
 
         if (total == 0) {
             return BatchStatus.UPLOADED;
         }
         if (queued + processing > 0) {
             return processing == 0 && finished == 0 ? BatchStatus.QUEUED : BatchStatus.PROCESSING;
+        }
+        if (cancelled > 0) {
+            return BatchStatus.CANCELLED;
         }
         if (failed > 0 && done + review == 0) {
             return BatchStatus.FAILED;
@@ -44,6 +48,93 @@ public final class BatchProgress {
             }
         }
         return (int) Math.min(100, Math.round(finished * 100.0 / total));
+    }
+
+    /** Share of the work in each stage, so a bar moves as a resume passes through them rather than jumping at the end. */
+    private static double weight(ResumeTaskStage stage, boolean ranking) {
+        if (ranking) {
+            return switch (stage) {
+                case INDEX -> 0.25;
+                case SCORE -> 0.15;
+                case SUMMARY -> 0.60;
+                default -> 0;
+            };
+        }
+        return switch (stage) {
+            case EXTRACT -> 0.10;
+            case PROFILE -> 0.80;
+            case PERSIST -> 0.10;
+            default -> 0;
+        };
+    }
+
+    /** Seconds after which a running stage is "most of the way"; the bar creeps toward, and never reaches, the stage's end. */
+    private static double typicalSeconds(ResumeTaskStage stage) {
+        return switch (stage) {
+            case EXTRACT -> 3;
+            case PROFILE -> 25;
+            case PERSIST -> 1;
+            case INDEX -> 10;
+            case SCORE -> 5;
+            case SUMMARY -> 30;
+            default -> 1;
+        };
+    }
+
+    /** How far through its work one resume is, 0-1, from the stage it is in and how long that stage has been running. */
+    static double fraction(ResumeTask task, boolean ranking, LocalDateTime now) {
+        if (!task.getStatus().isActive()) {
+            return 1.0;
+        }
+        ResumeTaskStage current = task.getStage();
+        double done = 0;
+        for (ResumeTaskStage stage : ResumeTaskStage.values()) {
+            if (stage.ordinal() >= current.ordinal()) {
+                break;
+            }
+            done += weight(stage, ranking);
+        }
+        if (task.getStatus() == ResumeTaskStatus.PROCESSING && task.getStageStartedAt() != null) {
+            double elapsed = Math.max(0, Duration.between(task.getStageStartedAt(), now).toMillis() / 1000.0);
+            done += weight(current, ranking) * 0.9 * (1 - Math.exp(-elapsed / typicalSeconds(current)));
+        }
+        return Math.min(1.0, done);
+    }
+
+    /**
+     * Progress of the work in hand, 0-100: the average of each resume's own progress. While a ranking run is going it
+     * covers that run's resumes only, so ranking starts at 0 instead of at whatever share was already read.
+     */
+    public static int weightedPercent(List<ResumeTask> tasks, LocalDateTime now) {
+        boolean ranking = tasks.stream().anyMatch(t -> t.getStatus().isActive() && t.isRanking());
+        List<ResumeTask> run = rankingRun(tasks);
+        List<ResumeTask> scope = ranking && !run.isEmpty() ? run : tasks;
+        if (scope.isEmpty()) {
+            return 0;
+        }
+        double sum = 0;
+        for (ResumeTask task : scope) {
+            sum += fraction(task, ranking && task.isRanking(), now);
+        }
+        return (int) Math.min(100, Math.floor(sum * 100.0 / scope.size()));
+    }
+
+    /** The resumes queued by the latest "Rank candidates" press of this batch; empty when it was never ranked. */
+    public static List<ResumeTask> rankingRun(List<ResumeTask> tasks) {
+        LocalDateTime run = tasks.stream().map(ResumeTask::getRankRunAt).filter(java.util.Objects::nonNull)
+                .max(LocalDateTime::compareTo).orElse(null);
+        return run == null ? List.of() : tasks.stream().filter(t -> run.equals(t.getRankRunAt())).toList();
+    }
+
+    /** How the latest ranking run is going: all resumes in it, those ranked, and those that failed. */
+    public record RankingCounts(long total, long done, long failed) {
+    }
+
+    public static RankingCounts rankingCounts(List<ResumeTask> tasks) {
+        List<ResumeTask> run = rankingRun(tasks);
+        long done = run.stream().filter(t -> t.getStatus() == ResumeTaskStatus.COMPLETED || t.getStatus() == ResumeTaskStatus.NEEDS_REVIEW).count();
+        long failed = run.stream().filter(t -> t.getStatus() == ResumeTaskStatus.FAILED).count();
+        return new RankingCounts(run.size(), done, failed);
     }
 
     /** Wall-clock seconds per finished task, for the batch's own p50 / p95 latency figures. */

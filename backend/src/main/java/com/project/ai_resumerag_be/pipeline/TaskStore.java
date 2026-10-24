@@ -106,6 +106,15 @@ public class TaskStore {
         return tasks.findById(taskId).orElseThrow(() -> new NoSuchElementException("Task not found: " + taskId));
     }
 
+    /** Loads a task that must still be PROCESSING; a cancelled one stops whoever is working on it. */
+    private ResumeTask running(UUID taskId) {
+        ResumeTask task = get(taskId);
+        if (task.getStatus() != ResumeTaskStatus.PROCESSING) {
+            throw new TaskNoLongerRunning(taskId);
+        }
+        return task;
+    }
+
     @Transactional
     public void renewLease(UUID taskId) {
         tasks.findById(taskId).ifPresent(t -> t.setLockedUntil(LocalDateTime.now().plus(properties.getWorker().getLease())));
@@ -114,9 +123,10 @@ public class TaskStore {
     /** Counts the attempt before the stage runs, so a crash mid-stage still consumes one. */
     @Transactional
     public void beginStage(UUID taskId) {
-        ResumeTask task = get(taskId);
+        ResumeTask task = running(taskId);
         task.setStageAttempts(task.getStageAttempts() + 1);
         task.setTotalAttempts(task.getTotalAttempts() + 1);
+        task.setStageStartedAt(LocalDateTime.now());
         task.setLockedUntil(LocalDateTime.now().plus(properties.getWorker().getLease()));
     }
 
@@ -124,13 +134,33 @@ public class TaskStore {
 
     @Transactional
     public void saveExtract(UUID taskId, Map<String, Object> result) {
-        ResumeTask task = get(taskId);
+        ResumeTask task = running(taskId);
         task.setExtractJson(mapper.writeValueAsString(result));
         addWarnings(task, result.get("warnings"));
         if (Boolean.TRUE.equals(result.get("needsReview"))) {
             task.setNeedsReview(true);
         }
+        // Decide what can be decided from the text alone, before the slow model is asked anything.
+        String email = emailOf(result);
+        if (email == null) {
+            needsReview(task, "NO_EMAIL", NO_EMAIL_MESSAGE);
+            return;
+        }
+        List<Candidate> existing = candidates.findByJobIdAndCandidateEmail(task.getJobId(), email.toLowerCase(Locale.ROOT));
+        if (!existing.isEmpty()) {
+            task.setCandidateId(existing.get(0).getId());
+            markDuplicate(task, "DUPLICATE_APPLICANT", email.toLowerCase(Locale.ROOT) + " has already applied for this job");
+            return;
+        }
         advance(task);
+    }
+
+    private static final String NO_EMAIL_MESSAGE =
+            "No email address was found in this resume, so a candidate cannot be created. Check the file or add the candidate by hand.";
+
+    @SuppressWarnings("unchecked")
+    private static String emailOf(Map<String, Object> extract) {
+        return extract.get("contact") instanceof Map<?, ?> c ? str(((Map<String, Object>) c).get("email")) : null;
     }
 
     /** Result of trying to turn an extracted resume into a Candidate. */
@@ -144,7 +174,7 @@ public class TaskStore {
     @Transactional
     @SuppressWarnings("unchecked")
     public PersistOutcome persistCandidate(UUID taskId) {
-        ResumeTask task = get(taskId);
+        ResumeTask task = running(taskId);
         if (task.getCandidateId() != null) {
             advance(task);
             return PersistOutcome.CREATED;
@@ -154,7 +184,7 @@ public class TaskStore {
         Map<String, Object> contact = extract.get("contact") instanceof Map<?, ?> c ? (Map<String, Object>) c : Map.of();
         String email = str(contact.get("email"));
         if (email == null) {
-            needsReview(task, "NO_EMAIL", "No email address was found in this resume, so a candidate cannot be created. Check the file or add the candidate by hand.");
+            needsReview(task, "NO_EMAIL", NO_EMAIL_MESSAGE);
             return PersistOutcome.NEEDS_REVIEW;
         }
         email = email.toLowerCase(Locale.ROOT);
@@ -192,18 +222,32 @@ public class TaskStore {
                 .build());
         task.setCandidateId(candidate.getId());
         task.setResumeId(resume.getId());
+        applyProfile(task, readMap(task.getProfileJson()));
+        task.setProfileJson(null);
         advance(task);
         return PersistOutcome.CREATED;
     }
 
     @Transactional
     public void saveProfile(UUID taskId, Map<String, Object> result) {
-        ResumeTask task = get(taskId);
+        ResumeTask task = running(taskId);
         @SuppressWarnings("unchecked")
         Map<String, Object> profile = (Map<String, Object>) result.get("profile");
-        aiResults.save(AiResultType.PROFILE, task.getCandidateId(), null, profile);
         addWarnings(task, result.get("warnings"));
+        if (task.getCandidateId() != null) {
+            applyProfile(task, profile); // a task that already has its candidate (started before profiles moved ahead of PERSIST)
+        } else {
+            task.setProfileJson(mapper.writeValueAsString(profile)); // no candidate exists until PERSIST, after this succeeded
+        }
+        advance(task);
+    }
 
+    /** Saves the profile for the task's candidate and fills the candidate's details from it. */
+    private void applyProfile(ResumeTask task, Map<String, Object> profile) {
+        if (profile.isEmpty()) {
+            return;
+        }
+        aiResults.save(AiResultType.PROFILE, task.getCandidateId(), null, profile);
         // The first guess at the name came from the resume header; the validated profile is better when it has one.
         candidates.findById(task.getCandidateId()).ifPresent(candidate -> {
             String name = str(profile.get("name"));
@@ -217,18 +261,17 @@ public class TaskStore {
                 candidate.setLocation(str(profile.get("location")));
             }
         });
-        advance(task);
     }
 
     @Transactional
     public void markIndexed(UUID taskId) {
-        advance(get(taskId));
+        advance(running(taskId));
     }
 
     @Transactional
     @SuppressWarnings("unchecked")
     public void saveScore(UUID taskId, Map<String, Object> result, String key) {
-        ResumeTask task = get(taskId);
+        ResumeTask task = running(taskId);
         Map<String, Object> score = (Map<String, Object>) result.get("matchScore");
         aiResults.save(AiResultType.MATCH_SCORE, task.getCandidateId(), task.getJobId(), score);
         task.setScoreKey(key);
@@ -238,13 +281,13 @@ public class TaskStore {
     /** Score unchanged for this resume and job: nothing to compute. */
     @Transactional
     public void skipScore(UUID taskId) {
-        advance(get(taskId));
+        advance(running(taskId));
     }
 
     @Transactional
     @SuppressWarnings("unchecked")
     public void saveSummary(UUID taskId, Map<String, Object> result, String key) {
-        ResumeTask task = get(taskId);
+        ResumeTask task = running(taskId);
         Map<String, Object> summary = (Map<String, Object>) result.get("ragSummary");
         aiResults.save(AiResultType.RAG_SUMMARY, task.getCandidateId(), task.getJobId(), summary);
         task.setSummaryKey(key);
@@ -253,12 +296,59 @@ public class TaskStore {
 
     @Transactional
     public void skipSummary(UUID taskId) {
-        advance(get(taskId));
+        advance(running(taskId));
+    }
+
+    /**
+     * Puts every read resume of a job back in the queue at the index stage, flagged as ranking. Resumes that are still
+     * being read, failed, or have no saved profile are left alone. Returns how many were queued.
+     */
+    @Transactional
+    public int queueRanking(UUID jobId) {
+        return queueRanking(jobId, null);
+    }
+
+    /** Same as {@link #queueRanking(UUID)} for one candidate: used when a recruiter re-runs the analysis on a profile. */
+    @Transactional
+    public int queueRanking(UUID jobId, UUID onlyCandidateId) {
+        LocalDateTime now = LocalDateTime.now();
+        Set<UUID> touched = new HashSet<>();
+        int queued = 0;
+        for (ResumeTask task : tasks.findByJobIdAndStatusInAndCandidateIdIsNotNull(
+                jobId, List.of(ResumeTaskStatus.COMPLETED, ResumeTaskStatus.NEEDS_REVIEW))) {
+            if (onlyCandidateId != null && !onlyCandidateId.equals(task.getCandidateId())) {
+                continue;
+            }
+            if (aiResults.find(AiResultType.PROFILE, task.getCandidateId(), null).isEmpty()) {
+                continue;
+            }
+            task.setStatus(ResumeTaskStatus.QUEUED);
+            task.setStage(ResumeTaskStage.INDEX);
+            task.setRanking(true);
+            task.setRankRunAt(now);
+            task.setStageAttempts(0);
+            task.setNextAttemptAt(now);
+            task.setStartedAt(null);
+            task.setFinishedAt(null);
+            task.setErrorCode(null);
+            task.setErrorMessage(null);
+            touched.add(task.getBatchId());
+            queued++;
+        }
+        touched.forEach(this::refreshBatch);
+        return queued;
+    }
+
+    @Transactional(readOnly = true)
+    public long stillReading(UUID jobId) {
+        return tasks.countByJobIdAndStatusIn(jobId,
+                List.of(ResumeTaskStatus.UPLOADED, ResumeTaskStatus.QUEUED, ResumeTaskStatus.PROCESSING));
     }
 
     @Transactional
     public void complete(UUID taskId) {
-        ResumeTask task = get(taskId);
+        ResumeTask task = running(taskId);
+        task.setRanking(false);
         task.setStatus(task.isNeedsReview() ? ResumeTaskStatus.NEEDS_REVIEW : ResumeTaskStatus.COMPLETED);
         task.setStage(ResumeTaskStage.DONE);
         task.setErrorCode(null);
@@ -274,6 +364,9 @@ public class TaskStore {
     @Transactional
     public void recordFailure(UUID taskId, StageFailure failure) {
         ResumeTask task = get(taskId);
+        if (task.getStatus() != ResumeTaskStatus.PROCESSING) {
+            return; // cancelled (or otherwise taken away) while the stage ran: the failure no longer matters
+        }
         switch (failure.kind()) {
             case TRANSIENT -> {
                 task.setErrorCode(failure.code());
@@ -319,6 +412,51 @@ public class TaskStore {
         boolean ok = requeue(task);
         refreshBatch(task.getBatchId());
         return ok;
+    }
+
+    public enum EmailOutcome { QUEUED, DUPLICATE, NOT_APPLICABLE }
+
+    /**
+     * For a resume parked because it has no email: the recruiter types the address in, and the resume carries on at
+     * the profile step (the file has already been read). No candidate exists until that step and the save succeed.
+     */
+    @Transactional
+    @SuppressWarnings("unchecked")
+    public EmailOutcome supplyEmail(UUID taskId, String email) {
+        ResumeTask task = get(taskId);
+        if (task.getStatus() != ResumeTaskStatus.NEEDS_REVIEW || !"NO_EMAIL".equals(task.getErrorCode())
+                || task.getCandidateId() != null || task.getFileUrl() == null || task.getExtractJson() == null) {
+            return EmailOutcome.NOT_APPLICABLE;
+        }
+        String normalised = email.trim().toLowerCase(Locale.ROOT);
+        Map<String, Object> extract = new java.util.HashMap<>(readMap(task.getExtractJson()));
+        Map<String, Object> contact = new java.util.HashMap<>(
+                extract.get("contact") instanceof Map<?, ?> c ? (Map<String, Object>) c : Map.of());
+        contact.put("email", normalised);
+        extract.put("contact", contact);
+        task.setExtractJson(mapper.writeValueAsString(extract));
+
+        List<Candidate> existing = candidates.findByJobIdAndCandidateEmail(task.getJobId(), normalised);
+        if (!existing.isEmpty()) {
+            task.setCandidateId(existing.get(0).getId());
+            markDuplicate(task, "DUPLICATE_APPLICANT", normalised + " has already applied for this job");
+            return EmailOutcome.DUPLICATE;
+        }
+        String key = task.getJobId() + ":" + task.getSha256();
+        if (task.getSha256() != null && tasks.existsByDedupeKey(key)) {
+            return EmailOutcome.NOT_APPLICABLE; // the same file was uploaded again and is live
+        }
+        task.setDedupeKey(task.getSha256() == null ? null : key);
+        task.setStage(ResumeTaskStage.PROFILE);
+        task.setStatus(ResumeTaskStatus.QUEUED);
+        task.setNeedsReview(false);
+        task.setStageAttempts(0);
+        task.setNextAttemptAt(LocalDateTime.now());
+        task.setFinishedAt(null);
+        task.setErrorCode(null);
+        task.setErrorMessage(null);
+        refreshBatch(task.getBatchId());
+        return EmailOutcome.QUEUED;
     }
 
     private boolean requeue(ResumeTask task) {

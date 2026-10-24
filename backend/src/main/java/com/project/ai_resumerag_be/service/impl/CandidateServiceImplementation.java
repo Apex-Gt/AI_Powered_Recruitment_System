@@ -287,6 +287,12 @@ public class CandidateServiceImplementation implements CandidateService {
 
     @Override
     @Transactional
+    public void deleteCandidates(java.util.Collection<UUID> candidateIds) {
+        removeCandidates(candidateRepository.findAllById(candidateIds));
+    }
+
+    @Override
+    @Transactional
     public void deleteCandidatesOfJob(UUID jobId) {
         removeCandidates(candidateRepository.findByJobId(jobId));
         aiResultRepository.deleteByJobId(jobId);

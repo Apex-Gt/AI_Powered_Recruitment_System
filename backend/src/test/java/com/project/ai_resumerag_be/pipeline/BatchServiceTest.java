@@ -46,6 +46,7 @@ class BatchServiceTest {
     @Mock TaskStore store;
     @Mock FileStorageService fileStorage;
     @Mock AiResultStore aiResults;
+    @Mock ResumeTaskProcessor processor;
 
     private final PipelineProperties properties = new PipelineProperties();
     private BatchService service;
@@ -56,7 +57,7 @@ class BatchServiceTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        service = new BatchService(candidateService, batches, tasks, candidates, store, fileStorage, aiResults, properties);
+        service = new BatchService(candidateService, batches, tasks, candidates, store, fileStorage, aiResults, properties, processor);
         company = Company.builder().id(UUID.randomUUID()).companyName("Acme").build();
         User recruiter = User.builder().id(UUID.randomUUID()).role(Role.RECRUITER).company(company).build();
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(new CustomUserDetails(recruiter), null));

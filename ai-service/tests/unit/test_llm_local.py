@@ -46,7 +46,8 @@ def _bad_request(text):
     return openai.BadRequestError(text, response=httpx.Response(400, request=request), body=None)
 
 
-async def test_schema_is_sent_as_json_schema_response_format():
+async def test_schema_is_sent_as_json_schema_response_format(monkeypatch):
+    monkeypatch.setattr(settings.llm, "json_schema", True)  # opt-in: off by default
     client = FakeClient(['{"name": "Jane"}'])
     result = await LLMService(client).chat_json("sys", "usr", schema=SCHEMA)
     assert result == {"name": "Jane"}
@@ -54,7 +55,8 @@ async def test_schema_is_sent_as_json_schema_response_format():
     assert client.calls[0]["response_format"]["json_schema"]["schema"] == SCHEMA
 
 
-async def test_degrades_from_schema_to_json_mode_when_server_rejects_it():
+async def test_degrades_from_schema_to_json_mode_when_server_rejects_it(monkeypatch):
+    monkeypatch.setattr(settings.llm, "json_schema", True)
     client = FakeClient([_bad_request("response_format json_schema is not supported"), '{"name": "Jane"}'])
     service = LLMService(client)
     assert await service.chat_json("s", "u", schema=SCHEMA) == {"name": "Jane"}
@@ -82,3 +84,9 @@ async def test_qwen3_gets_no_think_marker(monkeypatch):
 async def test_think_blocks_are_stripped_from_output():
     client = FakeClient(['<think>pondering</think>{"name": "Jane"}'])
     assert await LLMService(client).chat_json("s", "u") == {"name": "Jane"}
+
+
+async def test_schema_mode_is_off_by_default_so_small_models_write_the_whole_object():
+    client = FakeClient(['{"name": "Jane"}'])
+    await LLMService(client).chat_json("sys", "usr", schema=SCHEMA)
+    assert client.calls[0]["response_format"]["type"] == "json_object"

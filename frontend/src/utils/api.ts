@@ -96,6 +96,35 @@ class ApiClient {
     return this.request<T>(`${endpoint}${queryString}`, { method: 'GET' })
   }
 
+  /** POST a form with upload progress (fetch cannot report it). `onProgress` gets the share of bytes sent, 0-1. */
+  postForm<T>(endpoint: string, body: FormData, onProgress?: (sent: number) => void): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${this.baseUrl}${endpoint}`)
+      xhr.withCredentials = true
+      if (this.authToken) xhr.setRequestHeader('Authorization', `Bearer ${this.authToken}`)
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total)
+      }
+      xhr.onerror = () => reject(new ApiError('Could not reach the server. Check your connection and try again.', 0))
+      xhr.onload = () => {
+        let payload: any = {}
+        try {
+          payload = xhr.responseText ? JSON.parse(xhr.responseText) : {}
+        } catch {
+          payload = {}
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(payload as T)
+          return
+        }
+        if (xhr.status === 401) window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT))
+        reject(new ApiError(payload.message || `HTTP error! status: ${xhr.status}`, xhr.status))
+      }
+      xhr.send(body)
+    })
+  }
+
   post<T>(endpoint: string, data: unknown): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'POST',
@@ -320,9 +349,9 @@ export const resumeApi = {
   parse: (id: string) => api.post<CommonResponse<{ extractedText: string }>>(`/resumes/${id}/parse`, {}),
 }
 
-export type BatchStatus = 'UPLOADED' | 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PARTIAL' | 'FAILED'
-export type BatchTaskStatus = 'UPLOADED' | 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'NEEDS_REVIEW' | 'DUPLICATE'
-export type BatchTaskStage = 'EXTRACT' | 'PERSIST' | 'PROFILE' | 'INDEX' | 'SCORE' | 'SUMMARY' | 'DONE'
+export type BatchStatus = 'UPLOADED' | 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PARTIAL' | 'FAILED' | 'CANCELLED'
+export type BatchTaskStatus = 'UPLOADED' | 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'NEEDS_REVIEW' | 'DUPLICATE' | 'CANCELLED'
+export type BatchTaskStage = 'EXTRACT' | 'PROFILE' | 'PERSIST' | 'INDEX' | 'SCORE' | 'SUMMARY' | 'DONE'
 
 export interface Batch {
   id: string
@@ -338,6 +367,12 @@ export interface Batch {
   medianSecondsPerResume: number | null
   p95SecondsPerResume: number | null
   estimatedSecondsRemaining: number | null
+  /** Resumes being ranked right now; when above zero, cancelling stops the ranking only */
+  ranking: number
+  /** Latest ranking run of this batch: resumes in it, ranked so far, failed. All zero when it was never ranked. */
+  rankingTotal: number
+  rankingDone: number
+  rankingFailed: number
 }
 
 export interface BatchTask {
@@ -353,15 +388,21 @@ export interface BatchTask {
   candidateId: string | null
   createdAt: string
   finishedAt: string | null
+  /** Same instant for every resume queued by one "Rank candidates" press; null if never ranked */
+  rankRunAt: string | null
+  /** Plain-language account of what is happening, or why the resume stopped and what to do */
+  note: string | null
+  /** Seconds spent on this resume so far (only while it is being processed) */
+  elapsedSeconds: number | null
 }
 
 export const batchApi = {
   /** Answers as soon as the files are stored and queued, however many there are; poll `get` for progress. */
-  create: (jobId: string, files: File[]) => {
+  create: (jobId: string, files: File[], onProgress?: (sent: number) => void) => {
     const formData = new FormData()
     formData.append('jobId', jobId)
     files.forEach((file) => formData.append('files', file))
-    return api.post<CommonResponse<Batch>>('/recruiter/batches', formData).then((res) => res.data)
+    return api.postForm<CommonResponse<Batch>>('/recruiter/batches', formData, onProgress).then((res) => res.data)
   },
   get: (batchId: string) => api.get<CommonResponse<Batch>>(`/recruiter/batches/${batchId}`).then((res) => res.data),
   tasks: (batchId: string, params?: { status?: BatchTaskStatus; page?: number; size?: number }) =>
@@ -375,7 +416,25 @@ export const batchApi = {
     api.post<CommonResponse<{ requeued: number }>>(`/recruiter/batches/${batchId}/retry`, {}).then((res) => res.data),
   retryTask: (batchId: string, taskId: string) =>
     api.post<CommonResponse<{ requeued: boolean }>>(`/recruiter/batches/${batchId}/tasks/${taskId}/retry`, {}).then((res) => res.data),
+  /** For a resume that had no email: types it in so the resume carries on to become a candidate. */
+  supplyEmail: (batchId: string, taskId: string, email: string) =>
+    api
+      .post<CommonResponse<{ outcome: 'QUEUED' | 'DUPLICATE' | 'NOT_APPLICABLE' | 'INVALID_EMAIL' }>>(
+        `/recruiter/batches/${batchId}/tasks/${taskId}/email`,
+        { email }
+      )
+      .then((res) => res.data),
   forJob: (jobId: string) => api.get<CommonResponse<Batch[]>>('/recruiter/batches', { jobId }).then((res) => res.data),
+  /** Scores and summarises every candidate of the job that has been read; runs in the background. */
+  rank: (jobId: string) =>
+    api
+      .post<CommonResponse<{ queued: number; waiting: number }>>(`/recruiter/batches/rank?jobId=${encodeURIComponent(jobId)}`, {})
+      .then((res) => res.data),
+  /** Stops a running batch and removes what it created (or, while ranking, stops the ranking only). */
+  cancel: (batchId: string) =>
+    api
+      .post<CommonResponse<{ mode: 'upload' | 'ranking'; stopped: number; removedCandidates: number }>>(`/recruiter/batches/${batchId}/cancel`, {})
+      .then((res) => res.data),
 }
 
 export const assessmentApi = {

@@ -202,6 +202,7 @@ class CandidateExtractionService:
                 system="You are an expert HR assistant that extracts structured candidate information from resumes. Return only valid JSON matching the specified schema.",
                 user=self._build_extraction_prompt(text),
                 schema=CandidateProfile.model_json_schema(),
+                max_tokens=settings.pipeline.profile_max_tokens,
             )
             profile = CandidateProfile(**sanitize_profile_data(data))
             logger.info("candidate_profile_extracted", skills=len(profile.skills))  # no name: logs must not hold personal data
@@ -247,6 +248,8 @@ Guidelines:
 - For education, determine level from degree type
 - If information is not present, use null or empty array
 - Be conservative with estimates
+- Keep it compact: omit keys with no value, keep every description to one short sentence, and list at most 8 projects and 6 certifications
+- Do not write a "summary" longer than two sentences
 - Return valid JSON only
 
 Resume text:

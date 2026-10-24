@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BarChart3, Briefcase, CheckSquare, ChevronLeft, Pencil, Plus, Send, Sparkles, Trash2, Upload, Users } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '@/context/AuthContext'
-import { jobApi, candidateApi, assessmentApi } from '@/utils/api'
+import { jobApi, candidateApi, assessmentApi, batchApi } from '@/utils/api'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -71,7 +71,8 @@ export function JobDetail() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [screening, setScreening] = useState(false)
+  const [ranking, setRanking] = useState(false)
+  const [progressKey, setProgressKey] = useState(0)
   const [showAllSkills, setShowAllSkills] = useState(false)
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null)
   const [deletingCandidate, setDeletingCandidate] = useState<Candidate | null>(null)
@@ -177,19 +178,26 @@ export function JobDetail() {
     }
   }
 
-  const screenAll = async () => {
+  const rankCandidates = async () => {
     if (!job || candidates.length === 0) return
-    setScreening(true)
-    const results = await Promise.allSettled(candidates.map((c) => candidateApi.scoreJob(c.id, job.id)))
-    const started = results.filter((r) => r.status === 'fulfilled').length
-    setScreening(false)
-    if (started === 0) {
-      toast.error('Could not start the analysis. Check that the AI service is running.')
-      return
+    setRanking(true)
+    try {
+      const { queued, waiting } = await batchApi.rank(job.id)
+      if (queued === 0) {
+        toast.error(waiting > 0 ? 'The resumes are still being read. Rank again once they are done.' : 'There are no read resumes to rank yet.')
+        return
+      }
+      toast.success(
+        `Ranking ${queued} ${queued === 1 ? 'candidate' : 'candidates'}. Scores appear as each one finishes.` +
+          (waiting > 0 ? ` ${waiting} resume${waiting === 1 ? ' is' : 's are'} still being read and not included.` : '')
+      )
+      setProgressKey((n) => n + 1) // show the running batch straight away
+      setTab('candidates')
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Could not start ranking. Check that the AI service is running.')
+    } finally {
+      setRanking(false)
     }
-    toast.success(`Analysis started for ${started} ${started === 1 ? 'candidate' : 'candidates'}. Scores appear as each finishes.`)
-    window.setTimeout(() => void loadCandidates(), 20000)
-    setTab('candidates')
   }
 
   if (isLoading) {
@@ -288,7 +296,7 @@ export function JobDetail() {
             ))}
           </div>
 
-          {canEdit && <ActiveBatches jobId={job.id} onFinished={() => void loadCandidates()} />}
+          {canEdit && <ActiveBatches jobId={job.id} refreshKey={progressKey} onFinished={() => void loadCandidates()} />}
 
           <div className="mt-6" role="tabpanel">
             {tab === 'overview' && (
@@ -333,7 +341,7 @@ export function JobDetail() {
                   <EmptyState
                     icon={<Users className="h-14 w-14" />}
                     title="Nobody has applied yet"
-                    description="Upload resumes and the AI will score each one against this job."
+                    description="Upload resumes to add candidates, then rank them against this job."
                     action={canEdit ? { label: 'Add candidates', onClick: () => setUploadOpen(true) } : undefined}
                   />
                 </div>
@@ -441,10 +449,10 @@ export function JobDetail() {
           </Panel>
 
           {canEdit && (
-            <Panel title="AI screening" note="Score every applicant against this job">
-              <Button variant="secondary" className="w-full" onClick={screenAll} loading={screening} disabled={candidates.length === 0}>
+            <Panel title="Rank candidates" note="Score and summarise every applicant against this job">
+              <Button variant="secondary" className="w-full" onClick={rankCandidates} loading={ranking} disabled={candidates.length === 0}>
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
-                Run AI screening
+                Rank candidates
               </Button>
               {candidates.length === 0 && <p className="mt-2 text-body-xs text-ink-600 dark:text-ink-400">Add candidates first.</p>}
             </Panel>
@@ -487,6 +495,7 @@ export function JobDetail() {
         onClose={() => setUploadOpen(false)}
         onUploaded={() => {
           void loadCandidates()
+          setProgressKey((n) => n + 1) // look for the new batch now that something was uploaded
           setTab('candidates')
         }}
         fixedJob={{ id: job.id, title: job.title }}

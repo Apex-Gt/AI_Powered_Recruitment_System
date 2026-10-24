@@ -23,7 +23,7 @@ public class PipelineProperties {
     private Retention retention = new Retention();
 
     /** Bumped whenever scoring or prompts change, so cached results are recomputed. Part of the cache key. */
-    private String analysisVersion = "2.0";
+    private String analysisVersion = "2.1";
 
     /** Model tag used for the summary cache key. Informational: the AI service decides the model it really runs. */
     private String modelTag = "qwen3:4b";
@@ -53,10 +53,10 @@ public class PipelineProperties {
     @Setter
     public static class Retry {
         /** Attempts per stage for transient failures (Ollama or Qdrant down, timeouts). */
-        /** 8 attempts with 15 s doubling, capped at 15 min, rides out about 31 minutes of an outage. */
-        private int maxAttempts = 8;
-        private Duration baseDelay = Duration.ofSeconds(15);
-        private Duration maxDelay = Duration.ofMinutes(15);
+        /** 3 attempts, 10 s then 20 s apart: a resume that cannot be read shows why within a few minutes instead of idling. */
+        private int maxAttempts = 3;
+        private Duration baseDelay = Duration.ofSeconds(10);
+        private Duration maxDelay = Duration.ofMinutes(1);
     }
 
     /** How long resume data is kept for uploads that did NOT become a candidate. Candidates follow their own lifecycle. */
@@ -77,9 +77,9 @@ public class PipelineProperties {
         /** Sent as X-API-Key to the AI service's pipeline endpoints (its PIPELINE_API_KEY). Empty sends nothing. */
         private String apiKey = "";
         private Duration extractTimeout = Duration.ofSeconds(60);
-        private Duration profileTimeout = Duration.ofMinutes(6);
+        private Duration profileTimeout = Duration.ofMinutes(3);
         private Duration indexTimeout = Duration.ofMinutes(5);
         private Duration scoreTimeout = Duration.ofSeconds(90);
-        private Duration summaryTimeout = Duration.ofMinutes(6);
+        private Duration summaryTimeout = Duration.ofMinutes(3);
     }
 }

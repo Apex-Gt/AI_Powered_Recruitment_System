@@ -3,6 +3,7 @@
 import asyncio
 import json
 import re
+import time
 from functools import lru_cache
 from typing import Any, Optional
 
@@ -76,7 +77,9 @@ class LLMService:
             self._sem = asyncio.Semaphore(max(1, settings.llm.concurrency))
         return self._sem
 
-    async def chat_json(self, system: str, user: str, schema: Optional[dict] = None) -> dict:
+    async def chat_json(
+        self, system: str, user: str, schema: Optional[dict] = None, max_tokens: Optional[int] = None
+    ) -> dict:
         """Run one chat completion and return the parsed JSON object.
 
         With ``schema`` (a JSON Schema) the server is asked to constrain decoding to it when it supports that
@@ -96,8 +99,12 @@ class LLMService:
             "model": cfg.model,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": cfg.temperature,
-            "max_tokens": cfg.max_tokens,
+            "max_tokens": max_tokens or cfg.max_tokens,
         }
+        if cfg.no_think and cfg.model.lower().startswith("qwen3") and any(h in cfg.base_url for h in ("localhost", "127.0.0.1", "host.docker.internal")):
+            # "/no_think" is ignored once the answer is constrained to a JSON schema, so the model spends the whole
+            # token budget reasoning and returns nothing. Ollama's OpenAI endpoint honours this switch.
+            kwargs["extra_body"] = {"reasoning_effort": "none"}
         client = self._get_client()
 
         formats: list[Optional[dict]] = []
@@ -110,7 +117,9 @@ class LLMService:
         formats.append(None)
 
         response = None
+        queued_at = time.monotonic()
         async with self._semaphore():
+            started_at = time.monotonic()
             for index, response_format in enumerate(formats):
                 call = dict(kwargs)
                 if response_format is not None:
@@ -134,8 +143,17 @@ class LLMService:
                     raise LLMError(f"LLM request to {cfg.base_url} failed: {e}") from e
 
         choice = response.choices[0]
+        usage = getattr(response, "usage", None)
+        logger.info(
+            "llm_call_done",
+            model=cfg.model,
+            waited_s=round(started_at - queued_at, 1),
+            seconds=round(time.monotonic() - started_at, 1),
+            prompt_tokens=getattr(usage, "prompt_tokens", None),
+            completion_tokens=getattr(usage, "completion_tokens", None),
+        )
         if getattr(choice, "finish_reason", None) == "length":
-            logger.warning("llm_response_truncated", model=cfg.model, max_tokens=cfg.max_tokens)
+            logger.warning("llm_response_truncated", model=cfg.model, max_tokens=kwargs["max_tokens"])
         return parse_json_object(choice.message.content)
 
 

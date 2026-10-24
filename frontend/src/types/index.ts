@@ -98,6 +98,24 @@ export interface Resume {
   candidateId: string
 }
 
+export interface EvidenceRef {
+  /** The project, employer or section the text sits in, as written in the resume */
+  source: string
+  sourceType: string
+  section?: string | null
+  chunkId?: string | null
+  /** Copied verbatim from the resume; null when only the parsed field is known */
+  quote?: string | null
+}
+
+export interface RequirementAssessment {
+  requirement: string
+  category: string
+  status: 'demonstrated' | 'partial' | 'not_evidenced'
+  explanation: string
+  evidence: EvidenceRef[]
+}
+
 export interface AIAnalysis {
   overallScore: number
   breakdown: {
@@ -111,6 +129,13 @@ export interface AIAnalysis {
   potentialGaps: string[]
   summary: string
   generatedAt: string
+  /** Evidence behind the explanation; absent on analyses generated before it existed */
+  strengths?: string[]
+  requirements?: RequirementAssessment[]
+  notEvidenced?: string[]
+  overallAssessment?: string
+  limitations?: string[]
+  confidence?: number | null
 }
 
 export interface Assessment {

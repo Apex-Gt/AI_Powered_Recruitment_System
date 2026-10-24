@@ -97,8 +97,22 @@ public class ResumeTask {
     @Column(columnDefinition = "TEXT")
     private String warnings;
 
+    /** Output of the PROFILE stage, held until PERSIST creates the candidate it belongs to. */
+    @Column(columnDefinition = "TEXT")
+    private String profileJson;
+
     @Column(nullable = false)
     private boolean needsReview;
+
+    /**
+     * True while a rank run (index, score, summary) is queued or running for this resume. An upload stops after the
+     * profile; ranking is started later, once, for the whole job.
+     */
+    private Boolean ranking;
+
+    public boolean isRanking() {
+        return Boolean.TRUE.equals(ranking);
+    }
 
     private UUID candidateId;
 
@@ -118,6 +132,12 @@ public class ResumeTask {
     private LocalDateTime startedAt;
 
     private LocalDateTime finishedAt;
+
+    /** When the stage now running began; lets the progress bar move inside a slow stage. */
+    private LocalDateTime stageStartedAt;
+
+    /** Set to the same instant on every task queued by one "Rank candidates" press, so a ranking run can be told apart. */
+    private LocalDateTime rankRunAt;
 
     @PrePersist
     protected void onCreate() {

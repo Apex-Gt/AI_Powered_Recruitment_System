@@ -45,6 +45,9 @@ public interface CandidateService {
 
     void deleteCandidate(UUID candidateId);
 
+    /** Removes candidates (with resumes, AI results and vectors) by id, without the per-user ownership check. */
+    void deleteCandidates(java.util.Collection<UUID> candidateIds);
+
     /** Removes every candidate of a job, with their resumes, stored files and AI results. Used when the job is deleted. */
     void deleteCandidatesOfJob(UUID jobId);
 

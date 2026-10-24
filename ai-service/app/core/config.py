@@ -68,9 +68,9 @@ class LLMConfig(_EnvSettings):
     temperature: float = 0.1
     max_tokens: int = 4096
     timeout: float = 180.0  # local CPU/GPU inference is slower than a hosted API
-    max_retries: int = 1  # SDK-level retries; the pipeline queue owns the real retry policy
+    max_retries: int = 0  # SDK-level retries; the pipeline queue owns the real retry policy (a retried timeout doubles the wait)
     json_mode: bool = True  # send response_format=json_object (auto-disabled if the model rejects it)
-    json_schema: bool = True  # prefer response_format=json_schema when a schema is supplied (Ollama >= 0.5)
+    json_schema: bool = False  # response_format=json_schema when a schema is supplied. Off: small local models (qwen3:4b) stop after the first few fields under it; the prompt already spells the schema out and Pydantic validates the result
     concurrency: int = 1  # simultaneous in-flight LLM requests in this process (the model is shared)
     no_think: bool = True  # append /no_think for Qwen3-family models so they skip the reasoning preamble
 
@@ -114,7 +114,7 @@ class ScoringConfig(_EnvSettings):
     semantic_weight: float = 0.30
     min_skill_match_threshold: float = 0.3
     min_experience_years: float = 0.0
-    prompt_version: str = "1.0"
+    prompt_version: str = "2.0"  # 2.0: evidence-grounded, verified explanations
     scoring_version: str = "2.0"
 
 
@@ -137,7 +137,8 @@ class PipelineConfig(_EnvSettings):
     ocr_min_chars: int = 200  # fewer extracted characters than this on a page-bearing PDF triggers OCR
     ocr_language: str = "eng"
     ocr_max_pages: int = 6
-    profile_text_chars: int = 15000  # resume text sent to the LLM
+    profile_text_chars: int = 9000  # resume text sent to the LLM (~2.3k tokens; more overflows a small local context window)
+    profile_max_tokens: int = 2500  # cap on the profile JSON the model may write; generation time is linear in this
     embed_concurrency: int = 1  # simultaneous embedding batches in this process
 
 

@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Clock, Copy, Loader2, RotateCcw, XCircle } from 'lucide-react'
+import { AlertTriangle, Ban, CheckCircle2, ChevronDown, Clock, Copy, Loader2, RotateCcw, X, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { batchApi, type Batch, type BatchTask, type BatchTaskStage } from '@/utils/api'
 import { Button } from '@/components/ui/Button'
+import { ConfirmModal } from '@/components/ui/Modal'
 import { cn } from '@/utils/helpers'
 
-const TERMINAL = new Set(['COMPLETED', 'PARTIAL', 'FAILED'])
+const TERMINAL = new Set(['COMPLETED', 'PARTIAL', 'FAILED', 'CANCELLED'])
 const POLL_MS = 2500
 
 /** What the pipeline is doing right now, in the present tense; shown beside the count and under a processing resume. */
 const STAGE_LABEL: Record<BatchTaskStage, string> = {
-  EXTRACT: 'Ingesting',
-  PERSIST: 'Saving the candidate',
+  EXTRACT: 'Reading the file',
   PROFILE: 'Extracting skills and experience',
-  INDEX: 'Building the search index',
+  PERSIST: 'Saving the candidate',
+  INDEX: 'Preparing to rank',
   SCORE: 'Scoring against the job',
   SUMMARY: 'Writing the summary',
   DONE: 'Finishing up',
@@ -28,42 +29,15 @@ function dominantStage(working: BatchTask[]): BatchTaskStage | null {
   return [...counts.entries()].sort((a, b) => b[1] - a[1] || order.indexOf(a[0]) - order.indexOf(b[0]))[0][0]
 }
 
-const CODE_HELP: Record<string, string> = {
-  ENCRYPTED_FILE: 'The PDF is password protected. Upload an unlocked copy.',
-  CORRUPT_FILE: 'The file is damaged and cannot be opened.',
-  UNSUPPORTED_TYPE: 'Only PDF, DOCX and TXT resumes are supported.',
-  INVALID_CONTENT: 'The file content does not match its extension.',
-  EMPTY_FILE: 'The file is empty.',
-  FILE_TOO_LARGE: 'The file is too large (limit 10 MB).',
-  NO_EMAIL: 'No email address was found, so a candidate could not be created.',
-  SCANNED_PDF: 'This looks like a scanned image with no readable text.',
-  DUPLICATE_FILE: 'This exact file is already in this job.',
-  DUPLICATE_APPLICANT: 'This person has already applied for this job.',
-  LLM_UNAVAILABLE: 'The language model was unavailable. Retry once it is running.',
-  VECTOR_STORE_UNAVAILABLE: 'The search index was unavailable. Retry once it is running.',
-  EMBEDDING_UNAVAILABLE: 'The embedding model was unavailable. Retry once it is running.',
-}
-
-function describe(task: BatchTask): string {
-  return CODE_HELP[task.errorCode ?? ''] ?? task.errorMessage ?? 'Something went wrong.'
-}
-
-/** "less than a minute", "3 minutes", "1.5 hours": rounded, because the estimate is rough anyway. */
-function timeLeft(seconds: number | null): string {
-  if (seconds === null || !Number.isFinite(seconds) || seconds <= 0) return ''
-  if (seconds < 60) return 'less than a minute'
-  const minutes = Math.round(seconds / 60)
-  return minutes < 90 ? `about ${minutes} minute${minutes === 1 ? '' : 's'}` : `about ${(minutes / 60).toFixed(1)} hours`
-}
-
-function took(seconds: number | null): string {
+/** "45 seconds", "3 min 10 s": how long one resume has been worked on. */
+function spent(seconds: number | null): string {
   if (seconds === null || !Number.isFinite(seconds)) return ''
-  if (seconds < 60) return 'under a minute'
-  const minutes = Math.round(seconds / 60)
-  return minutes < 90 ? `${minutes} minute${minutes === 1 ? '' : 's'}` : `${(minutes / 60).toFixed(1)} hours`
+  if (seconds < 60) return `${Math.round(seconds)} s`
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes} min ${Math.round(seconds % 60)} s`
 }
 
-type RowIcon = 'wait' | 'work' | 'ok' | 'bad' | 'warn' | 'dup'
+type RowIcon = 'wait' | 'work' | 'ok' | 'bad' | 'warn' | 'dup' | 'stop'
 
 /** Pending, Processing, Completed or Failed; needs-review and duplicates are shown as what they are. */
 function rowState(t: BatchTask): { label: string; className: string; icon: RowIcon } {
@@ -78,9 +52,83 @@ function rowState(t: BatchTask): { label: string; className: string; icon: RowIc
       return { label: 'Needs review', className: 'badge-warning', icon: 'warn' }
     case 'DUPLICATE':
       return { label: 'Duplicate', className: 'badge-default', icon: 'dup' }
+    case 'CANCELLED':
+      return { label: 'Cancelled', className: 'badge-default', icon: 'stop' }
     default:
       return { label: 'Pending', className: 'badge-default', icon: 'wait' }
   }
+}
+
+/** What the recruiter can do about one stopped resume: type in a missing email, or try a failed one again. */
+function RowActions({ batchId, task, onChanged }: { batchId: string; task: BatchTask; onChanged: () => void }) {
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const needsEmail = task.status === 'NEEDS_REVIEW' && task.errorCode === 'NO_EMAIL' && !task.candidateId
+  const canRetry = task.status === 'FAILED'
+  if (!needsEmail && !canRetry) return null
+
+  const run = async (action: () => Promise<void>) => {
+    setBusy(true)
+    try {
+      await action()
+      onChanged()
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'That did not work')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (needsEmail) {
+    const submit = () =>
+      run(async () => {
+        const res = await batchApi.supplyEmail(batchId, task.id, email)
+        if (res.outcome === 'DUPLICATE') toast('That person has already applied for this job')
+        else toast.success('Queued again with that email')
+      })
+    return (
+      <form
+        className="mt-1.5 flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void submit()
+        }}
+      >
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Candidate's email"
+          aria-label={`Email for ${task.fileName}`}
+          className="input h-8 min-w-0 flex-1 text-body-sm"
+        />
+        <Button type="submit" size="sm" variant="secondary" loading={busy}>
+          Add email
+        </Button>
+      </form>
+    )
+  }
+
+  return (
+    <div className="mt-1.5">
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        loading={busy}
+        onClick={() =>
+          run(async () => {
+            const res = await batchApi.retryTask(batchId, task.id)
+            if (!res.requeued) toast.error('This resume cannot be retried')
+          })
+        }
+      >
+        <RotateCcw className="h-4 w-4" aria-hidden="true" />
+        Retry this one
+      </Button>
+    </div>
+  )
 }
 
 /** Every page of a batch's tasks; the server caps a page at 200 and a batch can hold 500. */
@@ -95,18 +143,27 @@ interface Props {
   batchId: string
   /** Fires once, when every resume has reached a final state. */
   onFinished?: (batch: Batch) => void
-  compact?: boolean
+  /** Lets the per-resume list be folded away (it is open to start with). Used where the progress sits on a page. */
+  collapsible?: boolean
+  /** Shown once the batch has finished, so the recruiter can clear it from the page. */
+  onDismiss?: () => void
 }
 
 /** Live progress of one bulk upload: overall bar and counts, then every resume with its own status. */
-export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
+export function BatchProgress({ batchId, onFinished, collapsible = false, onDismiss }: Props) {
   const [batch, setBatch] = useState<Batch | null>(null)
   const [tasks, setTasks] = useState<BatchTask[]>([])
   const [error, setError] = useState<string | null>(null)
   const [retrying, setRetrying] = useState(false)
+  const [open, setOpen] = useState(true)
+  const [confirmCancel, setConfirmCancel] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [restart, setRestart] = useState(0)
   const finishedRef = useRef(false)
   const onFinishedRef = useRef(onFinished)
   onFinishedRef.current = onFinished
+
+  const detailed = !collapsible || open
 
   useEffect(() => {
     let cancelled = false
@@ -116,9 +173,9 @@ export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
     const tick = async () => {
       try {
         const next = await batchApi.get(batchId)
-        const list = compact
-          ? (await batchApi.tasks(batchId, { status: 'PROCESSING', size: 10 })).items // just enough to name the current step
-          : await fetchAllTasks(batchId)
+        const list = detailed
+          ? await fetchAllTasks(batchId)
+          : (await batchApi.tasks(batchId, { status: 'PROCESSING', size: 10 })).items // just enough to name the current step
         if (cancelled) return
         setBatch(next)
         setTasks(list)
@@ -141,7 +198,7 @@ export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
       cancelled = true
       if (timer) clearTimeout(timer)
     }
-  }, [batchId, compact, retrying])
+  }, [batchId, detailed, retrying, restart])
 
   const retryFailed = async () => {
     setRetrying(true)
@@ -155,6 +212,26 @@ export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
     }
   }
 
+  const cancelBatch = async () => {
+    setCancelling(true)
+    try {
+      const result = await batchApi.cancel(batchId)
+      toast.success(
+        result.mode === 'ranking'
+          ? 'Ranking stopped'
+          : result.removedCandidates > 0
+            ? `Upload cancelled. ${result.removedCandidates} candidate${result.removedCandidates === 1 ? '' : 's'} removed again.`
+            : 'Upload cancelled'
+      )
+      setConfirmCancel(false)
+      setRestart((n) => n + 1) // read the final state and tell the page to reload
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Could not cancel')
+    } finally {
+      setCancelling(false)
+    }
+  }
+
   if (!batch) {
     return (
       <div className="flex items-center gap-2 text-body-sm text-ink-600 dark:text-ink-300" role="status">
@@ -165,20 +242,40 @@ export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
   }
 
   const c = batch.counts
-  const active = c.QUEUED + c.PROCESSING + c.UPLOADED
-  const finished = batch.totalFiles - active
-  const failedCount = c.FAILED + c.NEEDS_REVIEW
   const done = TERMINAL.has(batch.status)
   const stage = dominantStage(tasks.filter((t) => t.status === 'PROCESSING'))
-  const left = timeLeft(batch.estimatedSecondsRemaining)
+  const cancelled = batch.status === 'CANCELLED'
+  // Once a batch has been ranked, its latest phase is the ranking run, with counts of its own.
+  const ranking = batch.rankingTotal > 0
+  const total = ranking ? batch.rankingTotal : batch.totalFiles
+  const succeeded = ranking ? batch.rankingDone : c.COMPLETED
+  const failedTotal = ranking ? batch.rankingFailed : c.FAILED + c.NEEDS_REVIEW
+  const finished = ranking ? batch.rankingDone + batch.rankingFailed : batch.totalFiles - (c.QUEUED + c.PROCESSING + c.UPLOADED)
+  const skipped = ranking ? 0 : c.DUPLICATE
+  const current = Math.min(total, finished + 1)
+  const latestRun = tasks.reduce<string | null>((max, t) => (t.rankRunAt && (!max || t.rankRunAt > max) ? t.rankRunAt : max), null)
+  const shownTasks = ranking && latestRun ? tasks.filter((t) => t.rankRunAt === latestRun) : tasks
+  const what = ranking ? 'candidates ranked' : 'resumes processed'
 
   const headline = done
-    ? batch.status === 'COMPLETED'
-      ? 'All resumes are processed'
-      : batch.status === 'FAILED'
-        ? 'None of these resumes could be processed'
-        : 'Finished, but some resumes need attention'
-    : 'Processing resumes...'
+    ? cancelled
+      ? ranking
+        ? 'Ranking stopped'
+        : 'Upload cancelled'
+      : ranking
+        ? failedTotal === 0
+          ? 'All candidates are ranked'
+          : succeeded === 0
+            ? 'None of the candidates could be ranked'
+            : 'Ranking finished, but some candidates could not be ranked'
+        : batch.status === 'COMPLETED'
+          ? 'All resumes are processed'
+          : batch.status === 'FAILED'
+            ? 'None of these resumes could be processed'
+            : 'Processing finished, but some resumes need attention'
+    : ranking
+      ? `Ranking candidate ${current} of ${total}…`
+      : `Processing resume ${current}…`
 
   return (
     <section aria-label="Resume processing progress" className="space-y-4">
@@ -188,6 +285,8 @@ export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
             {done ? (
               batch.status === 'COMPLETED' ? (
                 <CheckCircle2 className="h-5 w-5 text-success-600" aria-hidden="true" />
+              ) : cancelled ? (
+                <Ban className="h-5 w-5 text-ink-500" aria-hidden="true" />
               ) : (
                 <AlertTriangle className="h-5 w-5 text-warning-600" aria-hidden="true" />
               )
@@ -206,24 +305,53 @@ export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
           aria-valuemax={100}
           aria-label="Overall progress"
         >
-          <div className="progress-fill" style={{ width: `${batch.percentComplete}%` }} />
+          <div className="progress-fill !duration-700 ease-out" style={{ width: `${batch.percentComplete}%` }} />
         </div>
         <p className="mt-2 text-body-sm text-ink-700 dark:text-ink-200">
-          <span className="font-semibold tabular">{finished}</span> of <span className="font-semibold tabular">{batch.totalFiles}</span> resumes completed
-          {failedCount > 0 && <span className="text-error-600"> · {failedCount} failed</span>}
+          <span className="font-semibold tabular">{finished}</span> of <span className="font-semibold tabular">{total}</span>{' '}
+          {what}
           {!done && stage && <span className="text-ink-500 dark:text-ink-400"> · {STAGE_LABEL[stage]}</span>}
+        </p>
+        <p className="mt-1 flex flex-wrap gap-x-4 text-body-sm">
+            <span className="text-success-700 dark:text-success-400">
+              <span className="font-semibold tabular">{succeeded}</span> {ranking ? 'ranked successfully' : 'processed successfully'}
+            </span>
+            <span className={failedTotal > 0 ? 'text-error-600' : 'text-ink-500 dark:text-ink-400'}>
+              <span className="font-semibold tabular">{failedTotal}</span> failed
+            </span>
+            {skipped > 0 && (
+              <span className="text-ink-500 dark:text-ink-400">
+                <span className="font-semibold tabular">{skipped}</span> skipped as duplicates
+              </span>
+            )}
         </p>
         <p className="mt-1 text-body-xs text-ink-500 dark:text-ink-400">
           {done
-            ? `Finished in ${took(batch.elapsedSeconds)}.`
-            : `This may take a few minutes.${left ? ` ${left[0].toUpperCase()}${left.slice(1)} left.` : ''} You can close this window; processing continues in the background.`}
+            ? cancelled
+              ? ranking
+                ? 'Candidates and anything already scored were kept.'
+                : 'Nothing from this upload was kept.'
+              : ''
+            : `You can close this window; ${ranking ? 'ranking' : 'processing'} will continue in the background.`}
           {error && <span className="ml-2 text-warning-600">Connection problem, retrying…</span>}
         </p>
       </div>
 
-      {!compact && (
-        <ul className="max-h-72 divide-y divide-[var(--color-border)] overflow-y-auto rounded-lg border border-[var(--color-border)]" aria-label="Uploaded resumes">
-          {tasks.map((t) => {
+      {collapsible && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="inline-flex cursor-pointer items-center gap-1 text-body-sm font-semibold text-brand-700 hover:underline dark:text-brand-300"
+        >
+          <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} aria-hidden="true" />
+          {open ? 'Hide resume details' : 'Show resume details'}
+        </button>
+      )}
+
+      {detailed && (
+        <ul className="max-h-72 divide-y divide-[var(--color-border)] overflow-y-auto rounded-lg border border-[var(--color-border)]" aria-label={ranking ? 'Candidates being ranked' : 'Uploaded resumes'}>
+          {shownTasks.map((t) => {
             const state = rowState(t)
             const problem = state.icon === 'bad' || state.icon === 'warn' || state.icon === 'dup'
             return (
@@ -235,13 +363,19 @@ export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
                   {state.icon === 'bad' && <XCircle className="h-4 w-4 text-error-600" />}
                   {state.icon === 'warn' && <AlertTriangle className="h-4 w-4 text-warning-600" />}
                   {state.icon === 'dup' && <Copy className="h-4 w-4 text-ink-400" />}
+                  {state.icon === 'stop' && <Ban className="h-4 w-4 text-ink-400" />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-body-sm font-medium text-ink-900 dark:text-ink-100" title={t.fileName}>
                     {t.fileName}
                   </p>
-                  {t.status === 'PROCESSING' && <p className="text-body-xs text-ink-500 dark:text-ink-400">{STAGE_LABEL[t.stage]}</p>}
-                  {problem && <p className="text-body-xs text-ink-600 dark:text-ink-300">{describe(t)}</p>}
+                  {t.note && (
+                    <p className={cn('text-body-xs', problem ? 'text-ink-600 dark:text-ink-300' : 'text-ink-500 dark:text-ink-400')}>
+                      {t.note}
+                      {t.status === 'PROCESSING' && t.elapsedSeconds !== null && <span className="tabular"> ({spent(t.elapsedSeconds)} so far)</span>}
+                    </p>
+                  )}
+                  <RowActions batchId={batchId} task={t} onChanged={() => setRestart((n) => n + 1)} />
                 </div>
                 <span className={cn(state.className, 'flex-shrink-0')}>{state.label}</span>
               </li>
@@ -250,12 +384,45 @@ export function BatchProgress({ batchId, onFinished, compact = false }: Props) {
         </ul>
       )}
 
-      {done && c.FAILED > 0 && (
-        <Button type="button" variant="secondary" size="sm" onClick={retryFailed} loading={retrying}>
-          <RotateCcw className="h-4 w-4" aria-hidden="true" />
-          Retry {c.FAILED} failed
-        </Button>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {done && c.FAILED > 0 && (
+          <Button type="button" variant="secondary" size="sm" onClick={retryFailed} loading={retrying}>
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            Retry {c.FAILED} failed
+          </Button>
+        )}
+        {!done && (
+          <Button type="button" variant="secondary" size="sm" onClick={() => setConfirmCancel(true)}>
+            <X className="h-4 w-4" aria-hidden="true" />
+            {batch.ranking > 0 ? 'Stop ranking' : 'Cancel upload'}
+          </Button>
+        )}
+        {done && onDismiss && (
+          <Button type="button" variant="ghost" size="sm" onClick={onDismiss}>
+            Dismiss
+          </Button>
+        )}
+      </div>
+
+      <ConfirmModal
+        isOpen={confirmCancel}
+        onClose={() => setConfirmCancel(false)}
+        onConfirm={cancelBatch}
+        loading={cancelling}
+        variant="danger"
+        title={batch.ranking > 0 ? 'Stop ranking?' : 'Cancel this upload?'}
+        message={
+          batch.ranking > 0
+            ? 'Ranking stops now. Candidates stay, and so do any scores that were already worked out.'
+            : 'Every resume still being read is stopped right away, and any request already sent to the AI is abandoned.'
+        }
+        confirmText={batch.ranking > 0 ? 'Stop ranking' : 'Cancel upload'}
+        cancelText="Keep going"
+      >
+        {batch.ranking > 0
+          ? 'You can start it again with Rank candidates.'
+          : `Candidates already created from this upload (${c.COMPLETED + c.NEEDS_REVIEW} so far) are removed again, along with their resumes and AI results. This cannot be undone.`}
+      </ConfirmModal>
     </section>
   )
 }

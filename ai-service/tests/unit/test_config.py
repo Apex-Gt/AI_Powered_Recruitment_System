@@ -73,14 +73,14 @@ def test_reranker_config_defaults():
 
 
 def test_scoring_config_defaults():
-    config = ScoringConfig()
+    config = ScoringConfig(_env_file=None)  # the code defaults, not whatever a local .env pins
     assert config.skill_weight == 0.40
     assert config.experience_weight == 0.20
     assert config.education_weight == 0.10
     assert config.semantic_weight == 0.30
     assert config.min_skill_match_threshold == 0.3
-    assert config.prompt_version == "1.0"
-    assert config.scoring_version == "1.0"
+    assert config.prompt_version == "2.0"
+    assert config.scoring_version == "2.0"
 
 
 def test_chunking_config_defaults():

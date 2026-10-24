@@ -34,11 +34,20 @@ public interface ResumeTaskRepository extends JpaRepository<ResumeTask, UUID> {
 
     boolean existsByDedupeKey(String dedupeKey);
 
+    List<ResumeTask> findByJobIdAndStatusInAndCandidateIdIsNotNull(UUID jobId, Collection<ResumeTaskStatus> statuses);
+
+    long countByJobIdAndStatusIn(UUID jobId, Collection<ResumeTaskStatus> statuses);
+
     Page<ResumeTask> findByBatchId(UUID batchId, Pageable pageable);
 
     Page<ResumeTask> findByBatchIdAndStatus(UUID batchId, ResumeTaskStatus status, Pageable pageable);
 
     List<ResumeTask> findByBatchId(UUID batchId);
+
+    /** Same rows, locked, so a cancel and a worker finishing a stage cannot interleave on one task. */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from ResumeTask t where t.batchId = :batchId")
+    List<ResumeTask> lockByBatchId(@Param("batchId") UUID batchId);
 
     List<ResumeTask> findByBatchIdAndStatusIn(UUID batchId, Collection<ResumeTaskStatus> statuses);
 
